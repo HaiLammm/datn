@@ -6,8 +6,13 @@ dependencies:
   - _libgcc_mutex=0.1=main
   - _openmp_mutex=5.1=1_gnu
   - annotated-types=0.7.0=pyhd8ed1ab_1
+  - argon2-cffi=25.1.0=pyhd8ed1ab_0
+  - argon2-cffi-bindings=25.1.0=py314h5bd0f2a_2
+  - bcrypt=5.0.0=py314h2e6c369_1
   - bzip2=1.0.8=h5eee18b_6
   - ca-certificates=2025.11.12=hbd8a1cb_0
+  - cffi=2.0.0=py314h4eded50_1
+  - cryptography=46.0.3=py314hb613cbf_0
   - cyrus-sasl=2.1.28=hd9c7081_0
   - expat=2.7.3=h3385a95_0
   - greenlet=3.2.4=py314ha160325_1
@@ -33,9 +38,11 @@ dependencies:
   - ncurses=6.5=h7934f7d_0
   - openldap=2.6.10=he970967_0
   - openssl=3.6.0=h26f9b46_0
+  - passlib=1.7.4=pyhd8ed1ab_2
   - pip=25.3=pyh0d26453_0
   - psycopg2=2.9.10=py314hf06d13c_4
   - pthread-stubs=0.3=h0ce48e5_1
+  - pycparser=2.22=pyh29332c3_1
   - pydantic=2.12.4=pyh3cfb1c2_0
   - pydantic-core=2.41.5=py314h2e6c369_1
   - pydantic-settings=2.12.0=pyh3cfb1c2_0
