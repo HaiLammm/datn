@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field, EmailStr, field_validator
-import utils
 REGEX_USERNAME = r"^[a-z]{6,}$"
 special_chars = "!@#$%^&*"
 
@@ -18,3 +17,19 @@ class UserCreate(BaseModel):
             raise ValueError('Mat khau phai co ky tu dac biet')
         else:
             return password
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserOut(BaseModel):
+    id: int 
+    user_name: str
+    email: str
+    is_activate: bool
+
+    class Config:
+        from_attributes = True
+class Token(BaseModel):
+    access_token: str
+    token_type: str
