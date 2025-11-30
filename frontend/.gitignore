@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
+# Local Documentation / AI Context
+GEMINI.md
+FOCUS.md 
+note.md
 # dependencies
 /node_modules
 /.pnp
