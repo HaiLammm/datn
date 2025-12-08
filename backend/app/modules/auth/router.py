@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from pydantic import EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import create_access_token, get_password_hash
+from app.core.config import settings
+from app.core.mailer import send_email
 from app.modules.auth.dependencies import get_current_active_user
 from app.modules.auth.schemas import (
     Msg,
@@ -26,8 +29,9 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=Msg, status_code=status.HTTP_201_CREATED)
-def register_user(
+async def register_user(
     user_in: UserCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user_service: UserService = Depends(UserService),
     auth_service: AuthService = Depends(AuthService),
@@ -53,8 +57,17 @@ def register_user(
         activation_code_expires_at=activation_code_expires_at,
     )
 
-    # TODO: Send activation email using background tasks
-    # print(f"Activation code for {user.email}: {activation_code}")
+    background_tasks.add_task(
+        send_email,
+        recipients=[user.email],
+        subject="Account Activation",
+        template_name="activation.html",
+        template_body={
+            "full_name": user.full_name or user.email,
+            "activation_code": activation_code,
+            "project_name": settings.PROJECT_NAME,
+        },
+    )
 
     return {"msg": "User registered successfully. Please check your email for activation."}
 
@@ -102,7 +115,8 @@ def login_for_access_token(
 
 
 @router.post("/request-password-change", response_model=Msg)
-def request_password_change(
+async def request_password_change(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     auth_service: AuthService = Depends(AuthService),
@@ -111,8 +125,17 @@ def request_password_change(
     Request a password change by sending an OTP to the user's email (for logged-in users).
     """
     otp = auth_service.request_password_change(db, user=current_user)
-    # TODO: Send password reset email using background tasks
-    # print(f"Password reset OTP for {current_user.email}: {otp}")
+    background_tasks.add_task(
+        send_email,
+        recipients=[current_user.email],
+        subject="Password Reset Request",
+        template_name="reset_password.html",
+        template_body={
+            "full_name": current_user.full_name or current_user.email,
+            "otp": otp,
+            "project_name": settings.PROJECT_NAME,
+        },
+    )
     return {"msg": "Password change OTP sent to your email."}
 
 
@@ -136,8 +159,9 @@ def change_password(
 
 
 @router.post("/forgot-password", response_model=Msg)
-def forgot_password(
+async def forgot_password(
     request: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     auth_service: AuthService = Depends(AuthService),
 ) -> Any:
@@ -145,9 +169,19 @@ def forgot_password(
     Forgot Password
     """
     otp = auth_service.request_password_reset(db, email=request.email)
-    # TODO: Send password reset email using background tasks
-    # print(f"Password reset OTP for {request.email}: {otp}")
-    return {"msg": "Password reset OTP sent to your email."}
+    if otp:
+        background_tasks.add_task(
+            send_email,
+            recipients=[request.email],
+            subject="Password Reset Request",
+            template_name="reset_password.html",
+            template_body={
+                "full_name": request.email,
+                "otp": otp,
+                "project_name": settings.PROJECT_NAME,
+            },
+        )
+    return {"msg": "If an account with that email exists, a password reset OTP will be sent."}
 
 
 @router.post("/reset-password", response_model=Msg)
