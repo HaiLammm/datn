@@ -3,13 +3,14 @@ import { cn } from "@/lib/utils"; // Import cn
 import { Button } from "@/components/ui/button"; // Import Button
 
 interface FormWrapperProps {
-  title: string;
-  children: React.ReactNode;
-  submitText: string;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+    title: string;
+    children: React.ReactNode;
+    submitText: string;
+    isPending: boolean;
+    action: (payload: FormData)=> void;
 }
 
-const FormWrapper: React.FC<FormWrapperProps> = ({ title, children, submitText, onSubmit }) => {
+const FormWrapper: React.FC<FormWrapperProps> = ({ title, children, submitText, isPending,action}) => {
   return (
     <div className={cn("flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8")}>
       <div className={cn("sm:mx-auto sm:w-full sm:max-w-sm")}>
@@ -19,10 +20,10 @@ const FormWrapper: React.FC<FormWrapperProps> = ({ title, children, submitText, 
       </div>
 
       <div className={cn("mt-10 sm:mx-auto sm:w-full sm:max-w-sm")}>
-        <form className={cn("space-y-6")} onSubmit={onSubmit}>
+        <form className={cn("space-y-6")} action={action} >
           {children}
           <div>
-            <Button
+            <Button disabled = {isPending} 
               type="submit"
               className={cn("w-full bg-blue-500 hover:bg-blue-600 focus-visible:outline-blue-600")}
             >

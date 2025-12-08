@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { uploadPdf } from '@/lib/pdf'; // Adjust path if necessary based on your tsconfig.json paths
+import { uploadPdf } from '@/lib/pdf/upload-pdf'; // Adjust path if necessary based on your tsconfig.json paths
 
 export function PdfUploader() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
