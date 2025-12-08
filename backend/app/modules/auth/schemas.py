@@ -35,7 +35,14 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    refresh_token: str
+
+class AccessToken(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
 
 
 class TokenPayload(BaseModel):
     sub: Optional[EmailStr] = None
+    type: str = "access"

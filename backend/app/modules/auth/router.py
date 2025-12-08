@@ -6,11 +6,19 @@ from pydantic import EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import (
+    create_access_token,
+    get_password_hash,
+    create_refresh_token,
+)
 from app.core.config import settings
 from app.core.mailer import send_email
-from app.modules.auth.dependencies import get_current_active_user
+from app.modules.auth.dependencies import (
+    get_current_active_user,
+    get_current_user_from_refresh_token,
+)
 from app.modules.auth.schemas import (
+    AccessToken,
     Msg,
     PasswordChangeWithOTP,
     Token,
@@ -69,7 +77,9 @@ async def register_user(
         },
     )
 
-    return {"msg": "User registered successfully. Please check your email for activation."}
+    return {
+        "msg": "User registered successfully. Please check your email for activation."
+    }
 
 
 @router.post("/verify-email", response_model=UserSchema)
@@ -82,10 +92,11 @@ def verify_email(
     Verify a user's email account.
     """
     user = auth_service.activate_user(
-        db, email=activation_data.email, activation_code=activation_data.activation_code
+        db,
+        email=activation_data.email,
+        activation_code=activation_data.activation_code,
     )
     return user
-
 
 
 @router.post("/login", response_model=Token)
@@ -107,11 +118,27 @@ def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
     access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    refresh_token = create_refresh_token(data={"sub": user.email})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "refresh_token": refresh_token,
+    }
+
+
+@router.post("/refresh-token", response_model=AccessToken)
+def refresh_token(
+    current_user: User = Depends(get_current_user_from_refresh_token),
+) -> Any:
+    """
+    OAuth2 compatible token refresh, get a new access token
+    """
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    new_access_token = create_access_token(data={"sub": current_user.email})
+    return {"access_token": new_access_token, "token_type": "bearer"}
 
 
 @router.post("/request-password-change", response_model=Msg)
@@ -181,7 +208,9 @@ async def forgot_password(
                 "project_name": settings.PROJECT_NAME,
             },
         )
-    return {"msg": "If an account with that email exists, a password reset OTP will be sent."}
+    return {
+        "msg": "If an account with that email exists, a password reset OTP will be sent."
+    }
 
 
 @router.post("/reset-password", response_model=Msg)
@@ -200,4 +229,3 @@ def reset_password(
         new_password=password_data.new_password,
     )
     return {"msg": "Password has been reset successfully."}
-
