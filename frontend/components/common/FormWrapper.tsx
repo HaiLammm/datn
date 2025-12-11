@@ -1,40 +1,40 @@
-import React from 'react';
-import { cn } from "@/lib/utils"; // Import cn
-import { Button } from "@/components/ui/button"; // Import Button
+import type React from "react"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface FormWrapperProps {
-    title: string;
-    children: React.ReactNode;
-    submitText: string;
-    isPending: boolean;
-    action: (payload: FormData)=> void;
+  title: string
+  children: React.ReactNode
+  submitText: string
+  isPending: boolean
+  action: (payload: FormData) => void
 }
 
-const FormWrapper: React.FC<FormWrapperProps> = ({ title, children, submitText, isPending,action}) => {
+const FormWrapper: React.FC<FormWrapperProps> = ({ title, children, submitText, isPending, action }) => {
   return (
-    <div className={cn("flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8")}>
-      <div className={cn("sm:mx-auto sm:w-full sm:max-w-sm")}>
-        <h2 className={cn("mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900")}>
-          {title}
-        </h2>
-      </div>
+    <div
+      className={cn("flex min-h-screen flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8 bg-background")}
+    >
+      <Card className={cn("w-full sm:max-w-sm shadow-lg")}>
+        <CardHeader className={cn("space-y-1")}>
+          <CardTitle className={cn("text-2xl font-bold tracking-tight text-center text-foreground")}>{title}</CardTitle>
+        </CardHeader>
 
-      <div className={cn("mt-10 sm:mx-auto sm:w-full sm:max-w-sm")}>
-        <form className={cn("space-y-6")} action={action} >
-          {children}
-          <div>
-            <Button disabled = {isPending} 
-              type="submit"
-              className={cn("w-full bg-blue-500 hover:bg-blue-600 focus-visible:outline-blue-600")}
-            >
-              {submitText}
-            </Button>
-          </div>
-        </form>
-      </div>
+        <CardContent>
+          <form className={cn("space-y-6")} action={action}>
+            {children}
+
+            <div>
+              <Button disabled={isPending} type="submit" className={cn("w-full")}>
+                {submitText}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
-  );
-};
+  )
+}
 
-export default FormWrapper;
-
+export default FormWrapper

@@ -1,15 +1,14 @@
 // app/page.tsx
-// This is a Server Component, so "use client" is NOT allowed here.
-// Client Components like PdfUploader are imported and rendered within Server Components.
+// Home page with navigation to CV upload feature
 
-import { PdfUploader } from '@/components/common/PdfUploader';
+import Link from 'next/link';
 
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-white font-['Be_Vietnam_Pro']">
       <div className="z-10 w-full max-w-xl items-center justify-between font-mono text-sm lg:flex">
         <h1 className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          PDF Upload Demo
+          DATN - CV Upload System
         </h1>
       </div>
 
@@ -18,7 +17,26 @@ export default function Home() {
       </div>
 
       <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <PdfUploader />
+        <div className="space-y-4 p-6 border rounded-lg shadow-md bg-white">
+          <h2 className="text-xl font-semibold">CV Upload System</h2>
+          <p className="text-gray-600">
+            Upload your CV (PDF or DOCX) for analysis and processing.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Link
+              href="/cvs/upload"
+              className="px-6 py-2 font-semibold text-white bg-blue-500 rounded-md hover:bg-blue-600"
+            >
+              Upload CV
+            </Link>
+            <Link
+              href="/login"
+              className="px-6 py-2 font-semibold text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50"
+            >
+              Login
+            </Link>
+          </div>
+        </div>
       </div>
     </main>
   );
