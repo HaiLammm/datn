@@ -1,0 +1,81 @@
+"use server";
+
+import { z } from "zod";
+import { cvService } from "@/services/cv.service";
+import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+
+interface ActionState {
+  message: string;
+  errors: Record<string, string>;
+}
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_FILE_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+const CVSchema = z.object({
+  cvFile: z
+    .instanceof(File)
+    .refine((file) => file.size > 0, "File không được để trống.")
+    .refine((file) => file.size <= MAX_FILE_SIZE, `Kích thước file tối đa là 5MB.`)
+    .refine(
+      (file) => ACCEPTED_FILE_TYPES.includes(file.type),
+      "Chỉ chấp nhận file PDF hoặc DOCX."
+    ),
+});
+
+export async function createCVAction(
+  prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    // Validate form data
+    const validatedFields = CVSchema.safeParse({
+      cvFile: formData.get("cvFile"),
+    });
+
+    if (!validatedFields.success) {
+      const fieldErrors = validatedFields.error.flatten().fieldErrors;
+      return {
+        message: "Lỗi validation.",
+        errors: {
+          cvFile: fieldErrors.cvFile ? fieldErrors.cvFile[0] : "",
+        },
+      };
+    }
+
+    const { cvFile } = validatedFields.data;
+
+    // Create a new FormData object for the service call
+    const serviceFormData = new FormData();
+    serviceFormData.append("file", cvFile);
+
+    // Get authentication token from cookies to forward to backend API
+    const headersList = await headers();
+    const cookieHeader = headersList.get('cookie') || '';
+    const cookies = cookieHeader.split(';').map(c => c.trim());
+    const accessTokenCookie = cookies.find(c => c.startsWith('access_token='));
+    const accessToken = accessTokenCookie ? accessTokenCookie.split('=')[1] : '';
+
+    // Upload CV with forwarded authentication token
+    await cvService.uploadCV(serviceFormData, accessToken);
+
+    revalidatePath("/cvs/upload"); // Revalidate the upload page
+
+    return { message: "CV đã được tải lên thành công!", errors: {} };
+  } catch (error: unknown) {
+    console.error("Server Action Error:", error);
+    let errorMessage = "Đã xảy ra lỗi khi tải lên CV.";
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response?: { data?: { detail?: string } } };
+      errorMessage = axiosError.response?.data?.detail || errorMessage;
+    }
+    return {
+      message: errorMessage,
+      errors: {},
+    };
+  }
+}
