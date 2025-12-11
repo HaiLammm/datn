@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import PostgresDsn, model_validator, EmailStr
-from typing import Optional, Any, Dict
+from typing import Optional, Any
 from pathlib import Path
 
 class Settings(BaseSettings):
@@ -22,11 +22,11 @@ class Settings(BaseSettings):
         if isinstance(v, dict) and not v.get("DATABASE_URL"):
             v["DATABASE_URL"] = PostgresDsn.build(
                 scheme="postgresql+asyncpg",  # Use asyncpg driver
-                username=v.get("DB_USER"),
-                password=v.get("DB_PASSWORD"),
-                host=v.get("DB_HOST"),
+                username=v.get("DB_USER","luonghailam"),
+                password=v.get("DB_PASSWORD","12070123a"),
+                host=v.get("DB_HOST","localhost"),
                 port=int(v.get("DB_PORT", 5432)),
-                path=f"/{v.get('DB_NAME') or ''}",
+                path=v.get("DB_NAME","datn"),  # Let PostgresDsn.build handle the leading slash
             )
         return v
 
@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days
+    ENVIRONMENT: str = "development"  # "development" or "production"
 
     # Mail settings (ensure these are set in your .env file)
     MAIL_USERNAME: str
@@ -49,5 +50,8 @@ class Settings(BaseSettings):
     # Path to email templates
     TEMPLATE_FOLDER: Path = Path(__file__).parent.parent / "templates"
 
+    # Path for CV storage
+    CV_STORAGE_PATH: Path = Path("data/cv_uploads")
 
-settings = Settings()
+
+settings = Settings()  # type: ignore
