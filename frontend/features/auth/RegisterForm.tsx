@@ -22,7 +22,7 @@ export function RegisterForm() {
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(RegisterSchema),
     defaultValues: {
-      user_name: "",
+      full_name: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -37,15 +37,15 @@ export function RegisterForm() {
       isPending={isPending}
       action={formAction}
     >
-      {/* User Name */}
+      {/* Full Name */}
       <div>
-        <label htmlFor="user_name" className={cn("block text-sm font-medium leading-6 text-gray-900")}>
-          Username
+        <label htmlFor="full_name" className={cn("block text-sm font-medium leading-6 text-gray-900")}>
+          Full Name
         </label>
         <div className={cn("mt-2")}>
-          <Input id="user_name" type="text" {...register("user_name")} />
-          {errors.user_name && <p className={cn("mt-2 text-sm text-red-500")}>{errors.user_name.message}</p>}
-          {state.errors?.user_name && <p className={cn("mt-2 text-sm text-red-500")}>{state.errors.user_name[0]}</p>}
+          <Input id="full_name" type="text" {...register("full_name")} />
+          {errors.full_name && <p className={cn("mt-2 text-sm text-red-500")}>{errors.full_name.message}</p>}
+          {state.errors?.full_name && <p className={cn("mt-2 text-sm text-red-500")}>{state.errors.full_name[0]}</p>}
         </div>
       </div>
 
@@ -73,32 +73,8 @@ export function RegisterForm() {
         </div>
       </div>
 
-      {/* Confirm Password */}
-      <div className="mt-4">
-        <label htmlFor="confirmPassword" className={cn("block text-sm font-medium leading-6 text-gray-900")}>
-          Confirm Password
-        </label>
-        <div className={cn("mt-2")}>
-          <Input id="confirmPassword" type="password" autoComplete="new-password" {...register("confirmPassword")} />
-          {errors.confirmPassword && <p className={cn("mt-2 text-sm text-red-500")}>{errors.confirmPassword.message}</p>}
-          {state.errors?.confirmPassword && <p className={cn("mt-2 text-sm text-red-500")}>{state.errors.confirmPassword[0]}</p>}
-        </div>
-      </div>
-
-      {/* Birthday */}
-      <div className="mt-4">
-        <label htmlFor="birthday" className={cn("block text-sm font-medium leading-6 text-gray-900")}>
-          Birthday
-        </label>
-        <div className={cn("mt-2")}>
-          <Input id="birthday" type="date" {...register("birthday")} />
-          {errors.birthday && <p className={cn("mt-2 text-sm text-red-500")}>{errors.birthday.message}</p>}
-          {state.errors?.birthday && <p className={cn("mt-2 text-sm text-red-500")}>{state.errors.birthday[0]}</p>}
-        </div>
-      </div>
-
       {/* General Server Error */}
-      {state.errors?.server && (
+      {state.errors?.server && state.errors.server.length > 0 && (
           <p className={cn("mt-4 text-sm font-medium text-red-500")}>{state.errors.server[0]}</p>
       )}
        <div className="text-center mt-4">

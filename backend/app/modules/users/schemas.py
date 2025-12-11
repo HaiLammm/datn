@@ -7,6 +7,7 @@ from pydantic import BaseModel, EmailStr
 class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
+    birthday: Optional[datetime] = None
     role: Optional[str] = "user"  # Updated default role to "user"
     is_active: bool = False
     is_scraped: bool = False

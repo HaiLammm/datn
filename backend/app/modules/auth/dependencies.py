@@ -1,12 +1,12 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import ValidationError
-from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+from collections import defaultdict
 
 from app.core import security
 from app.core.config import settings
-from app.core.database import get_db
 from app.modules.users.models import User
 from app.modules.auth.schemas import TokenPayload
 from app.modules.users.services import UserService
@@ -20,8 +20,46 @@ refresh_oauth2 = OAuth2PasswordBearer(
 )
 
 
-def get_current_user(
-    db: Session = Depends(get_db),
+async def get_current_user_from_cookie(
+    request: Request,
+    user_service: UserService = Depends(UserService),
+) -> User:
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    try:
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
+        )
+        token_data = TokenPayload(**payload)
+        if token_data.type != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+            )
+    except (JWTError, ValidationError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
+    user = await user_service.get_user_by_email(email=token_data.sub)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+async def get_current_active_user_from_cookie(
+    current_user: User = Depends(get_current_user_from_cookie),
+) -> User:
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+
+
+async def get_current_user(
     token: str = Depends(reusable_oauth2),
     user_service: UserService = Depends(UserService),
 ) -> User:
@@ -40,14 +78,13 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
-    user = user_service.get_user_by_email(db, email=token_data.sub)
+    user = await user_service.get_user_by_email(email=token_data.sub)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
 
-def get_current_user_from_refresh_token(
-    db: Session = Depends(get_db),
+async def get_current_user_from_refresh_token(
     token: str = Depends(refresh_oauth2),
     user_service: UserService = Depends(UserService),
 ) -> User:
@@ -66,15 +103,47 @@ def get_current_user_from_refresh_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
-    user = user_service.get_user_by_email(db, email=token_data.sub)
+    user = await user_service.get_user_by_email(email=token_data.sub)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
 
-def get_current_active_user(
+async def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+
+
+# Simple in-memory rate limiter for CV uploads
+# In production, this should be replaced with Redis or similar
+_cv_upload_requests = defaultdict(list)
+
+
+async def rate_limit_cv_upload(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Rate limit CV uploads to 5 per minute per user.
+    This is a simple in-memory implementation for demonstration.
+    In production, use Redis or a distributed cache.
+    """
+    now = datetime.utcnow()
+    user_requests = _cv_upload_requests[current_user.id]
+
+    # Remove requests older than 1 minute
+    user_requests[:] = [req_time for req_time in user_requests if now - req_time < timedelta(minutes=1)]
+
+    # Check if user has exceeded the limit
+    if len(user_requests) >= 5:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many CV upload requests. Please wait before uploading another CV.",
+        )
+
+    # Add current request
+    user_requests.append(now)
+
     return current_user

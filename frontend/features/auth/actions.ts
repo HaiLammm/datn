@@ -1,99 +1,234 @@
 // src/features/auth/actions.ts
-'use server'
+'use server';
 
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { LoginSchema, RegisterSchema } from './types'; 
-import { apiClient } from '@/services/api-client'; 
+import {
+  LoginSchema,
+  RegisterSchema,
+  VerifyEmailSchema,
+  ForgotPasswordSchema,
+  ResetPasswordSchema,
+} from './types';
+import { authService } from '@/services/auth.service';
+import type { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies';
 
-// 1.Định nghĩa kiểu dữ liệu trả về cho Form State
-export type LoginFormState = {
-  errors?: {
-    email?: string[];
-    password?: string[];
-    server?: string[]; 
+// Helper function to parse a single cookie string
+function parseCookieString(cookieString: string) {
+  const parts = cookieString.split(';').map((part) => part.trim());
+  const [name, value] = parts[0].split('=');
+  const options: any = {
+    httpOnly: true, // Assume HttpOnly by default for security
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax', // Default SameSite policy
   };
-  message?: string;
+
+  for (let i = 1; i < parts.length; i++) {
+    const [key, val] = parts[i].split('=');
+    const optionKey = key.toLowerCase();
+
+    if (optionKey === 'expires') {
+      options.expires = new Date(val);
+    } else if (optionKey === 'max-age') {
+      options.maxAge = parseInt(val, 10);
+    } else if (optionKey === 'path') {
+      options.path = val;
+    } else if (optionKey === 'domain') {
+      options.domain = val;
+    } else if (optionKey === 'samesite') {
+      options.sameSite = val.toLowerCase();
+    } else if (optionKey === 'secure') {
+      options.secure = true;
+    } else if (optionKey === 'httponly') {
+      options.httpOnly = true;
+    }
+  }
+  return { name, value, options };
 }
 
-export async function loginUser(prevState: LoginFormState, formData: FormData) {
-  // 2. Validate dữ liệu đầu vào
-  const rawData = Object.fromEntries(formData.entries());
-  const validatedFields = LoginSchema.safeParse(rawData);
+// Helper to apply Set-Cookie headers to the Next.js response
+async function applySetCookie(setCookieHeader: string | string[]): Promise<void> {
+  const cookieStore = await cookies();
+  const headers = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  for (const cookieString of headers) {
+    const { name, value, options } = parseCookieString(cookieString);
+    if (name && value) {
+      cookieStore.set(name, value, options);
+    }
+  }
+}
+
+// 1. LOGIN ACTION
+export type LoginFormState = {
+  errors?: { email?: string[]; password?: string[]; server?: string[] };
+  message?: string;
+};
+
+export async function loginUser(prevState: LoginFormState, formData: FormData): Promise<LoginFormState> {
+  const validatedFields = LoginSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
-    const { email, password } = validatedFields.error.flatten().fieldErrors;
-    return {
-      errors: {
-        email: email,
-        password: password,
-      },
-      message: 'Dữ liệu không hợp lệ.',
-    };
+    return { errors: validatedFields.error.flatten().fieldErrors };
   }
 
-  const { email, password } = validatedFields.data;
-
-  // 3. Gọi sang Python Backend
   try {
-    const response = await apiClient.post('/auth/login', { 
-      email, 
-      password 
-    });
-    
-    const { access_token } = response.data;
+    const response = await authService.login(validatedFields.data);
 
-    // 4. Lưu Token vào Cookie (Quan trọng!)
-    const cookieStore = await cookies();
-    cookieStore.set('session_token', access_token, {
-      httpOnly: true, // JavaScript ở client không đọc được (chống XSS)
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24 * 7, // 7 ngày
-      path: '/',
-    });
-
+    // Xử lý Set-Cookie header từ Backend
+    const setCookieHeader = response.headers['set-cookie'];
+    if (setCookieHeader) {
+      await applySetCookie(setCookieHeader);
+    } else {
+      // This case might happen if login is successful but no cookie is set.
+      return { errors: { server: ['Login response missing session cookie.'] } };
+    }
   } catch (error: any) {
-    // Xử lý lỗi từ Python trả về
-    return {
-      errors: {
-        server: [error.response?.data?.detail || 'Đăng nhập thất bại. Vui lòng thử lại.']
-      },
-       message: 'Đăng nhập thất bại.',
-    };
+    const detail = error.response?.data?.detail;
+    let errorMessage = 'Đăng nhập thất bại. Vui lòng thử lại.';
+    if (typeof detail === 'string') {
+      errorMessage = detail;
+      if (detail.includes('không tồn tại')) {
+        return { errors: { email: [detail] } };
+      }
+      if (detail.includes('Mật khẩu không đúng')) {
+        return { errors: { password: [detail] } };
+      }
+    } else if (Array.isArray(detail) && detail.length > 0) {
+      errorMessage = detail.map((e: any) => e.msg || e).join(', ');
+    }
+    return { errors: { server: [errorMessage] } };
   }
 
-  // 5. Nếu thành công, chuyển hướng người dùng
   redirect('/dashboard');
 }
 
+// 2. REGISTER ACTION
 export type RegisterFormState = {
-  errors?: {
-    user_name?: string[];
-    email?: string[];
-    password?: string[];
-    confirmPassword?: string[];
-    birthday?: string[];
-    server?: string[];
-  };
+  errors?: { full_name?: string[]; email?: string[]; password?: string[]; server?: string[] };
   message?: string;
 };
 
 export async function registerUser(prevState: RegisterFormState, formData: FormData): Promise<RegisterFormState> {
-  const rawData = Object.fromEntries(formData.entries());
-  const validatedFields = RegisterSchema.safeParse(rawData);
+  const validatedFields = RegisterSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
-    return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Invalid form data.',
-    };
+    return { errors: validatedFields.error.flatten().fieldErrors };
   }
 
-  const { user_name, email, password, birthday } = validatedFields.data;
+  try {
+    await authService.register(validatedFields.data);
+  } catch (error: any) {
+    const detail = error.response?.data?.detail;
+    let errorMessage = 'Đăng ký thất bại. Vui lòng thử lại.';
+    if (typeof detail === 'string') {
+      errorMessage = detail;
+    } else if (Array.isArray(detail) && detail.length > 0) {
+      errorMessage = detail.map((e: any) => e.msg || e).join(', ');
+    }
+    return { errors: { server: [errorMessage] } };
+  }
 
-  // TODO: Implement actual API call to the backend
-  console.log("Registering user with:", { user_name, email, password, birthday });
+  // Chuyển hướng đến trang xác thực email sau khi đăng ký thành công
+  redirect(`/verify-email?email=${validatedFields.data.email}`);
+}
+
+// 3. VERIFY EMAIL ACTION
+export type VerifyEmailFormState = {
+  errors?: { otp?: string[]; server?: string[] };
+  message?: string;
+};
+
+export async function verifyEmail(prevState: VerifyEmailFormState, formData: FormData): Promise<VerifyEmailFormState> {
+  const validatedFields = VerifyEmailSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    return { errors: validatedFields.error.flatten().fieldErrors };
+  }
+
+  try {
+    await authService.verifyEmail(validatedFields.data);
+  } catch (error: any) {
+    const detail = error.response?.data?.detail;
+    let errorMessage = 'Xác thực thất bại.';
+    if (typeof detail === 'string') {
+      errorMessage = detail;
+    } else if (Array.isArray(detail) && detail.length > 0) {
+      errorMessage = detail.map((e: any) => e.msg || e).join(', ');
+    }
+    return { errors: { server: [errorMessage] } };
+  }
+
+  redirect('/login?verified=true');
+}
+
+// 4. FORGOT PASSWORD ACTION
+export type ForgotPasswordFormState = {
+  errors?: { email?: string[]; server?: string[] };
+  message?: string;
+};
+
+export async function forgotPassword(prevState: ForgotPasswordFormState, formData: FormData): Promise<ForgotPasswordFormState> {
+  const validatedFields = ForgotPasswordSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    return { errors: validatedFields.error.flatten().fieldErrors };
+  }
   
-  // On success, redirect to the login page.
+  const email = validatedFields.data.email;
+
+  try {
+    await authService.forgotPassword(validatedFields.data);
+  } catch (error: any) {
+    const detail = error.response?.data?.detail;
+    let errorMessage = 'Yêu cầu thất bại.';
+    if (typeof detail === 'string') {
+      errorMessage = detail;
+    } else if (Array.isArray(detail) && detail.length > 0) {
+      errorMessage = detail.map((e: any) => e.msg || e).join(', ');
+    }
+    return { errors: { server: [errorMessage] } };
+  }
+
+  redirect(`/reset-password?email=${email}`);
+}
+
+// 5. RESET PASSWORD ACTION
+export type ResetPasswordState = {
+  errors?: { password?: string[]; confirmPassword?: string[]; otp?: string[]; server?: string[] };
+  message?: string;
+};
+
+export async function resetPassword(prevState: ResetPasswordState, formData: FormData): Promise<ResetPasswordState> {
+    const validatedFields = ResetPasswordSchema.safeParse(Object.fromEntries(formData.entries()));
+
+    if (!validatedFields.success) {
+        return { errors: validatedFields.error.flatten().fieldErrors };
+    }
+
+    try {
+        await authService.resetPassword(validatedFields.data);
+    } catch (error: any) {
+        const detail = error.response?.data?.detail;
+        let errorMessage = 'Đặt lại mật khẩu thất bại.';
+        if (typeof detail === 'string') {
+          errorMessage = detail;
+        } else if (Array.isArray(detail) && detail.length > 0) {
+          errorMessage = detail.map((e: any) => e.msg || e).join(', ');
+        }
+        return { errors: { server: [errorMessage] } };
+    }
+
+    redirect('/login?reset=success');
+}
+
+// 6. LOGOUT ACTION
+export async function logoutUser(): Promise<void> {
+  try {
+    await authService.logout();
+  } catch (error) {
+    // Even if the API call fails, we should still redirect to login
+    console.error('Logout error:', error);
+  }
+  
   redirect('/login');
 }

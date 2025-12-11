@@ -1,17 +1,22 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, Suspense } from "react";
 import Link from "next/link";
-import { loginUser } from "@/features/auth/actions";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useSearchParams } from "next/navigation";
+
+import { loginUser } from "@/features/auth/actions";
 import { Input } from "@/components/ui/input";
-import FormWrapper from "@/components/common/FormWrapper"; // Đảm bảo đường dẫn đúng
+import FormWrapper from "@/components/common/FormWrapper";
 import { LoginSchema, LoginFormValues } from "@/features/auth/types";
 import { cn } from "@/lib/utils";
 
-export function LoginForm() {
-    // 1. SỬA: Cú pháp object khởi tạo đúng
+function LoginFormComponent() {
+    const searchParams = useSearchParams();
+    const isVerified = searchParams.get('verified') === 'true';
+    const isReset = searchParams.get('reset') === 'success';
+
     const [state, formAction, isPending] = useActionState(loginUser, {
         message: '',
         errors: {}
@@ -19,8 +24,7 @@ export function LoginForm() {
 
     const {
         register,
-        // handleSubmit, // Không cần dùng handleSubmit của hook-form nữa vì ta dùng Server Action
-        formState: { errors }, // Đây là lỗi client (validate form)
+        formState: { errors },
     } = useForm<LoginFormValues>({
         resolver: zodResolver(LoginSchema),
         defaultValues: {
@@ -33,11 +37,19 @@ export function LoginForm() {
         <FormWrapper
             title="Sign in to your account"
             submitText="Sign in"
-            // 2. SỬA: Truyền biến isPending vào trong ngoặc nhọn
             isPending={isPending}
-            // 3. SỬA: Dùng đúng tên biến 'formAction' lấy từ hook
-            action={formAction} 
+            action={formAction}
         >
+            {isVerified && (
+                <div className="mb-4 text-center text-sm font-medium text-green-600 bg-green-50 p-3 rounded-md">
+                    Email verified successfully! You can now log in.
+                </div>
+            )}
+            {isReset && (
+                <div className="mb-4 text-center text-sm font-medium text-green-600 bg-green-50 p-3 rounded-md">
+                    Password has been reset successfully. You can now log in with your new password.
+                </div>
+            )}
             <div>
                 <label
                     htmlFor="email"
@@ -51,19 +63,16 @@ export function LoginForm() {
                         id="email"
                         type="email"
                         autoComplete="email"
-                        // register sẽ tự thêm name="email" để Server Action đọc được
                         {...register("email")}
                         className={cn("block w-full focus:ring-blue-600")}
                     />
                     
-                    {/* Hiển thị lỗi Client (Validate sai định dạng) */}
                     {errors.email && (
                         <p className={cn("mt-2 text-sm text-red-500")}>
                             {errors.email.message}
                         </p>
                     )}
                     
-                    {/* 4. GỢI Ý THÊM: Hiển thị lỗi Server trả về (nếu có) */}
                     {state?.errors?.email && (
                          <p className={cn("mt-2 text-sm text-red-500")}>
                             {state.errors.email[0]}
@@ -81,9 +90,9 @@ export function LoginForm() {
                         Password
                     </label>
                     <div className={cn("text-sm")}>
-                        <a href="#" className={cn("font-semibold text-blue-600 hover:text-blue-500")}>
+                        <Link href="/forgot-password" className={cn("font-semibold text-blue-600 hover:text-blue-500")}>
                             Forgot password?
-                        </a>
+                        </Link>
                     </div>
                 </div>
 
@@ -100,8 +109,11 @@ export function LoginForm() {
                             {errors.password.message}
                         </p>
                     )}
-                    
-                     {/* Hiển thị lỗi chung từ Server (ví dụ: Sai mật khẩu) */}
+                     {state?.errors?.password && (
+                         <p className={cn("mt-2 text-sm text-red-500")}>
+                            {state.errors.password[0]}
+                        </p>
+                    )}
                      {state?.errors?.server && (
                         <p className={cn("mt-2 text-sm text-red-500 font-bold")}>
                             {state.errors.server[0]}
@@ -119,4 +131,12 @@ export function LoginForm() {
             </div>
         </FormWrapper>
     );
+}
+
+export function LoginForm() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <LoginFormComponent />
+        </Suspense>
+    )
 }

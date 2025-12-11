@@ -1,19 +1,25 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy.orm import Session
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
+from app.core.database import get_db
 from app.modules.users.models import User
 from app.modules.users.schemas import UserCreate
 
 
 class UserService:
-    def get_user_by_email(self, db: Session, email: str) -> Optional[User]:
-        return db.query(User).filter(User.email == email).first()
+    def __init__(self, db: AsyncSession = Depends(get_db)):
+        self.db = db
 
-    def create_user(
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        result = await self.db.execute(select(User).filter(User.email == email))
+        return result.scalars().first()
+
+    async def create_user(
         self,
-        db: Session,
         user_in: UserCreate,
         hashed_password: str,
         activation_code: Optional[str] = None,
@@ -23,6 +29,7 @@ class UserService:
             email=user_in.email,
             hashed_password=hashed_password,
             full_name=user_in.full_name,
+            birthday=user_in.birthday,
             role=user_in.role,
             is_active=user_in.is_active,
             is_scraped=user_in.is_scraped,
@@ -30,7 +37,7 @@ class UserService:
             activation_code=activation_code,
             activation_code_expires_at=activation_code_expires_at,
         )
-        db.add(db_user)
-        db.commit()
-        db.refresh(db_user)
+        self.db.add(db_user)
+        await self.db.commit()
+        await self.db.refresh(db_user)
         return db_user
