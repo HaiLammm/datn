@@ -44,3 +44,15 @@ The project currently utilizes the following technologies:
 | **Security: Lack of Rate Limiting** | Medium | Medium | Post-MVP: Implement rate limiting on critical endpoints to prevent brute-force attacks. |
 | **Security: Weak Password Validation** | Low | Medium | Post-MVP: Enhance password strength validation in frontend and backend. |
 | **Technical Debt: No Automated Tests** | Medium | High | Implement critical integration tests for the core AI pipeline during MVP. Comprehensive unit testing remains a Post-MVP goal. |
+
+### 4.6. Detailed Technical Strategy for RAG Pipeline
+*This section summarizes the key technical decisions from the brainstorming session for the RAG pipeline.*
+
+*   **Input Preprocessing (Heuristic/Routing Logic):** A tiered "Fail-Fast" strategy will be implemented to route CVs. It will start with a fast character count check, followed by a more reliable text object ratio check, and will only use a full garbled-text check as a last resort.
+*   **Input Preprocessing (OCR Library):** `EasyOCR` has been selected for the Proof-of-Concept due to its strong out-of-the-box support for both Vietnamese and English.
+*   **Knowledge Base Content:** The RAG knowledge base will be populated with a combination of Job Descriptions (JDs), structured Scoring Criteria/Competency Models, and Domain-Specific Taxonomies (e.g., skill aliases).
+*   **Knowledge Base Chunking:** A tailored chunking strategy will be used: Header-Based for JDs, Criterion-Based for Scoring Models, and Definition-Based for Taxonomies, with a small overlap between chunks.
+*   **RAG Retrieval Strategy (Query Formulation):** A Hybrid Query strategy will be used, combining a precise query from structured data (job title, skills) with a contextual query from the CV's experience section.
+*   **RAG Retrieval Strategy (Retrieval Type):** A three-tiered retrieval strategy will be used: 1) Hybrid Search for child chunks, 2) RRF Reranking, and 3) Parent Document Retrieval to provide rich context to the LLM.
+*   **Prompt Engineering:** The prompt will follow a strict structure: 1) System Instruction (LLM Role), 2) RAG Context, 3) CV Data, 4) Final Question. The LLM will be assigned the role of "Senior Recruitment Analyst".
+*   **Output Validation (JSON Enforcing):** A layered strategy will be used: 1) Pydantic Schema Injection in the prompt, 2) Strict Pydantic Validation on the output, and 3) a `json_repair` library as a fallback for minor syntax errors.

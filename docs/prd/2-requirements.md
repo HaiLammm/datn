@@ -21,7 +21,7 @@
 ## 2.2. Non Functional Requirements
 
 *   **NFR1:** The CV parsing success rate shall be greater than 95%.
-*   **NFR2:** The system shall provide immediate feedback (loading status) to the user upon submission, while the AI analysis processes asynchronously within a reasonable time (e.g., < 30 seconds).
+*   **NFR2:** The system shall provide immediate feedback (loading status) to the user upon submission, while the AI analysis processes asynchronously within a reasonable time (e.g., < 300 seconds).
 *   **NFR3:** The API response time for critical endpoints (e.g., CV upload, JD upload) shall be under 500ms for 95% of requests.
 *   **NFR4:** The system shall maintain the established security controls (e.g., HttpOnly cookies, bcrypt hashing, JWT validation) for all new features.
 *   **NFR5:** All processing of sensitive user data, particularly CV and JD content, shall be performed locally using the Ollama LLM to ensure data privacy.

@@ -2,66 +2,35 @@
 
 ## Technical Summary
 
-The architecture is a modern full-stack application composed of a Next.js frontend and a Python (FastAPI) backend, designed for modularity and scalability. The frontend will be deployed on Vercel to leverage its powerful CDN and CI/CD capabilities. The backend, along with the PostgreSQL database and the Ollama AI service, will be self-hosted on a dedicated Linux server to comply with the critical requirement of local, private AI data processing. Integration between the frontend and backend is achieved via a RESTful API, secured with an HttpOnly cookie-based authentication flow. This architecture directly supports the PRD goals by providing a high-performance user experience, ensuring data privacy for sensitive CV and JD information, and creating a scalable foundation for future AI-driven features.
+The DATN project is a full-stack web application following a Client-Server Model. The Backend is built with FastAPI (Python) and PostgreSQL, running on port 8000. The Frontend is a Next.js (React) application, utilizing the App Router, Shadcn/ui, and Tailwind CSS, running on port 3000. Authentication is cookie-based (HttpOnly Cookies). The current enhancement focuses on integrating AI-powered CV analysis via Ollama, adding CV management, and laying groundwork for job matching.
 
-## Platform and Infrastructure Choice
+## Actual Tech Stack
 
-Based on the PRD's requirement for local AI processing (NFR5) and the need for a high-performance frontend, a hybrid platform approach is recommended.
+| Category         | Technology               | Version      | Notes                                                                                                                  |
+| :--------------- | :----------------------- | :----------- | :----------                                                                                                          |
+| **Backend**      |                          |              |                                                                                                                        |
+| Runtime          | Python                   | 3.x          |                                                                                                                        |
+| Framework        | FastAPI                  | >=0.104.1    | High-performance web framework.                                                                                        |
+| ASGI Server      | Uvicorn                  | >=0.24.0     |                                                                                                                        |
+| ORM              | SQLAlchemy               | >=2.0.23     | Used for database interactions.                                                                                        |
+| DB Driver        | Asyncpg                  | >=0.29.0     | Asynchronous PostgreSQL driver.                                                                                        |
+| Migrations       | Alembic                  | >=1.13.0     | Database migration tool.                                                                                               |
+| Auth             | python-jose, passlib     | >=3.3.0,     | JWT generation/validation, bcrypt password hashing.                                                                    |
+| Config/Validation| Pydantic, pydantic-settings | >=2.5.2,     | Data validation and environment variable management.                                                                   |
+| AI Integration   | httpx                    | >=0.25.0     | Asynchronous HTTP client for Ollama API calls.                                                                         |
+| Text Extraction  | PyMuPDF (fitz)           | >=1.23.0     | PDF text extraction.                                                                                                   |
+| Text Extraction  | python-docx              | >=1.1.0      | DOCX text extraction.                                                                                                  |
+| Email            | fastapi-mail             | >=1.4.1      | Asynchronous email sending.                                                                                            |
+| **Frontend**     |                          |              |                                                                                                                        |
+| Runtime          | Node.js                  |              |                                                                                                                        |
+| Framework        | Next.js                  | 16.0.5       | App Router, Server Components/Actions strategy.                                                                        |
+| UI Library       | Shadcn/ui, Tailwind CSS  | ^4           | Component library and styling framework.                                                                               |
+| Icons            | Lucide React             |              | Icon library.                                                                                                          |
+| Forms            | react-hook-form, Zod     | ^7.67.0,     | Form management and client-side validation.                                                                            |
+| HTTP Client      | Axios                    | ^1.13.2      | Configured via `api-client.ts`.                                                                                        |
 
-**Platform:** **Vercel (Frontend)** + **Self-Hosted Server (Backend & AI)**
-**Key Services:**
-*   **Vercel:** Next.js Hosting, Global CDN, CI/CD (for Frontend).
-*   **Self-Hosted Server (Linux - Ubuntu 22.04 LTS):**
-    *   **FastAPI Backend Hosting:** Running the Python application via Uvicorn.
-    *   **PostgreSQL:** Relational database for application data.
-    *   **Ollama:** Serving local Large Language Models for all AI tasks.
-    *   **NGINX:** As a reverse proxy for the FastAPI application.
-**Deployment Host and Regions:**
-*   **Vercel:** Deployed to Vercel's global edge network.
-*   **Self-Hosted Server:** A single server instance will be provisioned in a secure data center (e.g., AWS EC2, DigitalOcean, or on-premise). The specific region should be chosen to minimize latency for the primary user base.
+## Repository Structure Reality Check
 
-## Repository Structure
-
-The project will use a **Monorepo** structure to manage the `frontend` and `backend` applications within a single Git repository. This approach simplifies dependency management and facilitates code sharing.
-
-**Structure:** Monorepo
-**Monorepo Tool:** **npm Workspaces** (Leveraging built-in npm capabilities is sufficient for the current scale and avoids adding extra dependencies).
-**Package Organization:**
-*   `apps/frontend`: The Next.js application.
-*   `apps/backend`: The FastAPI application.
-*   `packages/shared-types`: A new shared package for TypeScript interfaces and Zod schemas used by both frontend and backend to ensure type safety across the stack.
-
-## High Level Architecture Diagram
-
-```mermaid
-graph TD
-    subgraph "User's Browser"
-        A[User] --> B{Next.js Frontend};
-    end
-
-    subgraph "Vercel Platform"
-        B -- HTTPS --> C[Vercel Edge Network / CDN];
-    end
-
-    subgraph "Self-Hosted Linux Server (e.g., AWS EC2)"
-        C -- API Calls --> D[NGINX Reverse Proxy];
-        D --> E[FastAPI Backend];
-        E -- CRUD Ops --> F[PostgreSQL Database];
-        E -- AI Tasks (Async) --> G[Ollama LLM Service];
-    end
-
-    style G fill:#f9f,stroke:#333,stroke-width:2px
-```
-
-## Architectural Patterns
-
-- **Modular Monolith (Backend):** The FastAPI backend is organized into feature-based modules (e.g., `auth`, `users`, `cvs`). This provides clear separation of concerns while maintaining the simplicity of a single deployment unit.
-- **Jamstack (Frontend):** The Next.js application leverages static site generation (SSG) for shell pages and client-side rendering (CSR) for dynamic, user-specific data, ensuring optimal performance and SEO.
-- **Server Actions (Frontend):** For mutations and data fetching from the client, Next.js Server Actions will be used. This co-locates data operations with the components that use them, simplifying client-side state management.
-- **Asynchronous Task Processing (Backend):** For long-running AI operations like CV parsing, FastAPI's `BackgroundTasks` will be used to immediately return a response to the user while processing the task in the background, as required by NFR2.
-- **Repository Pattern (Backend):** The use of a `service.py` layer in each module abstracts business logic from the API endpoints (`router.py`) and data access, improving testability and maintainability.
-
----
-See [Technology Stack](./tech-stack.md) for details.
-
----
+-   Type: Monorepo (Backend and Frontend are separate projects within the same repository)
+-   Package Manager: `npm` (Frontend), `pip` (Backend)
+-   Notable: Shared types are defined in `packages/shared-types/`.
