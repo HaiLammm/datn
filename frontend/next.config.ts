@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
     // to prevent it from incorrectly inferring the workspace root and watching too many files.
     root: process.cwd(),
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '5mb', // Allow CV uploads up to 5MB
+    },
+  },
 };
 
 export default nextConfig;

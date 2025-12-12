@@ -4,6 +4,7 @@ import { z } from "zod";
 import { cvService } from "@/services/cv.service";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { CVWithStatus, CVAnalysis, AnalysisStatus } from "@datn/shared-types";
 
 interface ActionState {
   message: string;
@@ -26,6 +27,14 @@ const CVSchema = z.object({
       "Chỉ chấp nhận file PDF hoặc DOCX."
     ),
 });
+
+async function getAccessToken(): Promise<string> {
+  const headersList = await headers();
+  const cookieHeader = headersList.get('cookie') || '';
+  const cookies = cookieHeader.split(';').map(c => c.trim());
+  const accessTokenCookie = cookies.find(c => c.startsWith('access_token='));
+  return accessTokenCookie ? accessTokenCookie.split('=')[1] : '';
+}
 
 export async function createCVAction(
   prevState: ActionState,
@@ -54,16 +63,13 @@ export async function createCVAction(
     serviceFormData.append("file", cvFile);
 
     // Get authentication token from cookies to forward to backend API
-    const headersList = await headers();
-    const cookieHeader = headersList.get('cookie') || '';
-    const cookies = cookieHeader.split(';').map(c => c.trim());
-    const accessTokenCookie = cookies.find(c => c.startsWith('access_token='));
-    const accessToken = accessTokenCookie ? accessTokenCookie.split('=')[1] : '';
+    const accessToken = await getAccessToken();
 
     // Upload CV with forwarded authentication token
     await cvService.uploadCV(serviceFormData, accessToken);
 
     revalidatePath("/cvs/upload"); // Revalidate the upload page
+    revalidatePath("/cvs"); // Revalidate the CV list page
 
     return { message: "CV đã được tải lên thành công!", errors: {} };
   } catch (error: unknown) {
@@ -78,4 +84,24 @@ export async function createCVAction(
       errors: {},
     };
   }
+}
+
+export async function getCVList(): Promise<CVWithStatus[]> {
+  try {
+    const accessToken = await getAccessToken();
+    return await cvService.getCVList(accessToken);
+  } catch (error) {
+    console.error("Error fetching CV list:", error);
+    return [];
+  }
+}
+
+export async function getCVAnalysis(cvId: string): Promise<CVAnalysis> {
+  const accessToken = await getAccessToken();
+  return await cvService.getAnalysis(cvId, accessToken);
+}
+
+export async function getCVAnalysisStatus(cvId: string): Promise<AnalysisStatus> {
+  const accessToken = await getAccessToken();
+  return await cvService.getAnalysisStatus(cvId, accessToken);
 }

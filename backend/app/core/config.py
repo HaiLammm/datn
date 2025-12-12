@@ -53,5 +53,9 @@ class Settings(BaseSettings):
     # Path for CV storage
     CV_STORAGE_PATH: Path = Path("data/cv_uploads")
 
+    # AI/Ollama settings
+    OLLAMA_URL: str = "http://localhost:11434"
+    LLM_MODEL: str = "llama3.1:8b"
+
 
 settings = Settings()  # type: ignore

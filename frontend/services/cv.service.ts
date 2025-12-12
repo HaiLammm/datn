@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api-client";
-import { CV } from "@datn/shared-types";
+import { CV, CVWithStatus, CVAnalysis, AnalysisStatus } from "@datn/shared-types";
 
 export const cvService = {
   uploadCV: async (formData: FormData, accessToken?: string): Promise<CV> => {
@@ -15,8 +15,49 @@ export const cvService = {
       });
       return response.data;
     } catch (error) {
-      // In a real application, you might want more sophisticated error handling
       console.error("Error uploading CV:", error);
+      throw error;
+    }
+  },
+
+  getCVList: async (accessToken?: string): Promise<CVWithStatus[]> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.get<CVWithStatus[]>("/cvs", { headers });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching CV list:", error);
+      throw error;
+    }
+  },
+
+  getAnalysis: async (cvId: string, accessToken?: string): Promise<CVAnalysis> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.get<CVAnalysis>(`/ai/cvs/${cvId}/analysis`, { headers });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching CV analysis:", error);
+      throw error;
+    }
+  },
+
+  getAnalysisStatus: async (cvId: string, accessToken?: string): Promise<AnalysisStatus> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.get<AnalysisStatus>(`/ai/cvs/${cvId}/status`, { headers });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching analysis status:", error);
       throw error;
     }
   },

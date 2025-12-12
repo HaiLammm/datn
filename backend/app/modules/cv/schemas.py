@@ -23,3 +23,7 @@ class CVResponse(CVBase):
     class Config:
         from_attributes = True
 
+
+class CVWithStatusResponse(CVResponse):
+    analysis_status: str
+

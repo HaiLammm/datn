@@ -25,4 +25,5 @@ class CV(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     owner = relationship("User", back_populates="cvs")
+    analyses = relationship("CVAnalysis", back_populates="cv")
 
