@@ -61,4 +61,17 @@ export const cvService = {
       throw error;
     }
   },
+
+  deleteCV: async (cvId: string, accessToken?: string): Promise<void> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      await apiClient.delete(`/cvs/${cvId}`, { headers });
+    } catch (error) {
+      console.error("Error deleting CV:", error);
+      throw error;
+    }
+  },
 };

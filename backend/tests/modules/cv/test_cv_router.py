@@ -1,10 +1,13 @@
 import pytest
+import uuid
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from fastapi.testclient import TestClient
+from httpx import AsyncClient
 
 from app.core.config import settings
 from app.modules.users.models import User as DBUser
+from app.modules.cv.models import CV
 
 
 @pytest.mark.asyncio
@@ -81,4 +84,87 @@ async def test_list_user_cvs(client: TestClient, mock_db_session: AsyncMock):
     response = client.get("/api/v1/cvs/")
     assert response.status_code == 200
     assert response.json() == []
+
+
+# ============================================================================
+# DELETE /api/v1/cvs/{cv_id} Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_delete_cv_success(client: TestClient, test_user: DBUser, mock_db_session: AsyncMock):
+    """Test successful CV deletion returns 204 No Content."""
+    cv_id = uuid.uuid4()
+    
+    with patch("app.modules.cv.router.delete_cv") as mock_delete_cv:
+        mock_delete_cv.return_value = None  # delete_cv returns None on success
+        
+        response = client.delete(f"/api/v1/cvs/{cv_id}")
+        
+        assert response.status_code == 204
+        assert response.content == b""  # No content body
+        mock_delete_cv.assert_called_once()
+        # Verify the cv_id argument
+        call_args = mock_delete_cv.call_args
+        assert call_args.kwargs["cv_id"] == cv_id
+
+
+@pytest.mark.asyncio
+async def test_delete_cv_not_found(client: TestClient, test_user: DBUser, mock_db_session: AsyncMock):
+    """Test deleting non-existent CV returns 404 Not Found."""
+    from fastapi import HTTPException
+    
+    cv_id = uuid.uuid4()
+    
+    with patch("app.modules.cv.router.delete_cv") as mock_delete_cv:
+        # Simulate 404 from service
+        mock_delete_cv.side_effect = HTTPException(status_code=404, detail="CV not found")
+        
+        response = client.delete(f"/api/v1/cvs/{cv_id}")
+        
+        assert response.status_code == 404
+        assert response.json()["detail"] == "CV not found"
+
+
+@pytest.mark.asyncio
+async def test_delete_cv_not_owner(client: TestClient, test_user: DBUser, mock_db_session: AsyncMock):
+    """Test deleting CV owned by another user returns 404 (to prevent info disclosure)."""
+    from fastapi import HTTPException
+    
+    cv_id = uuid.uuid4()
+    
+    with patch("app.modules.cv.router.delete_cv") as mock_delete_cv:
+        # Service returns 404 for CV owned by another user (info disclosure prevention)
+        mock_delete_cv.side_effect = HTTPException(status_code=404, detail="CV not found")
+        
+        response = client.delete(f"/api/v1/cvs/{cv_id}")
+        
+        assert response.status_code == 404
+        assert response.json()["detail"] == "CV not found"
+
+
+@pytest.mark.asyncio
+async def test_delete_cv_unauthorized():
+    """Test deleting CV without authentication returns 401 Unauthorized."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    
+    cv_id = uuid.uuid4()
+    
+    # Use fresh client without auth overrides
+    app.dependency_overrides = {}
+    
+    with TestClient(app) as unauthenticated_client:
+        response = unauthenticated_client.delete(f"/api/v1/cvs/{cv_id}")
+        
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_delete_cv_invalid_uuid(client: TestClient):
+    """Test deleting CV with invalid UUID returns 422 Unprocessable Entity."""
+    response = client.delete("/api/v1/cvs/not-a-uuid")
+    
+    assert response.status_code == 422  # Validation error
 

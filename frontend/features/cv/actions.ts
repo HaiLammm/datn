@@ -105,3 +105,20 @@ export async function getCVAnalysisStatus(cvId: string): Promise<AnalysisStatus>
   const accessToken = await getAccessToken();
   return await cvService.getAnalysisStatus(cvId, accessToken);
 }
+
+export async function deleteCVAction(cvId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const accessToken = await getAccessToken();
+    await cvService.deleteCV(cvId, accessToken);
+    revalidatePath("/cvs");
+    return { success: true, message: "CV deleted successfully." };
+  } catch (error) {
+    console.error("Server Action Delete Error:", error);
+    let errorMessage = "Đã xảy ra lỗi khi xóa CV.";
+    if (error && typeof error === "object" && "response" in error) {
+      const axiosError = error as { response?: { data?: { detail?: string } } };
+      errorMessage = axiosError.response?.data?.detail || errorMessage;
+    }
+    return { success: false, message: errorMessage };
+  }
+}
