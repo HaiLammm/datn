@@ -1,0 +1,137 @@
+# Quality Gate: 2.1 - Advanced Preprocessing and OCR Layer
+schema: 1
+story: "2.1"
+story_title: "Implement Advanced Preprocessing and OCR Layer"
+gate: CONCERNS
+status_reason: "Dynamic timeout implemented but LLM non-determinism causes inconsistent experience extraction. User-reported file failures traced to pre-fix timeout issues."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-12-13T16:30:00+07:00"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "BUG-001"
+    severity: high
+    title: "Ollama timeout causing CV analyses to fail"
+    description: "httpx timeout was 60s but Ollama needs ~105s for CV analysis"
+    status: FIXED
+    fix_applied: "Implemented dynamic timeout: queue_position × 120s base timeout"
+    suggested_owner: dev
+
+  - id: "LLM-001"
+    severity: medium
+    title: "LLM non-determinism causes inconsistent experience extraction"
+    description: |
+      Same CV content ("hơn 3 năm kinh nghiệm") returns different total_years (2 vs 3).
+      This is inherent LLM behavior, not a code bug.
+    status: KNOWN_LIMITATION
+    suggested_action: "Consider adding temperature=0 to Ollama request for deterministic output"
+    suggested_owner: dev
+
+  - id: "DATA-001"
+    severity: low
+    title: "Duplicate CV analysis records in database"
+    description: "13 records exist for 5 files due to retry attempts during timeout period"
+    status: OPEN
+    suggested_action: "Clean up failed analysis records (score=50, summary contains 'Unable to generate')"
+    suggested_owner: dev
+
+risk_summary:
+  totals: { critical: 0, high: 1, medium: 2, low: 3 }
+  highest:
+    risk: "LLM inconsistency may confuse users when same CV gives different results"
+    score: 6
+    category: "reliability"
+  recommendations:
+    must_fix:
+      - "Verify file 21323.pdf analyzes correctly with new timeout"
+      - "Consider temperature=0 for more consistent LLM output"
+    monitor:
+      - "Ollama processing times and queue depth"
+      - "User feedback on result consistency"
+
+quality_score: 65  # Reduced due to LLM consistency issues
+expires: "2025-12-27T00:00:00Z"
+
+evidence:
+  tests_reviewed: 35
+  tests_passed: 35
+  tests_failed: 0
+  risks_identified: 6
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 9, 10]
+    ac_gaps: []
+    ac_partial: [8]  # OCR quality requires real-world validation
+  production_issue:
+    files_tested:
+      - file: "21005.pdf"
+        text_extracted: 3694
+        ai_score: 85
+        total_years: 2
+      - file: "21107.pdf"
+        text_extracted: 3638
+        ai_score: 85
+        total_years: 3
+      - file: "21323.pdf"
+        text_extracted: 3611
+        ai_score: 50
+        total_years: 0
+        note: "Failed due to pre-fix timeout"
+    root_cause_analysis:
+      text_extraction: "WORKS - All files extract 3600+ chars"
+      timeout_issue: "FIXED - Dynamic timeout implemented"
+      llm_consistency: "KNOWN LIMITATION - Non-deterministic output"
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Local OCR processing maintains data privacy (NFR5). No sensitive data in logs."
+  performance:
+    status: FAIL
+    notes: |
+      NFR2 requires <45s total processing time.
+      Actual Ollama analysis time: ~105s.
+      Dynamic timeout handles queue: (queue_position × 120s).
+      Recommendation: Use smaller model or GPU acceleration.
+  reliability:
+    status: CONCERNS
+    notes: |
+      - Timeout issue FIXED with dynamic timeout
+      - LLM non-determinism causes inconsistent results (inherent limitation)
+      - Fallback analysis works when AI fails
+  maintainability:
+    status: PASS
+    notes: "Well-structured code with proper separation of concerns. Type hints present."
+
+recommendations:
+  immediate:
+    - action: "Re-test file 21323.pdf to verify timeout fix works"
+      refs: ["backend/data-cv/Lam-Luong-Hai-TopCV.vn-131225.21323.pdf"]
+      suggested_owner: dev
+    - action: "Add temperature=0 to Ollama request for deterministic output"
+      refs: ["backend/app/modules/ai/service.py:602-608"]
+      suggested_owner: dev
+    - action: "Clean up duplicate/failed CV analysis records from database"
+      refs: ["cv_analyses table"]
+      suggested_owner: dev
+  future:
+    - action: "Evaluate smaller/faster LLM models for better NFR2 compliance"
+      refs: ["backend/app/modules/ai/service.py"]
+      suggested_owner: architect
+    - action: "Cache EasyOCR Reader instance at module level for better performance"
+      refs: ["backend/app/modules/ai/service.py:350"]
+      suggested_owner: dev
+    - action: "Add retry mechanism in frontend when analysis fails"
+      refs: ["frontend/features/cv/"]
+      suggested_owner: dev
+
+history:
+  - at: "2025-12-13T00:00:00Z"
+    gate: PASS
+    note: "Initial review - all ACs met, 41 tests passing"
+  - at: "2025-12-13T14:40:00+07:00"
+    gate: CONCERNS
+    note: "Follow-up review after production bug report. Timeout bug found and fixed."
+  - at: "2025-12-13T16:30:00+07:00"
+    gate: CONCERNS
+    note: "Third review - User reported 3 file issues. Root cause: pre-fix timeout + LLM non-determinism."

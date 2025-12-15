@@ -2,7 +2,8 @@ import json
 import uuid
 import logging
 import re
-from typing import Dict, Any, List
+import asyncio
+from typing import Dict, Any, List, Tuple
 from pathlib import Path
 
 import httpx
@@ -14,26 +15,96 @@ from . import models
 
 logger = logging.getLogger(__name__)
 
+# Track number of pending Ollama requests for dynamic timeout calculation
+# Base timeout per CV analysis is ~120 seconds
+_BASE_TIMEOUT = 120  # seconds per CV
+_pending_requests = 0
+_request_lock = asyncio.Lock()
+
+# Vietnamese and English section headers for CV parsing
+SECTION_HEADERS_VI = [
+    "thông tin cá nhân", "thông tin liên hệ", "giới thiệu bản thân",
+    "mục tiêu nghề nghiệp", "mục tiêu", "tóm tắt",
+    "học vấn", "trình độ học vấn", "bằng cấp",
+    "kinh nghiệm làm việc", "kinh nghiệm", "lịch sử công việc",
+    "kỹ năng", "kỹ năng chuyên môn", "năng lực",
+    "chứng chỉ", "giấy chứng nhận", "bằng cấp chuyên môn",
+    "dự án", "các dự án", "dự án tiêu biểu",
+    "hoạt động", "hoạt động ngoại khóa", "hoạt động xã hội",
+    "giải thưởng", "thành tích", "danh hiệu",
+    "sở thích", "sở trường", "thông tin thêm",
+    "người tham chiếu", "tham chiếu", "reference",
+]
+
+SECTION_HEADERS_EN = [
+    "personal information", "contact information", "contact",
+    "objective", "career objective", "summary", "professional summary",
+    "education", "academic background", "qualifications",
+    "experience", "work experience", "employment history", "professional experience",
+    "skills", "technical skills", "core competencies", "competencies",
+    "certifications", "certificates", "licenses",
+    "projects", "key projects", "notable projects",
+    "activities", "extracurricular activities", "volunteer work",
+    "awards", "achievements", "honors",
+    "interests", "hobbies", "additional information",
+    "references", "referees",
+]
+
 
 class AIService:
     def __init__(self):
         self.ollama_url = settings.OLLAMA_URL or "http://localhost:11434"
         self.model = settings.LLM_MODEL or "llama3.1:8b"
 
-    async def analyze_cv(self, cv_id: uuid.UUID, file_path: str, db: AsyncSession) -> None:
+    async def analyze_cv(
+        self,
+        cv_id: uuid.UUID,
+        file_path: str,
+        db: AsyncSession,
+        force_ocr: bool = False
+    ) -> None:
         """
         Analyze a CV using Ollama LLM.
+        Automatically detects if OCR is needed for image-based CVs.
         Updates the database with analysis results.
+
+        Args:
+            cv_id: UUID of the CV record
+            file_path: Path to the CV file
+            db: Database session
+            force_ocr: If True, skip text extraction and go straight to OCR
         """
         try:
             # Update status to PROCESSING
             await self._update_analysis_status(db, cv_id, models.AnalysisStatus.PROCESSING)
 
-            # Extract text from PDF/DOCX file
-            cv_content = await self._extract_text_from_file(file_path)
+            cv_content = ""
+
+            if force_ocr:
+                # Directly use OCR
+                logger.info(f"Force OCR mode for CV: {cv_id}")
+                cv_content = await self.perform_ocr_extraction(file_path)
+            else:
+                # Try standard text extraction first
+                try:
+                    cv_content = await self._extract_text_from_file(file_path)
+
+                    # Check if we need to fall back to OCR
+                    if self.detect_if_needs_ocr(cv_content, file_path):
+                        logger.info(f"Falling back to OCR for CV: {cv_id}")
+                        cv_content = await self.perform_ocr_extraction(file_path)
+
+                except Exception as e:
+                    # If text extraction fails, try OCR
+                    logger.warning(f"Text extraction failed, trying OCR: {str(e)}")
+                    cv_content = await self.perform_ocr_extraction(file_path)
 
             if not cv_content or len(cv_content.strip()) < 50:
                 raise ValueError("Could not extract sufficient text from CV file")
+
+            # Apply robust section splitting for better analysis
+            sections = self.robust_section_split(cv_content)
+            logger.info(f"Extracted {len(sections)} sections from CV")
 
             # Perform AI analysis
             analysis_result = await self._perform_ai_analysis(cv_content)
@@ -252,12 +323,282 @@ Return ONLY the JSON object, no additional text.
             "ats_hints": ["Use standard section headers", "Include relevant keywords"],
         }
 
+    async def perform_ocr_extraction(self, file_path: str) -> str:
+        """
+        Perform OCR extraction on image-based or scanned PDF files.
+        Uses EasyOCR for Vietnamese and English text recognition.
+
+        Args:
+            file_path: Path to the PDF or image file
+
+        Returns:
+            Extracted text content from OCR
+        """
+        path = Path(file_path)
+
+        if not path.exists():
+            logger.error(f"File not found for OCR: {file_path}")
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        try:
+            import easyocr
+            from pdf2image import convert_from_path
+            from PIL import Image
+            import numpy as np
+
+            # Initialize EasyOCR reader for Vietnamese and English
+            reader = easyocr.Reader(['vi', 'en'], gpu=False)
+
+            images: List[Any] = []
+            file_extension = path.suffix.lower()
+
+            if file_extension == ".pdf":
+                # Convert PDF pages to images
+                logger.info(f"Converting PDF to images for OCR: {file_path}")
+                images = convert_from_path(file_path, dpi=300)
+            elif file_extension in [".png", ".jpg", ".jpeg", ".tiff", ".bmp"]:
+                # Direct image file
+                images = [Image.open(file_path)]
+            else:
+                raise ValueError(f"Unsupported file format for OCR: {file_extension}")
+
+            extracted_texts: List[str] = []
+
+            for i, image in enumerate(images):
+                logger.info(f"Processing OCR for page {i + 1}/{len(images)}")
+
+                # Convert PIL Image to numpy array for EasyOCR
+                image_np = np.array(image)
+
+                # Perform OCR
+                results = reader.readtext(image_np, detail=0, paragraph=True)
+
+                if results:
+                    page_text = "\n".join(results)
+                    extracted_texts.append(page_text)
+
+            full_text = "\n\n".join(extracted_texts)
+            logger.info(f"OCR extraction completed. Total characters: {len(full_text)}")
+
+            return full_text
+
+        except ImportError as e:
+            logger.error(f"OCR library not installed: {str(e)}")
+            raise ImportError(
+                "OCR libraries (easyocr, pdf2image, Pillow) are required. "
+                "Please install them with: pip install easyocr pdf2image Pillow"
+            )
+        except Exception as e:
+            logger.error(f"OCR extraction failed for {file_path}: {str(e)}")
+            raise
+
+    def detect_if_needs_ocr(self, extracted_text: str, file_path: str) -> bool:
+        """
+        Determine if a file needs OCR processing based on text extraction results.
+
+        Heuristics:
+        1. Text is too short (less than 100 chars)
+        2. Text contains mostly garbled/unreadable characters
+        3. Text has very low ratio of recognizable words
+        4. PDF has images but minimal text
+
+        Args:
+            extracted_text: Text extracted via standard method
+            file_path: Path to the original file
+
+        Returns:
+            True if OCR is recommended, False otherwise
+        """
+        # Heuristic 1: Text too short
+        if len(extracted_text.strip()) < 100:
+            logger.info(f"OCR needed: Text too short ({len(extracted_text)} chars)")
+            return True
+
+        # Heuristic 2: Check for garbled text (high ratio of non-printable chars)
+        printable_ratio = sum(1 for c in extracted_text if c.isprintable() or c.isspace()) / len(extracted_text)
+        if printable_ratio < 0.8:
+            logger.info(f"OCR needed: Low printable ratio ({printable_ratio:.2f})")
+            return True
+
+        # Heuristic 3: Check for meaningful words
+        # Split into words and check if they look like real words
+        words = re.findall(r'\b[a-zA-ZÀ-ỹ]{2,}\b', extracted_text)
+        if len(words) < 20:
+            logger.info(f"OCR needed: Too few recognizable words ({len(words)})")
+            return True
+
+        # Heuristic 4: Check for common CV section headers (Vietnamese or English)
+        text_lower = extracted_text.lower()
+        headers_found = 0
+        all_headers = SECTION_HEADERS_VI + SECTION_HEADERS_EN
+
+        for header in all_headers:
+            if header in text_lower:
+                headers_found += 1
+
+        # If we found at least one section header, text extraction likely worked
+        if headers_found == 0:
+            logger.info("OCR needed: No section headers found in extracted text")
+            return True
+
+        logger.info(f"Standard extraction sufficient: {headers_found} headers found, {len(words)} words")
+        return False
+
+    def robust_section_split(self, text: str) -> Dict[str, str]:
+        """
+        Split CV text into sections based on Vietnamese and English headers.
+
+        Args:
+            text: Raw CV text content
+
+        Returns:
+            Dictionary mapping section names to their content
+        """
+        sections: Dict[str, str] = {}
+
+        # Combine all headers and sort by length (longest first to avoid partial matches)
+        all_headers = SECTION_HEADERS_VI + SECTION_HEADERS_EN
+        all_headers_sorted = sorted(all_headers, key=len, reverse=True)
+
+        # Build regex pattern to find section headers
+        # Headers are typically on their own line, possibly with punctuation
+        header_pattern = r'(?:^|\n)\s*(' + '|'.join(
+            re.escape(h) for h in all_headers_sorted
+        ) + r')[\s:：]*(?:\n|$)'
+
+        # Find all matches
+        matches = list(re.finditer(header_pattern, text, re.IGNORECASE | re.MULTILINE))
+
+        if not matches:
+            # No sections found, return entire text as "content"
+            return {"content": text.strip()}
+
+        # Extract sections based on header positions
+        for i, match in enumerate(matches):
+            header_name = match.group(1).strip().lower()
+
+            # Normalize header names
+            header_name = self._normalize_section_header(header_name)
+
+            # Get content between this header and the next
+            start_pos = match.end()
+            end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+
+            content = text[start_pos:end_pos].strip()
+
+            # Store section (merge if header already exists)
+            if header_name in sections:
+                sections[header_name] += "\n\n" + content
+            else:
+                sections[header_name] = content
+
+        return sections
+
+    def _normalize_section_header(self, header: str) -> str:
+        """
+        Normalize section header to a standard name.
+        Maps Vietnamese headers to their English equivalents.
+        """
+        header = header.lower().strip()
+
+        # Mapping Vietnamese to English
+        header_mapping = {
+            "thông tin cá nhân": "personal_info",
+            "thông tin liên hệ": "contact",
+            "giới thiệu bản thân": "summary",
+            "mục tiêu nghề nghiệp": "objective",
+            "mục tiêu": "objective",
+            "tóm tắt": "summary",
+            "học vấn": "education",
+            "trình độ học vấn": "education",
+            "bằng cấp": "education",
+            "kinh nghiệm làm việc": "experience",
+            "kinh nghiệm": "experience",
+            "lịch sử công việc": "experience",
+            "kỹ năng": "skills",
+            "kỹ năng chuyên môn": "skills",
+            "năng lực": "skills",
+            "chứng chỉ": "certifications",
+            "giấy chứng nhận": "certifications",
+            "bằng cấp chuyên môn": "certifications",
+            "dự án": "projects",
+            "các dự án": "projects",
+            "dự án tiêu biểu": "projects",
+            "hoạt động": "activities",
+            "hoạt động ngoại khóa": "activities",
+            "hoạt động xã hội": "activities",
+            "giải thưởng": "awards",
+            "thành tích": "awards",
+            "danh hiệu": "awards",
+            "sở thích": "interests",
+            "sở trường": "interests",
+            "thông tin thêm": "additional",
+            "người tham chiếu": "references",
+            "tham chiếu": "references",
+            # English mappings
+            "personal information": "personal_info",
+            "contact information": "contact",
+            "contact": "contact",
+            "objective": "objective",
+            "career objective": "objective",
+            "summary": "summary",
+            "professional summary": "summary",
+            "education": "education",
+            "academic background": "education",
+            "qualifications": "education",
+            "experience": "experience",
+            "work experience": "experience",
+            "employment history": "experience",
+            "professional experience": "experience",
+            "skills": "skills",
+            "technical skills": "skills",
+            "core competencies": "skills",
+            "competencies": "skills",
+            "certifications": "certifications",
+            "certificates": "certifications",
+            "licenses": "certifications",
+            "projects": "projects",
+            "key projects": "projects",
+            "notable projects": "projects",
+            "activities": "activities",
+            "extracurricular activities": "activities",
+            "volunteer work": "activities",
+            "awards": "awards",
+            "achievements": "awards",
+            "honors": "awards",
+            "interests": "interests",
+            "hobbies": "interests",
+            "additional information": "additional",
+            "references": "references",
+            "referees": "references",
+        }
+
+        return header_mapping.get(header, header.replace(" ", "_"))
+
     async def _call_ollama(self, prompt: str) -> str:
         """
         Call Ollama API with a prompt and return the response.
+        
+        Uses dynamic timeout based on number of pending requests.
+        Since Ollama processes requests sequentially, each request needs
+        to wait for all pending requests to complete first.
+        
+        Timeout calculation: (pending_requests + 1) * BASE_TIMEOUT
+        - 1 CV: 120s timeout
+        - 2 CVs: 240s timeout (wait for 1st + process 2nd)
+        - 5 CVs: 600s timeout (wait for 4 + process 5th)
         """
+        global _pending_requests
+        
+        # Register this request and calculate timeout
+        async with _request_lock:
+            _pending_requests += 1
+            queue_position = _pending_requests
+            dynamic_timeout = queue_position * _BASE_TIMEOUT
+            logger.info(f"Ollama request queued. Position: {queue_position}, Timeout: {dynamic_timeout}s")
+        
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=dynamic_timeout) as client:
                 response = await client.post(
                     f"{self.ollama_url}/api/generate",
                     json={
@@ -268,9 +609,10 @@ Return ONLY the JSON object, no additional text.
                 )
                 response.raise_for_status()
                 result = response.json()
+                logger.info(f"Ollama analysis completed. Queue position was: {queue_position}")
                 return result.get("response", "")
         except httpx.TimeoutException:
-            logger.error("Ollama request timed out")
+            logger.error(f"Ollama request timed out after {dynamic_timeout}s")
             raise TimeoutError("AI service request timed out")
         except httpx.HTTPStatusError as e:
             logger.error(f"Ollama HTTP error: {e.response.status_code}")
@@ -278,6 +620,11 @@ Return ONLY the JSON object, no additional text.
         except Exception as e:
             logger.error(f"Ollama request failed: {str(e)}")
             raise
+        finally:
+            # Always decrement counter when done
+            async with _request_lock:
+                _pending_requests -= 1
+                logger.info(f"Ollama request finished. Remaining in queue: {_pending_requests}")
 
     async def _update_analysis_status(
         self,

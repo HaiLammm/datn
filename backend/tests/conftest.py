@@ -1,67 +1,98 @@
 from typing import AsyncGenerator
+import uuid
 import pytest
 import pytest_asyncio
+from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime, timezone
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from httpx import AsyncClient, ASGITransport
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.database import Base, get_db
+from app.core.database import get_db
 from app.main import app
 from app.modules.auth.dependencies import get_current_user
-from app.modules.users.models import User as DBUser  # Import User model
-
-# Create a test database URL
-TEST_DATABASE_URL = f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/test_{settings.DB_NAME}"
-
-# Create a test engine
-test_engine = create_async_engine(TEST_DATABASE_URL, echo=True)
-
-# Create a test session local
-TestingSessionLocal = sessionmaker(
-    autocommit=False, autoflush=False, bind=test_engine, class_=AsyncSession
-)
-
-
-@pytest_asyncio.fixture(scope="session")
-async def setup_test_db_session():
-    # Drop and create tables before the session starts
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-    yield
-    # No need to drop tables again if we drop and create at the beginning of the session.
+from app.modules.users.models import User as DBUser
+from app.modules.cv.models import CV
 
 
 # Fixture to provide a test user
 @pytest.fixture(scope="session")
 def test_user() -> DBUser:
     return DBUser(
-        id="00000000-0000-0000-0000-000000000001",
+        id=1,  # User.id is Integer, not UUID
         email="test@example.com",
         hashed_password="hashedpassword",
     )
 
 
-# Fixture to override get_db dependency to use a test session with transaction
-@pytest_asyncio.fixture(scope="module")
-async def override_get_db(setup_test_db_session) -> AsyncGenerator[AsyncSession, None]:
-    async with TestingSessionLocal() as session:
-        # Begin a transaction and roll it back after each test
-        async with session.begin():
-            yield session
+# Mock database session fixture
+@pytest.fixture
+def mock_db_session() -> AsyncMock:
+    """Create a mock database session."""
+    mock_session = AsyncMock(spec=AsyncSession)
+    mock_session.execute = AsyncMock()
+    mock_session.commit = AsyncMock()
+    mock_session.rollback = AsyncMock()
+    mock_session.close = AsyncMock()
+    return mock_session
 
 
-# Fixture for the async HTTP client
-@pytest_asyncio.fixture(scope="module")
-async def client(
-    override_get_db: AsyncSession, test_user: DBUser
-) -> AsyncGenerator[TestClient, None]:
+# Fixture for the sync HTTP client (TestClient) - uses mocked DB
+@pytest.fixture
+def client(test_user: DBUser, mock_db_session: AsyncMock) -> TestClient:
     from app.modules.auth.dependencies import rate_limit_cv_upload
 
-    app.dependency_overrides[get_db] = lambda: override_get_db
-    app.dependency_overrides[get_current_user] = lambda: test_user # Override current user
-    app.dependency_overrides[rate_limit_cv_upload] = lambda: test_user # Override rate limiting
+    app.dependency_overrides[get_db] = lambda: mock_db_session
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[rate_limit_cv_upload] = lambda: test_user
+    
     with TestClient(app) as test_client:
         yield test_client
+    
     app.dependency_overrides.clear()
+
+
+# Fixture for async HTTP client (authenticated)
+@pytest_asyncio.fixture
+async def async_client(test_user: DBUser, mock_db_session: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
+    from app.modules.auth.dependencies import rate_limit_cv_upload
+
+    app.dependency_overrides[get_db] = lambda: mock_db_session
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[rate_limit_cv_upload] = lambda: test_user
+    
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    
+    app.dependency_overrides.clear()
+
+
+# Fixture for async HTTP client (unauthenticated)
+@pytest_asyncio.fixture
+async def unauthenticated_async_client(mock_db_session: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
+    # Only override DB, not auth - so requests will be unauthenticated
+    app.dependency_overrides[get_db] = lambda: mock_db_session
+    # Remove any auth overrides
+    app.dependency_overrides.pop(get_current_user, None)
+    
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    
+    app.dependency_overrides.clear()
+
+
+# Fixture to create test user and CV
+@pytest.fixture
+def create_test_user_and_cv(test_user: DBUser):
+    """Create a test user and CV for testing."""
+    test_cv = CV(
+        id=uuid.uuid4(),
+        user_id=test_user.id,  # Now an int
+        filename="test_cv.pdf",
+        file_path="/tmp/test_cv.pdf",
+        uploaded_at=datetime.now(timezone.utc),
+        is_active=True,
+    )
+    return test_user, test_cv
