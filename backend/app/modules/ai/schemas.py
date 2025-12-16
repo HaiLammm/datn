@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, computed_field, Field, field_validator
 
 
 class ExperienceBreakdown(BaseModel):
@@ -18,7 +18,46 @@ class CriteriaExplanation(BaseModel):
     professionalism: int = 50
 
 
+class SkillBreakdown(BaseModel):
+    """Hybrid skill scoring breakdown.
+    
+    Stores the individual component scores from the hybrid skill scoring system.
+    """
+    completeness_score: int = Field(ge=0, le=7, description="Skill completeness (0-7)")
+    categorization_score: int = Field(ge=0, le=6, description="Category coverage (0-6)")
+    evidence_score: int = Field(ge=0, le=6, description="Evidence from LLM (0-6)")
+    market_relevance_score: int = Field(ge=0, le=6, description="Hot skills match (0-6)")
+    total_score: int = Field(ge=0, le=25, description="Total skill score (0-25)")
+
+    @field_validator('total_score')
+    @classmethod
+    def validate_total_not_exceed_max(cls, v: int) -> int:
+        """Ensure total_score does not exceed maximum possible (25)."""
+        if v > 25:
+            raise ValueError('total_score cannot exceed 25')
+        return v
+
+
+class SkillCategories(BaseModel):
+    """Categorized skills extracted from CV.
+    
+    Groups skills into standard IT taxonomy categories.
+    """
+    programming_languages: List[str] = Field(default_factory=list)
+    frameworks: List[str] = Field(default_factory=list)
+    databases: List[str] = Field(default_factory=list)
+    devops: List[str] = Field(default_factory=list)
+    soft_skills: List[str] = Field(default_factory=list)
+    ai_ml: List[str] = Field(default_factory=list)
+
+
 class AnalysisResult(BaseModel):
+    """CV Analysis result schema.
+    
+    Attributes:
+        extracted_skills: DEPRECATED - Use skill_categories instead.
+            Kept for backward compatibility with existing clients.
+    """
     id: uuid.UUID
     cv_id: uuid.UUID
     status: str
@@ -26,6 +65,12 @@ class AnalysisResult(BaseModel):
     ai_summary: Optional[str] = None
     ai_feedback: Optional[dict] = None
     extracted_skills: Optional[List[str]] = None
+    
+    # New skill scoring fields (Story 5.3)
+    skill_breakdown: Optional[SkillBreakdown] = None
+    skill_categories: Optional[SkillCategories] = None
+    skill_recommendations: Optional[List[str]] = None
+    
     created_at: datetime
     updated_at: datetime
 

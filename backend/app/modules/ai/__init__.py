@@ -39,6 +39,11 @@ from .skill_scorer import (
     skill_scorer,
 )
 
+from .schemas import (
+    SkillBreakdown,
+    SkillCategories,
+)
+
 __all__ = [
     # Skill Taxonomy
     "SKILL_TAXONOMY",
@@ -54,4 +59,7 @@ __all__ = [
     "SkillScorer",
     "SkillScoreResult",
     "skill_scorer",
+    # Schemas (Story 5.3)
+    "SkillBreakdown",
+    "SkillCategories",
 ]

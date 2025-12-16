@@ -165,3 +165,36 @@ The project currently utilizes the following technologies:
 | **Security: Lack of Rate Limiting** | Medium | Medium | Post-MVP: Implement rate limiting on critical endpoints to prevent brute-force attacks. |
 | **Security: Weak Password Validation** | Low | Medium | Post-MVP: Enhance password strength validation in frontend and backend. |
 | **Technical Debt: No Automated Tests** | Medium | High | Implement critical integration tests for the core AI pipeline during MVP. Comprehensive unit testing remains a Post-MVP goal. |
+
+## 5. Hybrid Skill Scoring Epic
+
+> **Note:** Chi tiết đầy đủ của Epic này được lưu tại [docs/prd/5-hybrid-skill-scoring-epic.md](./prd/5-hybrid-skill-scoring-epic.md)
+
+### 5.1. Overview
+
+Epic này cải thiện hệ thống chấm điểm kỹ năng (skill scoring) trong CV bằng cách triển khai phương pháp hybrid kết hợp rule-based extraction với LLM analysis.
+
+**Goals:**
+- Cải thiện độ chính xác và nhất quán của skill scoring
+- Cung cấp skill breakdown chi tiết
+- Chuẩn hóa skill extraction với IT taxonomy
+- Hỗ trợ skill-JD matching
+
+### 5.2. Key Stories
+
+| Story | Description | Priority |
+|-------|-------------|----------|
+| 5.1 | Skill Taxonomy & Extractor Foundation | P0 |
+| 5.2 | Hybrid Skill Scorer Implementation | P0 |
+| 5.3 | Database Schema & API Response Update | P1 |
+| 5.4 | AI Service Integration | P1 |
+| 5.5 | Skill-JD Matching Foundation | P2 |
+| 5.6 | Frontend Skill Breakdown UI | P2 |
+
+### 5.3. New Requirements Added
+
+**Functional:**
+- FR-SS1 đến FR-SS12: Rule-based skill extraction, hybrid scoring, skill matching
+
+**Non-Functional:**
+- NFR-SS1 đến NFR-SS5: Taxonomy maintainability, accuracy, backward compatibility
