@@ -13,6 +13,7 @@ from sqlalchemy import update
 from app.core.config import settings
 from . import models
 from .rag_service import rag_service, RetrievedDocument
+from .skill_scorer import skill_scorer  # Story 5.4: Hybrid skill scoring integration
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ class AIService:
     def __init__(self):
         self.ollama_url = settings.OLLAMA_URL or "http://localhost:11434"
         self.model = settings.LLM_MODEL or "llama3.1:8b"
+        self.skill_scorer = skill_scorer  # Story 5.4: Initialize hybrid skill scorer
 
     async def analyze_cv(
         self,
@@ -264,7 +266,39 @@ JSON only:"""
 
         try:
             result = await self._call_ollama(analysis_prompt)
-            return self._parse_analysis_response(result)
+            llm_analysis = self._parse_analysis_response(result)
+            
+            # Story 5.4: Integrate hybrid skill scoring
+            try:
+                skill_score_result = self.skill_scorer.calculate_skill_score(
+                    cv_text=truncated_cv,
+                    llm_response=llm_analysis
+                )
+                # Merge skill scoring results into LLM analysis
+                llm_analysis["skill_breakdown"] = {
+                    "completeness_score": skill_score_result["completeness_score"],
+                    "categorization_score": skill_score_result["categorization_score"],
+                    "evidence_score": skill_score_result["evidence_score"],
+                    "market_relevance_score": skill_score_result["market_relevance_score"],
+                    "total_score": skill_score_result["total_score"],
+                }
+                llm_analysis["skill_categories"] = skill_score_result["skill_categories"]
+                llm_analysis["skill_recommendations"] = skill_score_result["recommendations"]
+                logger.info(f"Hybrid skill score calculated: {skill_score_result['total_score']}/25")
+            except Exception as skill_err:
+                logger.error(f"Skill scoring failed, using fallback: {str(skill_err)}")
+                # Fallback: add empty skill scoring fields
+                llm_analysis["skill_breakdown"] = {
+                    "completeness_score": 0,
+                    "categorization_score": 0,
+                    "evidence_score": 0,
+                    "market_relevance_score": 0,
+                    "total_score": 0,
+                }
+                llm_analysis["skill_categories"] = {}
+                llm_analysis["skill_recommendations"] = []
+            
+            return llm_analysis
         except Exception as e:
             logger.error(f"AI analysis failed: {str(e)}")
             # Return fallback values
@@ -345,6 +379,16 @@ JSON only:"""
             "improvements": ["Consider using a clearer format", "Add more specific details"],
             "formatting_feedback": ["Analysis service temporarily unavailable"],
             "ats_hints": ["Use standard section headers", "Include relevant keywords"],
+            # Story 5.4: Include hybrid skill scoring fallback fields
+            "skill_breakdown": {
+                "completeness_score": 0,
+                "categorization_score": 0,
+                "evidence_score": 0,
+                "market_relevance_score": 0,
+                "total_score": 0,
+            },
+            "skill_categories": {},
+            "skill_recommendations": [],
         }
 
     async def perform_ocr_extraction(self, file_path: str) -> str:
@@ -706,7 +750,11 @@ JSON only:"""
                 ai_score=results.get("score"),
                 ai_summary=results.get("summary"),
                 ai_feedback=feedback,
-                extracted_skills=results.get("skills")
+                extracted_skills=results.get("skills"),
+                # Story 5.4: Persist hybrid skill scoring results
+                skill_breakdown=results.get("skill_breakdown"),
+                skill_categories=results.get("skill_categories"),
+                skill_recommendations=results.get("skill_recommendations"),
             )
         )
         await db.execute(stmt)

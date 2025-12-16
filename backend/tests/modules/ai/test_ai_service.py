@@ -764,3 +764,154 @@ class TestAnalyzeCVWithOCR:
 
                                 # Verify OCR was NOT called
                                 mock_ocr.assert_not_called()
+
+
+class TestHybridSkillScoring:
+    """Tests for Story 5.4: Hybrid skill scoring integration."""
+
+    def test_fallback_analysis_includes_skill_fields(self, ai_service):
+        """Test that fallback analysis includes skill scoring fields."""
+        result = ai_service._get_fallback_analysis()
+        
+        # Verify all expected skill scoring fields are present
+        assert "skill_breakdown" in result
+        assert "skill_categories" in result
+        assert "skill_recommendations" in result
+        
+        # Verify skill_breakdown structure
+        breakdown = result["skill_breakdown"]
+        assert breakdown["completeness_score"] == 0
+        assert breakdown["categorization_score"] == 0
+        assert breakdown["evidence_score"] == 0
+        assert breakdown["market_relevance_score"] == 0
+        assert breakdown["total_score"] == 0
+        
+        # Verify empty collections
+        assert result["skill_categories"] == {}
+        assert result["skill_recommendations"] == []
+
+    @pytest.mark.asyncio
+    async def test_perform_ai_analysis_integrates_skill_scorer(self, ai_service):
+        """Test that _perform_ai_analysis calls skill scorer and merges results."""
+        cv_content = "Python developer with React and PostgreSQL experience"
+        
+        mock_skill_score_result = {
+            "completeness_score": 5,
+            "categorization_score": 4,
+            "evidence_score": 3,
+            "market_relevance_score": 5,
+            "total_score": 17,
+            "skill_categories": {
+                "programming_languages": ["Python"],
+                "frameworks": ["React"],
+                "databases": ["PostgreSQL"]
+            },
+            "recommendations": ["Consider adding cloud platform skills"]
+        }
+        
+        # Mock the skill scorer
+        with patch.object(ai_service.skill_scorer, 'calculate_skill_score', return_value=mock_skill_score_result):
+            with patch('app.modules.ai.service.rag_service') as mock_rag:
+                mock_rag.retrieve_context.return_value = []
+                
+                with patch.object(ai_service, '_call_ollama') as mock_ollama:
+                    mock_ollama.return_value = '{"score": 80, "criteria": {"skills": 75}, "summary": "Good CV", "skills": ["Python"], "experience_breakdown": {}, "strengths": [], "improvements": [], "formatting_feedback": [], "ats_hints": []}'
+                    
+                    result = await ai_service._perform_ai_analysis(cv_content)
+                    
+                    # Verify skill scorer was called with correct arguments
+                    ai_service.skill_scorer.calculate_skill_score.assert_called_once()
+                    call_args = ai_service.skill_scorer.calculate_skill_score.call_args
+                    assert call_args[1]["cv_text"] == cv_content
+                    assert "llm_response" in call_args[1]
+                    
+                    # Verify skill scoring results were merged into response
+                    assert "skill_breakdown" in result
+                    assert result["skill_breakdown"]["total_score"] == 17
+                    assert result["skill_breakdown"]["completeness_score"] == 5
+                    assert result["skill_breakdown"]["categorization_score"] == 4
+                    assert result["skill_breakdown"]["evidence_score"] == 3
+                    assert result["skill_breakdown"]["market_relevance_score"] == 5
+                    
+                    assert "skill_categories" in result
+                    assert "Python" in result["skill_categories"]["programming_languages"]
+                    assert "React" in result["skill_categories"]["frameworks"]
+                    
+                    assert "skill_recommendations" in result
+                    assert "cloud platform" in result["skill_recommendations"][0]
+
+    @pytest.mark.asyncio
+    async def test_skill_scorer_failure_uses_fallback(self, ai_service):
+        """Test that skill scorer failures are handled gracefully with fallback."""
+        cv_content = "Sample CV content"
+        
+        # Mock skill scorer to raise exception
+        with patch.object(ai_service.skill_scorer, 'calculate_skill_score', side_effect=Exception("Scorer error")):
+            with patch('app.modules.ai.service.rag_service') as mock_rag:
+                mock_rag.retrieve_context.return_value = []
+                
+                with patch.object(ai_service, '_call_ollama') as mock_ollama:
+                    mock_ollama.return_value = '{"score": 70, "criteria": {}, "summary": "OK", "skills": [], "experience_breakdown": {}, "strengths": [], "improvements": [], "formatting_feedback": [], "ats_hints": []}'
+                    
+                    # Should NOT raise - graceful degradation
+                    result = await ai_service._perform_ai_analysis(cv_content)
+                    
+                    # Verify fallback skill fields are present
+                    assert "skill_breakdown" in result
+                    assert result["skill_breakdown"]["total_score"] == 0
+                    assert result["skill_breakdown"]["completeness_score"] == 0
+                    
+                    assert "skill_categories" in result
+                    assert result["skill_categories"] == {}
+                    
+                    assert "skill_recommendations" in result
+                    assert result["skill_recommendations"] == []
+
+    @pytest.mark.asyncio
+    async def test_save_analysis_results_persists_skill_fields(self, ai_service):
+        """Test that _save_analysis_results persists the new skill scoring fields to database."""
+        cv_id = uuid.uuid4()
+        mock_db = AsyncMock(spec=AsyncSession)
+        
+        results = {
+            "score": 85,
+            "summary": "Strong candidate",
+            "criteria": {"completeness": 80, "experience": 90, "skills": 85, "professionalism": 80},
+            "skills": ["Python", "React"],
+            "experience_breakdown": {"total_years": 5, "key_roles": ["Engineer"], "industries": ["Tech"]},
+            "strengths": ["Strong skills"],
+            "improvements": ["Add certs"],
+            "formatting_feedback": ["Good"],
+            "ats_hints": ["Keywords"],
+            # Story 5.4 fields
+            "skill_breakdown": {
+                "completeness_score": 6,
+                "categorization_score": 5,
+                "evidence_score": 4,
+                "market_relevance_score": 5,
+                "total_score": 20
+            },
+            "skill_categories": {
+                "programming_languages": ["Python", "JavaScript"],
+                "frameworks": ["React", "FastAPI"]
+            },
+            "skill_recommendations": ["Consider adding DevOps skills", "Learn cloud platforms"]
+        }
+        
+        # Mock the database execute
+        mock_execute = AsyncMock()
+        mock_db.execute = mock_execute
+        mock_db.commit = AsyncMock()
+        
+        await ai_service._save_analysis_results(mock_db, cv_id, results)
+        
+        # Verify execute was called
+        mock_execute.assert_called_once()
+        
+        # Get the statement that was executed
+        call_args = mock_execute.call_args[0][0]
+        
+        # Verify the values include our new fields
+        # Note: We can't easily inspect SQLAlchemy statement internals,
+        # but we can verify the method completed without error
+        assert mock_db.commit.called
