@@ -2,3 +2,4 @@ backend/.env
 backend/data/cv_uploads/
 presentation.md
 node_modules/
+backend/data/chroma_db/
