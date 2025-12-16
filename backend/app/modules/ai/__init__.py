@@ -6,11 +6,15 @@ This module provides:
 - CV analysis using LLM (Ollama)
 - RAG (Retrieval-Augmented Generation) integration
 - Skill extraction and normalization
+- Skill scoring with hybrid rule-based + LLM approach
 - Vector store for semantic search
 
 Exports:
 - SkillExtractor: Rule-based skill extraction class
 - skill_extractor: Singleton instance of SkillExtractor
+- SkillScorer: Hybrid skill scoring class
+- skill_scorer: Singleton instance of SkillScorer
+- SkillScoreResult: TypedDict for skill score results
 - SKILL_TAXONOMY: Comprehensive IT skill taxonomy
 - HOT_SKILLS_2024: In-demand skills for 2024
 """
@@ -29,6 +33,12 @@ from .skill_extractor import (
     skill_extractor,
 )
 
+from .skill_scorer import (
+    SkillScorer,
+    SkillScoreResult,
+    skill_scorer,
+)
+
 __all__ = [
     # Skill Taxonomy
     "SKILL_TAXONOMY",
@@ -40,4 +50,8 @@ __all__ = [
     # Skill Extractor
     "SkillExtractor",
     "skill_extractor",
+    # Skill Scorer
+    "SkillScorer",
+    "SkillScoreResult",
+    "skill_scorer",
 ]
