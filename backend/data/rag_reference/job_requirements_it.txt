@@ -1,0 +1,93 @@
+# IT/Software Developer Job Requirements
+
+## Common Job Titles
+- Software Engineer / Developer
+- Full Stack Developer
+- Backend Developer
+- Frontend Developer
+- DevOps Engineer
+- Data Engineer
+- Machine Learning Engineer
+- Mobile Developer (iOS/Android)
+- QA Engineer / Tester
+
+## Technical Skills Requirements
+
+### Programming Languages
+**Must Have (at least 1-2):**
+- Python, Java, JavaScript/TypeScript, C#, C++, Go, Rust
+
+**Good to Have:**
+- SQL, Shell scripting, R (for data roles)
+
+### Frameworks & Libraries
+**Web Backend:**
+- FastAPI, Django, Flask (Python)
+- Spring Boot (Java)
+- Express.js, NestJS (Node.js)
+- .NET Core (C#)
+
+**Web Frontend:**
+- React, Vue.js, Angular
+- Next.js, Nuxt.js
+- Tailwind CSS, Material UI
+
+**Mobile:**
+- React Native, Flutter
+- Swift (iOS), Kotlin (Android)
+
+### Databases
+- PostgreSQL, MySQL, MongoDB
+- Redis, Elasticsearch
+- Firebase, Supabase
+
+### DevOps & Cloud
+- Docker, Kubernetes
+- AWS, GCP, Azure
+- CI/CD (GitHub Actions, Jenkins, GitLab CI)
+- Terraform, Ansible
+
+### Tools & Practices
+- Git, GitHub/GitLab
+- Agile/Scrum methodology
+- Unit testing, TDD
+- API design (REST, GraphQL)
+
+## Experience Levels
+
+### Junior (0-2 years)
+- Basic programming skills in 1-2 languages
+- Understanding of data structures and algorithms
+- Can work on assigned tasks with guidance
+- Learning mindset
+
+### Mid-Level (2-5 years)
+- Proficient in multiple technologies
+- Can design and implement features independently
+- Code review participation
+- Mentoring juniors
+
+### Senior (5+ years)
+- Expert in chosen technology stack
+- System design and architecture skills
+- Technical leadership
+- Cross-team collaboration
+
+## Soft Skills
+- Problem-solving ability
+- Communication skills
+- Team collaboration
+- Time management
+- Adaptability
+- Continuous learning
+
+## Education Requirements
+- Bachelor's degree in Computer Science, Software Engineering, or related field
+- OR equivalent practical experience
+- Relevant certifications are a plus
+
+## Salary Ranges (Vietnam Market - VND/month)
+- Junior: 10-20 million
+- Mid-Level: 20-40 million
+- Senior: 40-80 million
+- Lead/Principal: 80-150+ million

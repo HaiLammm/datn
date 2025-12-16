@@ -12,6 +12,7 @@ from sqlalchemy import update
 
 from app.core.config import settings
 from . import models
+from .rag_service import rag_service, RetrievedDocument
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,11 @@ SECTION_HEADERS_EN = [
 
 
 class AIService:
+    # Maximum characters for CV content to prevent timeout
+    MAX_CV_CONTENT_LENGTH = 3000
+    # Maximum RAG context length
+    MAX_RAG_CONTEXT_LENGTH = 1000
+
     def __init__(self):
         self.ollama_url = settings.OLLAMA_URL or "http://localhost:11434"
         self.model = settings.LLM_MODEL or "llama3.1:8b"
@@ -96,11 +102,13 @@ class AIService:
 
                 except Exception as e:
                     # If text extraction fails, try OCR
-                    logger.warning(f"Text extraction failed, trying OCR: {str(e)}")
+                    logger.warning(
+                        f"Text extraction failed, trying OCR: {str(e)}")
                     cv_content = await self.perform_ocr_extraction(file_path)
 
             if not cv_content or len(cv_content.strip()) < 50:
-                raise ValueError("Could not extract sufficient text from CV file")
+                raise ValueError(
+                    "Could not extract sufficient text from CV file")
 
             # Apply robust section splitting for better analysis
             sections = self.robust_section_split(cv_content)
@@ -121,13 +129,15 @@ class AIService:
             # Save fallback results so user sees something useful
             try:
                 fallback_result = self._get_fallback_analysis()
-                fallback_result["summary"] = f"AI analysis temporarily unavailable. Error: {str(e)[:100]}"
+                fallback_result["summary"] = f"AI analysis temporarily unavailable. Error: {str(e)[
+                    :100]}"
                 await self._save_analysis_results(db, cv_id, fallback_result)
                 # Mark as COMPLETED with fallback data instead of FAILED
                 await self._update_analysis_status(db, cv_id, models.AnalysisStatus.COMPLETED)
                 logger.info(f"Saved fallback analysis for cv_id={cv_id}")
             except Exception as fallback_error:
-                logger.error(f"Failed to save fallback analysis: {fallback_error}")
+                logger.error(f"Failed to save fallback analysis: {
+                             fallback_error}")
                 await self._update_analysis_status(db, cv_id, models.AnalysisStatus.FAILED)
 
     async def _extract_text_from_file(self, file_path: str) -> str:
@@ -189,14 +199,16 @@ class AIService:
             # Also extract text from tables
             for table in doc.tables:
                 for row in table.rows:
-                    row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    row_text = [cell.text.strip()
+                                for cell in row.cells if cell.text.strip()]
                     if row_text:
                         text_parts.append(" | ".join(row_text))
 
             return "\n".join(text_parts)
         except ImportError:
             logger.error("python-docx library not installed")
-            raise ImportError("python-docx library is required for DOCX extraction")
+            raise ImportError(
+                "python-docx library is required for DOCX extraction")
         except Exception as e:
             logger.error(f"DOCX extraction error: {str(e)}")
             raise
@@ -204,39 +216,51 @@ class AIService:
     async def _perform_ai_analysis(self, cv_content: str) -> Dict[str, Any]:
         """
         Use Ollama to analyze CV content and return structured results.
+        Includes RAG context retrieval for enhanced analysis.
         Includes error handling for malformed AI responses.
+
+        Note: Content is truncated to prevent timeout on low-resource systems.
         """
-        # Comprehensive analysis prompt
-        analysis_prompt = f"""
-You are an expert CV analyzer. Analyze the following CV and provide a comprehensive assessment.
+        # Truncate CV content to prevent timeout
+        truncated_cv = cv_content[:self.MAX_CV_CONTENT_LENGTH]
+        if len(cv_content) > self.MAX_CV_CONTENT_LENGTH:
+            logger.info(f"CV content truncated from {len(cv_content)} to {
+                        self.MAX_CV_CONTENT_LENGTH} chars")
 
-CV Content:
-{cv_content}
+        # Retrieve RAG context for enhanced analysis (with length limit)
+        rag_context = ""
+        try:
+            retrieved_docs = rag_service.retrieve_context(
+                truncated_cv, top_k=2)  # Limit results
+            if retrieved_docs:
+                rag_context = rag_service.format_context_for_prompt(
+                    retrieved_docs)
+                # Truncate RAG context if too long
+                if len(rag_context) > self.MAX_RAG_CONTEXT_LENGTH:
+                    rag_context = rag_context[:self.MAX_RAG_CONTEXT_LENGTH] + "..."
+                    logger.info(f"RAG context truncated to {
+                                self.MAX_RAG_CONTEXT_LENGTH} chars")
+                logger.info(f"RAG context retrieved: {
+                            len(retrieved_docs)} documents")
+        except Exception as e:
+            logger.warning(
+                f"RAG retrieval failed, proceeding without context: {str(e)}")
 
-Provide your analysis as a JSON object with the following structure:
-{{
-    "score": <number 0-100>,
-    "criteria": {{
-        "completeness": <score 0-100>,
-        "experience": <score 0-100>,
-        "skills": <score 0-100>,
-        "professionalism": <score 0-100>
-    }},
-    "summary": "<2-3 sentence professional summary>",
-    "skills": ["skill1", "skill2", ...],
-    "experience_breakdown": {{
-        "total_years": <number>,
-        "key_roles": ["role1", "role2", ...],
-        "industries": ["industry1", "industry2", ...]
-    }},
-    "strengths": ["strength1", "strength2", "strength3"],
-    "improvements": ["improvement1", "improvement2", "improvement3"],
-    "formatting_feedback": ["feedback1", "feedback2", ...],
-    "ats_hints": ["hint1", "hint2", ...]
-}}
+        # Build context section for prompt (simplified)
+        context_section = ""
+        if rag_context:
+            context_section = f"Reference: {rag_context}\n\n"
 
-Return ONLY the JSON object, no additional text.
-"""
+        # Simplified and shorter prompt for faster inference
+        analysis_prompt = f"""Analyze this CV and respond with ONLY a JSON object.
+
+{context_section}CV:
+{truncated_cv}
+
+JSON format:
+{{"score":<0-100>,"criteria":{{"completeness":<0-100>,"experience":<0-100>,"skills":<0-100>,"professionalism":<0-100>}},"summary":"<brief summary>","skills":["skill1","skill2","skill3"...],"experience_breakdown":{{"total_years":<number>,"key_roles":["role1"],"industries":["industry1"]}},"strengths":["str1","str2"],"improvements":["imp1","imp2"],"formatting_feedback":["feedback1"],"ats_hints":["hint1"]}}
+
+JSON only:"""
 
         try:
             result = await self._call_ollama(analysis_prompt)
@@ -360,7 +384,8 @@ Return ONLY the JSON object, no additional text.
                 # Direct image file
                 images = [Image.open(file_path)]
             else:
-                raise ValueError(f"Unsupported file format for OCR: {file_extension}")
+                raise ValueError(f"Unsupported file format for OCR: {
+                                 file_extension}")
 
             extracted_texts: List[str] = []
 
@@ -378,7 +403,8 @@ Return ONLY the JSON object, no additional text.
                     extracted_texts.append(page_text)
 
             full_text = "\n\n".join(extracted_texts)
-            logger.info(f"OCR extraction completed. Total characters: {len(full_text)}")
+            logger.info(f"OCR extraction completed. Total characters: {
+                        len(full_text)}")
 
             return full_text
 
@@ -411,20 +437,24 @@ Return ONLY the JSON object, no additional text.
         """
         # Heuristic 1: Text too short
         if len(extracted_text.strip()) < 100:
-            logger.info(f"OCR needed: Text too short ({len(extracted_text)} chars)")
+            logger.info(f"OCR needed: Text too short ({
+                        len(extracted_text)} chars)")
             return True
 
         # Heuristic 2: Check for garbled text (high ratio of non-printable chars)
-        printable_ratio = sum(1 for c in extracted_text if c.isprintable() or c.isspace()) / len(extracted_text)
+        printable_ratio = sum(1 for c in extracted_text if c.isprintable(
+        ) or c.isspace()) / len(extracted_text)
         if printable_ratio < 0.8:
-            logger.info(f"OCR needed: Low printable ratio ({printable_ratio:.2f})")
+            logger.info(
+                f"OCR needed: Low printable ratio ({printable_ratio:.2f})")
             return True
 
         # Heuristic 3: Check for meaningful words
         # Split into words and check if they look like real words
         words = re.findall(r'\b[a-zA-ZÀ-ỹ]{2,}\b', extracted_text)
         if len(words) < 20:
-            logger.info(f"OCR needed: Too few recognizable words ({len(words)})")
+            logger.info(
+                f"OCR needed: Too few recognizable words ({len(words)})")
             return True
 
         # Heuristic 4: Check for common CV section headers (Vietnamese or English)
@@ -438,10 +468,12 @@ Return ONLY the JSON object, no additional text.
 
         # If we found at least one section header, text extraction likely worked
         if headers_found == 0:
-            logger.info("OCR needed: No section headers found in extracted text")
+            logger.info(
+                "OCR needed: No section headers found in extracted text")
             return True
 
-        logger.info(f"Standard extraction sufficient: {headers_found} headers found, {len(words)} words")
+        logger.info(f"Standard extraction sufficient: {
+                    headers_found} headers found, {len(words)} words")
         return False
 
     def robust_section_split(self, text: str) -> Dict[str, str]:
@@ -467,7 +499,8 @@ Return ONLY the JSON object, no additional text.
         ) + r')[\s:：]*(?:\n|$)'
 
         # Find all matches
-        matches = list(re.finditer(header_pattern, text, re.IGNORECASE | re.MULTILINE))
+        matches = list(re.finditer(header_pattern, text,
+                       re.IGNORECASE | re.MULTILINE))
 
         if not matches:
             # No sections found, return entire text as "content"
@@ -482,7 +515,8 @@ Return ONLY the JSON object, no additional text.
 
             # Get content between this header and the next
             start_pos = match.end()
-            end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            end_pos = matches[i + 1].start() if i + \
+                1 < len(matches) else len(text)
 
             content = text[start_pos:end_pos].strip()
 
@@ -578,25 +612,26 @@ Return ONLY the JSON object, no additional text.
     async def _call_ollama(self, prompt: str) -> str:
         """
         Call Ollama API with a prompt and return the response.
-        
+
         Uses dynamic timeout based on number of pending requests.
         Since Ollama processes requests sequentially, each request needs
         to wait for all pending requests to complete first.
-        
+
         Timeout calculation: (pending_requests + 1) * BASE_TIMEOUT
         - 1 CV: 120s timeout
         - 2 CVs: 240s timeout (wait for 1st + process 2nd)
         - 5 CVs: 600s timeout (wait for 4 + process 5th)
         """
         global _pending_requests
-        
+
         # Register this request and calculate timeout
         async with _request_lock:
             _pending_requests += 1
             queue_position = _pending_requests
             dynamic_timeout = queue_position * _BASE_TIMEOUT
-            logger.info(f"Ollama request queued. Position: {queue_position}, Timeout: {dynamic_timeout}s")
-        
+            logger.info(f"Ollama request queued. Position: {
+                        queue_position}, Timeout: {dynamic_timeout}s")
+
         try:
             async with httpx.AsyncClient(timeout=dynamic_timeout) as client:
                 response = await client.post(
@@ -609,7 +644,8 @@ Return ONLY the JSON object, no additional text.
                 )
                 response.raise_for_status()
                 result = response.json()
-                logger.info(f"Ollama analysis completed. Queue position was: {queue_position}")
+                logger.info(f"Ollama analysis completed. Queue position was: {
+                            queue_position}")
                 return result.get("response", "")
         except httpx.TimeoutException:
             logger.error(f"Ollama request timed out after {dynamic_timeout}s")
@@ -624,7 +660,8 @@ Return ONLY the JSON object, no additional text.
             # Always decrement counter when done
             async with _request_lock:
                 _pending_requests -= 1
-                logger.info(f"Ollama request finished. Remaining in queue: {_pending_requests}")
+                logger.info(f"Ollama request finished. Remaining in queue: {
+                            _pending_requests}")
 
     async def _update_analysis_status(
         self,

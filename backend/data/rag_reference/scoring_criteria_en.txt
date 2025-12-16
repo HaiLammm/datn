@@ -1,0 +1,148 @@
+# CV Scoring Criteria and Evaluation Guidelines
+
+## Overview
+This document provides comprehensive guidelines for evaluating CVs/resumes. The scoring system ranges from 0-100, with specific criteria for each evaluation dimension.
+
+## Scoring Dimensions
+
+### 1. Completeness (0-25 points)
+Evaluates how complete and well-structured the CV is.
+
+**Excellent (21-25 points):**
+- All essential sections present (contact, summary, experience, education, skills)
+- Clear and logical organization
+- No missing critical information
+
+**Good (16-20 points):**
+- Most essential sections present
+- Generally well-organized
+- Minor gaps in information
+
+**Average (11-15 points):**
+- Basic sections present but incomplete
+- Some organizational issues
+- Notable missing information
+
+**Poor (0-10 points):**
+- Missing multiple essential sections
+- Poorly organized
+- Significant gaps in information
+
+### 2. Experience Quality (0-25 points)
+Evaluates the relevance and quality of work experience.
+
+**Excellent (21-25 points):**
+- 5+ years of relevant experience OR exceptional achievements
+- Clear progression in responsibilities
+- Quantifiable achievements with metrics
+- Experience directly aligns with target roles
+
+**Good (16-20 points):**
+- 3-5 years of relevant experience
+- Solid progression shown
+- Some quantifiable achievements
+- Experience mostly relevant
+
+**Average (11-15 points):**
+- 1-3 years of experience
+- Limited progression
+- Few quantifiable achievements
+- Partially relevant experience
+
+**Entry Level (0-10 points):**
+- Less than 1 year experience
+- No clear progression
+- No quantifiable achievements
+- Limited relevance to target roles
+
+### 3. Skills Assessment (0-25 points)
+Evaluates technical and soft skills presentation.
+
+**Excellent (21-25 points):**
+- Comprehensive skill set listed
+- Skills clearly categorized (technical, soft, tools)
+- Evidence of skill application in experience section
+- In-demand skills for target industry
+
+**Good (16-20 points):**
+- Good range of skills listed
+- Some categorization
+- Most skills supported by experience
+- Relevant skills present
+
+**Average (11-15 points):**
+- Basic skills listed
+- Limited organization
+- Weak connection to experience
+- Some relevant skills missing
+
+**Poor (0-10 points):**
+- Few skills listed
+- No organization
+- No evidence of skill application
+- Missing critical skills
+
+### 4. Professionalism (0-25 points)
+Evaluates presentation, formatting, and communication quality.
+
+**Excellent (21-25 points):**
+- Professional formatting and layout
+- Error-free writing
+- Appropriate length (1-2 pages)
+- Consistent styling throughout
+
+**Good (16-20 points):**
+- Generally professional appearance
+- Minor errors only
+- Appropriate length
+- Mostly consistent styling
+
+**Average (11-15 points):**
+- Basic formatting
+- Some errors present
+- May be too long or short
+- Inconsistent styling
+
+**Poor (0-10 points):**
+- Unprofessional appearance
+- Multiple errors
+- Inappropriate length
+- Poor styling choices
+
+## Total Score Interpretation
+
+| Score Range | Qualification Level | Recommendation |
+|-------------|---------------------|----------------|
+| 85-100 | Highly Qualified | Strong candidate for senior/leadership roles |
+| 70-84 | Qualified | Good candidate for mid-level positions |
+| 55-69 | Potentially Qualified | Suitable for entry-level or with additional training |
+| 40-54 | Needs Development | Consider for internships or development programs |
+| 0-39 | Not Qualified | Does not meet minimum requirements |
+
+## Industry-Specific Considerations
+
+### Technology/IT
+- Programming languages proficiency
+- Framework and tool expertise
+- Project portfolio evidence
+- Certifications (AWS, Google Cloud, etc.)
+
+### Business/Management
+- Leadership experience
+- Project management skills
+- Business metrics and KPIs achieved
+- MBA or relevant certifications
+
+### Creative/Design
+- Portfolio quality
+- Tool proficiency (Adobe Suite, Figma, etc.)
+- Client/project variety
+- Design awards or recognition
+
+## ATS Compatibility Checklist
+- Standard section headings used
+- No tables or complex formatting
+- Keywords match job descriptions
+- Contact information clearly visible
+- File format: PDF or DOCX
+- No images or graphics for critical information

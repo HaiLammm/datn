@@ -1,6 +1,19 @@
+import sys
 import pytest
 import uuid
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch, MagicMock
+
+# Mock chromadb, numpy, and sentence_transformers before importing
+mock_chromadb = MagicMock()
+sys.modules['chromadb'] = mock_chromadb
+sys.modules['chromadb.config'] = MagicMock()
+
+mock_numpy = MagicMock()
+sys.modules['numpy'] = mock_numpy
+
+mock_sentence_transformers = MagicMock()
+sys.modules['sentence_transformers'] = mock_sentence_transformers
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.ai.service import AIService
@@ -493,6 +506,146 @@ class TestOCRExtraction:
             pytest.skip("OCR libraries not installed")
         finally:
             os.unlink(temp_path)
+
+
+class TestRAGIntegration:
+    """Tests for RAG (Retrieval-Augmented Generation) integration in AI service."""
+
+    @pytest.mark.asyncio
+    async def test_analyze_cv_with_rag_context(self, ai_service):
+        """Test CV analysis includes RAG context in prompt."""
+        cv_id = uuid.uuid4()
+        file_path = "/path/to/cv.pdf"
+        mock_db = AsyncMock(spec=AsyncSession)
+
+        mock_analysis_result = {
+            "score": 85,
+            "criteria": {"completeness": 80, "experience": 90, "skills": 85, "professionalism": 80},
+            "summary": "Experienced developer matching job requirements.",
+            "skills": ["Python", "FastAPI"],
+            "experience_breakdown": {"total_years": 5, "key_roles": ["Developer"], "industries": ["Tech"]},
+            "strengths": ["Strong match to job requirements"],
+            "improvements": ["Add certifications"],
+            "formatting_feedback": ["Good structure"],
+            "ats_hints": ["Include more keywords"]
+        }
+
+        # Mock RAG service to return context
+        mock_retrieved_docs = [Mock(doc_type="job_description", content="Python Developer job")]
+        mock_rag_context = "## Relevant Job Descriptions:\n### Python Developer\nLooking for experienced..."
+
+        with patch.object(ai_service, '_extract_text_from_file', return_value="Sample CV with Python experience " * 20):
+            with patch.object(ai_service, 'detect_if_needs_ocr', return_value=False):
+                with patch('app.modules.ai.service.rag_service') as mock_rag:
+                    mock_rag.retrieve_context.return_value = mock_retrieved_docs
+                    mock_rag.format_context_for_prompt.return_value = mock_rag_context
+                    
+                    with patch.object(ai_service, '_call_ollama') as mock_ollama:
+                        mock_ollama.return_value = '{"score": 85, "criteria": {}, "summary": "Good", "skills": [], "experience_breakdown": {}, "strengths": [], "improvements": [], "formatting_feedback": [], "ats_hints": []}'
+                        
+                        with patch.object(ai_service, '_update_analysis_status'):
+                            with patch.object(ai_service, '_save_analysis_results'):
+                                await ai_service.analyze_cv(cv_id, file_path, mock_db)
+
+                        # Verify RAG context was retrieved
+                        mock_rag.retrieve_context.assert_called_once()
+                        mock_rag.format_context_for_prompt.assert_called_once_with(mock_retrieved_docs)
+                        
+                        # Verify the prompt includes RAG context
+                        call_args = mock_ollama.call_args[0][0]
+                        assert "Reference Context" in call_args or "Relevant Job Descriptions" in call_args
+
+    @pytest.mark.asyncio
+    async def test_analyze_cv_without_rag_fallback(self, ai_service):
+        """Test CV analysis works without RAG when RAG service fails."""
+        cv_id = uuid.uuid4()
+        file_path = "/path/to/cv.pdf"
+        mock_db = AsyncMock(spec=AsyncSession)
+
+        mock_analysis_result = {
+            "score": 75,
+            "criteria": {"completeness": 70, "experience": 80, "skills": 75, "professionalism": 75},
+            "summary": "Solid developer profile.",
+            "skills": ["Python"],
+            "experience_breakdown": {"total_years": 3, "key_roles": ["Engineer"], "industries": ["Software"]},
+            "strengths": ["Technical skills"],
+            "improvements": ["Add projects"],
+            "formatting_feedback": ["Clean format"],
+            "ats_hints": ["Use keywords"]
+        }
+
+        with patch.object(ai_service, '_extract_text_from_file', return_value="Sample CV content " * 20):
+            with patch.object(ai_service, 'detect_if_needs_ocr', return_value=False):
+                with patch('app.modules.ai.service.rag_service') as mock_rag:
+                    # Simulate RAG service failure
+                    mock_rag.retrieve_context.side_effect = Exception("RAG service unavailable")
+                    
+                    with patch.object(ai_service, '_call_ollama') as mock_ollama:
+                        mock_ollama.return_value = '{"score": 75, "criteria": {}, "summary": "Good", "skills": [], "experience_breakdown": {}, "strengths": [], "improvements": [], "formatting_feedback": [], "ats_hints": []}'
+                        
+                        with patch.object(ai_service, '_update_analysis_status'):
+                            with patch.object(ai_service, '_save_analysis_results') as mock_save:
+                                # Should NOT raise - graceful degradation
+                                await ai_service.analyze_cv(cv_id, file_path, mock_db)
+                                
+                                # Verify analysis still completed
+                                mock_save.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_analyze_cv_rag_returns_empty(self, ai_service):
+        """Test CV analysis handles empty RAG results gracefully."""
+        cv_id = uuid.uuid4()
+        file_path = "/path/to/cv.pdf"
+        mock_db = AsyncMock(spec=AsyncSession)
+
+        with patch.object(ai_service, '_extract_text_from_file', return_value="Sample CV content " * 20):
+            with patch.object(ai_service, 'detect_if_needs_ocr', return_value=False):
+                with patch('app.modules.ai.service.rag_service') as mock_rag:
+                    # RAG returns empty results
+                    mock_rag.retrieve_context.return_value = []
+                    mock_rag.format_context_for_prompt.return_value = ""
+                    
+                    with patch.object(ai_service, '_call_ollama') as mock_ollama:
+                        mock_ollama.return_value = '{"score": 70, "criteria": {}, "summary": "OK", "skills": [], "experience_breakdown": {}, "strengths": [], "improvements": [], "formatting_feedback": [], "ats_hints": []}'
+                        
+                        with patch.object(ai_service, '_update_analysis_status'):
+                            with patch.object(ai_service, '_save_analysis_results') as mock_save:
+                                await ai_service.analyze_cv(cv_id, file_path, mock_db)
+                                
+                                # Verify analysis completed without context
+                                mock_save.assert_called_once()
+                                
+                                # Verify prompt does NOT include context section
+                                call_args = mock_ollama.call_args[0][0]
+                                assert "Reference Context" not in call_args or call_args.count("Reference Context") == 0
+
+    @pytest.mark.asyncio
+    async def test_perform_ai_analysis_includes_rag_context(self, ai_service):
+        """Test that _perform_ai_analysis method retrieves and includes RAG context."""
+        cv_content = "Python developer with 5 years experience in FastAPI and PostgreSQL"
+        
+        mock_retrieved_docs = [Mock()]
+        mock_context = "## Job Context\nPython Developer position available"
+        
+        with patch('app.modules.ai.service.rag_service') as mock_rag:
+            mock_rag.retrieve_context.return_value = mock_retrieved_docs
+            mock_rag.format_context_for_prompt.return_value = mock_context
+            
+            with patch.object(ai_service, '_call_ollama') as mock_ollama:
+                mock_ollama.return_value = '{"score": 80, "criteria": {}, "summary": "Test", "skills": [], "experience_breakdown": {}, "strengths": [], "improvements": [], "formatting_feedback": [], "ats_hints": []}'
+                
+                # Run the async method
+                result = await ai_service._perform_ai_analysis(cv_content)
+                
+                # Verify RAG was called
+                mock_rag.retrieve_context.assert_called_once_with(cv_content, top_k=2)
+                
+                # Verify context was formatted
+                mock_rag.format_context_for_prompt.assert_called_once_with(mock_retrieved_docs)
+                
+                # Verify prompt includes the context
+                prompt = mock_ollama.call_args[0][0]
+                assert mock_context in prompt
 
 
 class TestAnalyzeCVWithOCR:

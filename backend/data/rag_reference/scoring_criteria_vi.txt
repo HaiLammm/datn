@@ -1,0 +1,148 @@
+# Tiêu chí Chấm điểm và Hướng dẫn Đánh giá CV
+
+## Tổng quan
+Tài liệu này cung cấp hướng dẫn toàn diện để đánh giá CV/hồ sơ xin việc. Hệ thống chấm điểm từ 0-100, với các tiêu chí cụ thể cho từng khía cạnh đánh giá.
+
+## Các Khía cạnh Chấm điểm
+
+### 1. Độ Hoàn thiện (0-25 điểm)
+Đánh giá mức độ hoàn thiện và cấu trúc của CV.
+
+**Xuất sắc (21-25 điểm):**
+- Có đầy đủ các phần thiết yếu (thông tin liên hệ, tóm tắt, kinh nghiệm, học vấn, kỹ năng)
+- Tổ chức rõ ràng và logic
+- Không thiếu thông tin quan trọng
+
+**Tốt (16-20 điểm):**
+- Có hầu hết các phần thiết yếu
+- Tổ chức tương đối tốt
+- Thiếu sót nhỏ về thông tin
+
+**Trung bình (11-15 điểm):**
+- Có các phần cơ bản nhưng chưa đầy đủ
+- Một số vấn đề về tổ chức
+- Thiếu thông tin đáng chú ý
+
+**Yếu (0-10 điểm):**
+- Thiếu nhiều phần thiết yếu
+- Tổ chức kém
+- Thiếu nhiều thông tin quan trọng
+
+### 2. Chất lượng Kinh nghiệm (0-25 điểm)
+Đánh giá mức độ liên quan và chất lượng kinh nghiệm làm việc.
+
+**Xuất sắc (21-25 điểm):**
+- 5+ năm kinh nghiệm liên quan HOẶC thành tích xuất sắc
+- Thể hiện rõ sự thăng tiến trong trách nhiệm
+- Thành tích có thể đo lường với số liệu cụ thể
+- Kinh nghiệm phù hợp trực tiếp với vị trí mục tiêu
+
+**Tốt (16-20 điểm):**
+- 3-5 năm kinh nghiệm liên quan
+- Thể hiện sự thăng tiến tốt
+- Một số thành tích có thể đo lường
+- Kinh nghiệm hầu hết liên quan
+
+**Trung bình (11-15 điểm):**
+- 1-3 năm kinh nghiệm
+- Sự thăng tiến hạn chế
+- Ít thành tích có thể đo lường
+- Kinh nghiệm liên quan một phần
+
+**Mới vào nghề (0-10 điểm):**
+- Dưới 1 năm kinh nghiệm
+- Không có sự thăng tiến rõ ràng
+- Không có thành tích có thể đo lường
+- Mức độ liên quan hạn chế
+
+### 3. Đánh giá Kỹ năng (0-25 điểm)
+Đánh giá cách trình bày kỹ năng kỹ thuật và kỹ năng mềm.
+
+**Xuất sắc (21-25 điểm):**
+- Liệt kê bộ kỹ năng toàn diện
+- Kỹ năng được phân loại rõ ràng (kỹ thuật, mềm, công cụ)
+- Có bằng chứng áp dụng kỹ năng trong phần kinh nghiệm
+- Kỹ năng được thị trường cần cho ngành mục tiêu
+
+**Tốt (16-20 điểm):**
+- Liệt kê nhiều kỹ năng
+- Có một số phân loại
+- Hầu hết kỹ năng được hỗ trợ bởi kinh nghiệm
+- Có các kỹ năng liên quan
+
+**Trung bình (11-15 điểm):**
+- Liệt kê kỹ năng cơ bản
+- Tổ chức hạn chế
+- Liên kết yếu với kinh nghiệm
+- Thiếu một số kỹ năng liên quan
+
+**Yếu (0-10 điểm):**
+- Liệt kê ít kỹ năng
+- Không có tổ chức
+- Không có bằng chứng áp dụng kỹ năng
+- Thiếu kỹ năng quan trọng
+
+### 4. Tính Chuyên nghiệp (0-25 điểm)
+Đánh giá cách trình bày, định dạng và chất lượng giao tiếp.
+
+**Xuất sắc (21-25 điểm):**
+- Định dạng và bố cục chuyên nghiệp
+- Không có lỗi viết
+- Độ dài phù hợp (1-2 trang)
+- Phong cách nhất quán xuyên suốt
+
+**Tốt (16-20 điểm):**
+- Ngoại hình chuyên nghiệp nói chung
+- Chỉ có lỗi nhỏ
+- Độ dài phù hợp
+- Phong cách hầu hết nhất quán
+
+**Trung bình (11-15 điểm):**
+- Định dạng cơ bản
+- Có một số lỗi
+- Có thể quá dài hoặc quá ngắn
+- Phong cách không nhất quán
+
+**Yếu (0-10 điểm):**
+- Ngoại hình không chuyên nghiệp
+- Nhiều lỗi
+- Độ dài không phù hợp
+- Lựa chọn phong cách kém
+
+## Giải thích Tổng điểm
+
+| Khoảng điểm | Mức độ Đáp ứng | Đề xuất |
+|-------------|----------------|---------|
+| 85-100 | Đáp ứng cao | Ứng viên mạnh cho vị trí senior/quản lý |
+| 70-84 | Đáp ứng tốt | Ứng viên tốt cho vị trí trung cấp |
+| 55-69 | Có tiềm năng | Phù hợp cho vị trí mới vào nghề hoặc cần đào tạo thêm |
+| 40-54 | Cần phát triển | Xem xét cho thực tập hoặc chương trình phát triển |
+| 0-39 | Chưa đáp ứng | Không đáp ứng yêu cầu tối thiểu |
+
+## Xem xét theo Ngành cụ thể
+
+### Công nghệ/CNTT
+- Thành thạo ngôn ngữ lập trình
+- Chuyên môn về framework và công cụ
+- Bằng chứng về danh mục dự án
+- Chứng chỉ (AWS, Google Cloud, v.v.)
+
+### Kinh doanh/Quản lý
+- Kinh nghiệm lãnh đạo
+- Kỹ năng quản lý dự án
+- Chỉ số kinh doanh và KPI đạt được
+- MBA hoặc chứng chỉ liên quan
+
+### Sáng tạo/Thiết kế
+- Chất lượng portfolio
+- Thành thạo công cụ (Adobe Suite, Figma, v.v.)
+- Đa dạng khách hàng/dự án
+- Giải thưởng thiết kế hoặc sự công nhận
+
+## Danh sách Kiểm tra Tương thích ATS
+- Sử dụng tiêu đề phần tiêu chuẩn
+- Không có bảng hoặc định dạng phức tạp
+- Từ khóa phù hợp với mô tả công việc
+- Thông tin liên hệ hiển thị rõ ràng
+- Định dạng tệp: PDF hoặc DOCX
+- Không có hình ảnh hoặc đồ họa cho thông tin quan trọng

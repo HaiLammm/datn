@@ -55,7 +55,16 @@ class Settings(BaseSettings):
 
     # AI/Ollama settings
     OLLAMA_URL: str = "http://localhost:11434"
-    LLM_MODEL: str = "llama3.1:8b"
+    LLM_MODEL: str = "llama3.1:8b"  # Changed from llama3.1:8b to reduce memory usage
+
+    # ChromaDB / RAG settings
+    CHROMA_PERSIST_PATH: Path = Path("data/chroma_db")
+    CHROMA_COLLECTION_JOBS: str = "job_descriptions"
+    CHROMA_COLLECTION_REFERENCE: str = "reference_docs"
+    EMBEDDING_MODEL: str = "paraphrase-multilingual-MiniLM-L12-v2"
+    RAG_TOP_K: int = 3
+    RAG_MIN_SIMILARITY_SCORE: float = 0.3  # Minimum similarity score threshold
+    RAG_RELEVANCE_CHECK_ENABLED: bool = True  # Enable career field relevance checking
 
 
 settings = Settings()  # type: ignore
