@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -7,6 +8,8 @@ from app.modules.auth.dependencies import get_current_user
 from app.modules.users.models import User
 from app.modules.cv.models import CV
 from . import models, schemas
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["AI Analysis"])
 
@@ -45,6 +48,13 @@ async def get_cv_analysis(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Analysis not found"
         )
+
+    logger.info(f"📊 ANALYSIS REQUEST - CV ID: {cv_id}, User: {current_user.email}")
+    logger.info(f"📊 Score: {analysis.ai_score}")
+    if analysis.ai_feedback:
+        exp_score = analysis.ai_feedback.get('criteria', {}).get('experience', 'N/A')
+        exp_years = analysis.ai_feedback.get('experience_breakdown', {}).get('total_years', 'N/A')
+        logger.info(f"📊 Experience Score: {exp_score}, Years: {exp_years}")
 
     return analysis
 

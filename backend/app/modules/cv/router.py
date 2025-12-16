@@ -1,5 +1,6 @@
 from typing import List
 import uuid
+import logging
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,7 @@ from app.modules.cv.schemas import CVResponse, CVWithStatusResponse
 from app.modules.cv.service import create_cv, delete_cv
 from app.modules.cv.models import CV
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CVs"])
 
@@ -63,6 +65,8 @@ async def upload_cv(
     current_user: User = Depends(rate_limit_cv_upload),
     db: AsyncSession = Depends(get_db),
 ):
+    logger.info(f"📤 CV UPLOAD - User: {current_user.email}, Filename: {file.filename}")
+    
     if file.content_type not in [
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -73,6 +77,7 @@ async def upload_cv(
         )
 
     db_cv = await create_cv(db=db, file=file, current_user=current_user)
+    logger.info(f"✅ CV UPLOAD SUCCESS - CV ID: {db_cv.id}, File: {file.filename}")
     return db_cv
 
 
