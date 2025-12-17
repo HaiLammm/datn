@@ -49,7 +49,11 @@ MAIN_CATEGORIES = [
     "frameworks",
     "databases",
     "devops",
+    "infrastructure",
+    "networking",
+    "compliance",
     "soft_skills",
+    "ai_ml",
 ]
 
 
@@ -116,8 +120,18 @@ class SkillScorer:
         logger.debug(f"Calculating skill score for text of length {
                      len(cv_text)}")
 
-        # 1. Extract skills using SkillExtractor
-        extracted_skills = self._extractor.extract_skills(cv_text)
+        # Extract LLM skills for "other" category support
+        llm_skills: Optional[List[str]] = None
+        if llm_response and "skills" in llm_response:
+            llm_skills = llm_response.get("skills", [])
+            if isinstance(llm_skills, list):
+                logger.debug(f"LLM provided {len(llm_skills)} skills for matching")
+
+        # 1. Extract skills using SkillExtractor with "other" category support
+        extracted_skills = self._extractor.extract_skills_with_other(
+            cv_text, 
+            llm_skills=llm_skills
+        )
         logger.debug(f"Extracted skills: {extracted_skills}")
 
         # 2. Calculate rule-based scores (deterministic)

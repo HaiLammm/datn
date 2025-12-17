@@ -175,11 +175,11 @@ class TestCalculateCategorization:
         assert result == 6  # 5 categories + 1 balance bonus
     
     def test_categorization_ignores_non_main_categories(self, scorer):
-        """Non-main categories (ai_ml) should not count toward score."""
+        """Non-main categories (other) should not count toward score."""
         result = scorer._calculate_categorization({
-            "ai_ml": ["pytorch", "tensorflow", "langchain"],
+            "other": ["custom skill 1", "custom skill 2", "custom skill 3"],
         })
-        # ai_ml is not in MAIN_CATEGORIES
+        # 'other' is not in MAIN_CATEGORIES
         assert result == 0
     
     def test_categorization_three_categories_balanced(self, scorer):
@@ -446,16 +446,19 @@ class TestGenerateRecommendations:
     
     def test_recommendations_for_missing_categories(self, scorer):
         """Missing main categories (1-3) should trigger category recommendation."""
-        # Only 2 missing categories (devops, soft_skills) - triggers recommendation
+        # Cover most categories, leaving 2-3 missing - triggers recommendation
         skills: Dict[str, List[str]] = {
             "programming_languages": ["python", "javascript"],
             "frameworks": ["react"],
             "databases": ["postgresql"],
-            # Missing: devops, soft_skills (only 2 missing)
+            "devops": ["docker"],
+            "infrastructure": ["windows server"],
+            "networking": ["tcp/ip"],
+            # Missing: compliance, soft_skills, ai_ml (only 3 missing)
         }
         scores = {
             "completeness_score": 5,
-            "categorization_score": 3,
+            "categorization_score": 5,
             "evidence_score": 4,
             "market_relevance_score": 2,
         }

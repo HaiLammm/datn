@@ -39,6 +39,12 @@ export interface SkillCategories {
   frameworks: string[];
   databases: string[];
   devops: string[];
+  /** Infrastructure/sysadmin skills (Windows Server, VMware, Active Directory, etc.) */
+  infrastructure?: string[];
+  /** Networking skills (TCP/IP, Cisco, firewall, etc.) */
+  networking?: string[];
+  /** Compliance/regulatory skills (HIPAA, GDPR, PCI-DSS, etc.) */
+  compliance?: string[];
   soft_skills: string[];
   /** AI/ML skills (optional - may not be present in all CVs) */
   ai_ml?: string[];

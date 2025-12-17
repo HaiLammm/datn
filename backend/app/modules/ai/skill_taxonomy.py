@@ -9,7 +9,12 @@ Categories:
 - frameworks: Web frameworks, libraries, and tools
 - databases: Database systems and data stores
 - devops: DevOps tools, cloud platforms, and infrastructure
+- infrastructure: System administration, OS, and enterprise IT tools
+- networking: Network protocols, tools, and security
+- compliance: Regulatory compliance and IT governance frameworks
 - soft_skills: Non-technical professional skills
+- ai_ml: AI/ML frameworks and tools
+- other: Skills not matching other categories (populated dynamically)
 """
 
 from typing import Dict, List, TypedDict
@@ -49,9 +54,11 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
         {"canonical": "objective-c", "aliases": ["objc", "objective c"]},
         {"canonical": "shell", "aliases": ["bash", "sh", "zsh", "shell scripting"]},
         {"canonical": "powershell", "aliases": ["ps1", "pwsh"]},
-        {"canonical": "sql", "aliases": ["structured query language"]},
+        {"canonical": "sql", "aliases": ["structured query language", "pl/sql", "plsql", "t-sql", "tsql"]},
         {"canonical": "html", "aliases": ["html5"]},
         {"canonical": "css", "aliases": ["css3", "cascading style sheets"]},
+        {"canonical": "xml", "aliases": ["xslt", "xpath", "xsd"]},
+        {"canonical": "vbnet", "aliases": ["vb.net", "visual basic .net", "visual basic net"]},
     ],
     
     "frameworks": [
@@ -88,7 +95,7 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
         {"canonical": "rails", "aliases": ["ruby on rails", "ror"]},
         {"canonical": "laravel", "aliases": []},
         {"canonical": "symfony", "aliases": []},
-        {"canonical": "dotnet", "aliases": [".net", ".net core", "asp.net", "dotnet core"]},
+        {"canonical": "dotnet", "aliases": [".net", ".net core", "asp.net", "dotnet core", "ado.net", "asp", "asp classic", "entity framework"]},
         {"canonical": "gin", "aliases": ["gin-gonic"]},
         {"canonical": "echo", "aliases": ["labstack echo"]},
         {"canonical": "fiber", "aliases": ["gofiber"]},
@@ -238,6 +245,7 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
         # Networking
         {"canonical": "nginx", "aliases": []},
         {"canonical": "apache", "aliases": ["apache httpd", "httpd"]},
+        {"canonical": "iis", "aliases": ["internet information services", "microsoft iis"]},
         {"canonical": "haproxy", "aliases": ["ha proxy"]},
         {"canonical": "traefik", "aliases": []},
         {"canonical": "envoy", "aliases": []},
@@ -253,6 +261,8 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
         {"canonical": "github", "aliases": []},
         {"canonical": "gitlab", "aliases": []},
         {"canonical": "bitbucket", "aliases": []},
+        {"canonical": "tfs", "aliases": ["team foundation server", "azure devops server", "vsts"]},
+        {"canonical": "svn", "aliases": ["subversion", "apache subversion"]},
         
         # Message queues
         {"canonical": "rabbitmq", "aliases": ["rabbit mq"]},
@@ -273,10 +283,10 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
         {"canonical": "teamwork", "aliases": ["team collaboration", "collaboration", "team player"]},
         {"canonical": "leadership", "aliases": ["team leadership", "technical leadership", "tech lead"]},
         {"canonical": "problem solving", "aliases": ["problem-solving", "analytical thinking", "critical thinking"]},
-        {"canonical": "agile", "aliases": ["agile methodology", "agile development"]},
+        {"canonical": "agile", "aliases": ["agile methodology", "agile development", "agile methodologies"]},
         {"canonical": "scrum", "aliases": ["scrum master", "scrum methodology"]},
         {"canonical": "kanban", "aliases": []},
-        {"canonical": "project management", "aliases": ["pm", "project manager"]},
+        {"canonical": "project management", "aliases": ["pm", "project manager", "software project management"]},
         {"canonical": "time management", "aliases": ["time-management"]},
         {"canonical": "adaptability", "aliases": ["flexibility", "versatility"]},
         {"canonical": "mentoring", "aliases": ["coaching", "training"]},
@@ -284,6 +294,9 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
         {"canonical": "documentation", "aliases": ["technical writing", "tech writing"]},
         {"canonical": "presentation", "aliases": ["public speaking", "presenting"]},
         {"canonical": "stakeholder management", "aliases": ["client communication"]},
+        {"canonical": "sdlc", "aliases": ["software development lifecycle", "software development life cycle"]},
+        {"canonical": "business analysis", "aliases": ["business analyst", "requirements analysis", "requirements gathering"]},
+        {"canonical": "strategic planning", "aliases": ["it strategy", "tactical planning", "strategic thinking"]},
     ],
     
     "ai_ml": [
@@ -315,6 +328,14 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
         {"canonical": "plotly", "aliases": []},
         {"canonical": "jupyter", "aliases": ["jupyter notebook", "jupyter lab"]},
         
+        # Business Intelligence
+        {"canonical": "tableau", "aliases": ["tableau desktop", "tableau server"]},
+        {"canonical": "power bi", "aliases": ["powerbi", "power bi desktop", "microsoft power bi"]},
+        {"canonical": "looker", "aliases": ["google looker"]},
+        {"canonical": "metabase", "aliases": []},
+        {"canonical": "superset", "aliases": ["apache superset"]},
+        {"canonical": "qlik", "aliases": ["qlikview", "qlik sense"]},
+        
         # ML Ops
         {"canonical": "mlflow", "aliases": ["ml flow"]},
         {"canonical": "kubeflow", "aliases": ["kube flow"]},
@@ -327,6 +348,136 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
         {"canonical": "ollama", "aliases": []},
         {"canonical": "llama", "aliases": ["llama2", "llama 2", "llama3"]},
         {"canonical": "rag", "aliases": ["retrieval augmented generation"]},
+    ],
+    
+    "infrastructure": [
+        # Operating Systems
+        {"canonical": "windows server", "aliases": ["windows 2000", "windows 2003", "windows 2008", "windows 2012", "windows 2016", "windows 2019", "windows 2022", "win server"]},
+        {"canonical": "windows", "aliases": ["windows xp", "windows 7", "windows 10", "windows 11", "win xp", "win7", "win10", "win11"]},
+        {"canonical": "linux", "aliases": ["linux server", "linux administration", "linux admin"]},
+        {"canonical": "ubuntu", "aliases": ["ubuntu server"]},
+        {"canonical": "centos", "aliases": ["centos linux"]},
+        {"canonical": "redhat", "aliases": ["rhel", "red hat", "red hat enterprise linux"]},
+        {"canonical": "debian", "aliases": []},
+        {"canonical": "unix", "aliases": ["aix", "solaris", "hp-ux"]},
+        {"canonical": "macos", "aliases": ["mac os", "osx", "os x"]},
+        
+        # Virtualization
+        {"canonical": "vmware", "aliases": ["vsphere", "esxi", "vcenter", "vmware workstation"]},
+        {"canonical": "hyper-v", "aliases": ["hyperv", "hyper v", "microsoft hyper-v"]},
+        {"canonical": "virtualbox", "aliases": ["vbox", "oracle virtualbox"]},
+        {"canonical": "proxmox", "aliases": ["proxmox ve"]},
+        {"canonical": "citrix", "aliases": ["xenserver", "citrix xenapp", "citrix xendesktop"]},
+        
+        # Directory Services
+        {"canonical": "active directory", "aliases": ["ad", "ldap", "windows ad", "microsoft ad"]},
+        {"canonical": "azure ad", "aliases": ["azure active directory", "aad", "entra id"]},
+        
+        # Enterprise IT Tools
+        {"canonical": "sccm", "aliases": ["system center", "mecm", "microsoft endpoint configuration manager", "configmgr"]},
+        {"canonical": "intune", "aliases": ["microsoft intune", "endpoint manager"]},
+        {"canonical": "landesk", "aliases": ["ivanti", "ivanti landesk"]},
+        {"canonical": "jamf", "aliases": ["jamf pro", "casper suite"]},
+        {"canonical": "servicenow", "aliases": ["service now", "snow"]},
+        
+        # Backup & Recovery
+        {"canonical": "veeam", "aliases": ["veeam backup"]},
+        {"canonical": "arcserve", "aliases": ["ca arcserve", "arcserve backup"]},
+        {"canonical": "backup exec", "aliases": ["backupexec", "veritas backup exec", "symantec backup exec"]},
+        {"canonical": "netbackup", "aliases": ["veritas netbackup", "net backup"]},
+        {"canonical": "commvault", "aliases": []},
+        {"canonical": "acronis", "aliases": ["acronis backup"]},
+        
+        # System Imaging
+        {"canonical": "symantec ghost", "aliases": ["ghost", "norton ghost"]},
+        {"canonical": "clonezilla", "aliases": []},
+        {"canonical": "fog", "aliases": ["fog project", "fog server"]},
+        
+        # Legacy Systems
+        {"canonical": "novell", "aliases": ["novell netware", "netware", "novell edir", "edirectory"]},
+        {"canonical": "lotus notes", "aliases": ["ibm notes", "domino"]},
+        {"canonical": "exchange", "aliases": ["microsoft exchange", "exchange server", "exchange online"]},
+        {"canonical": "sharepoint", "aliases": ["microsoft sharepoint", "sharepoint online"]},
+        
+        # Storage
+        {"canonical": "san", "aliases": ["storage area network"]},
+        {"canonical": "nas", "aliases": ["network attached storage"]},
+        {"canonical": "netapp", "aliases": ["net app", "ontap"]},
+        {"canonical": "emc", "aliases": ["dell emc", "emc storage"]},
+        
+        # ITIL/Service Management
+        {"canonical": "itil", "aliases": ["it service management", "itsm"]},
+        {"canonical": "asset management", "aliases": ["it asset management", "itam"]},
+    ],
+    
+    "networking": [
+        # Protocols
+        {"canonical": "tcp/ip", "aliases": ["tcp ip", "tcpip", "ip networking"]},
+        {"canonical": "dns", "aliases": ["domain name system", "bind"]},
+        {"canonical": "dhcp", "aliases": ["dynamic host configuration"]},
+        {"canonical": "http/https", "aliases": ["http", "https", "http/s"]},
+        {"canonical": "ftp", "aliases": ["sftp", "ftps", "file transfer protocol"]},
+        {"canonical": "ssh", "aliases": ["secure shell", "openssh"]},
+        {"canonical": "vpn", "aliases": ["virtual private network", "openvpn", "ipsec vpn"]},
+        {"canonical": "smtp", "aliases": ["email protocol", "mail server"]},
+        {"canonical": "snmp", "aliases": ["simple network management protocol"]},
+        
+        # Network Equipment
+        {"canonical": "cisco", "aliases": ["cisco ios", "cisco networking", "cisco router", "cisco switch"]},
+        {"canonical": "juniper", "aliases": ["junos", "juniper networks"]},
+        {"canonical": "mikrotik", "aliases": ["routeros"]},
+        {"canonical": "ubiquiti", "aliases": ["unifi", "ubnt"]},
+        {"canonical": "palo alto", "aliases": ["palo alto networks", "pan-os"]},
+        {"canonical": "fortinet", "aliases": ["fortigate", "fortios"]},
+        
+        # Network Services
+        {"canonical": "load balancing", "aliases": ["load balancer", "f5", "f5 big-ip", "netscaler"]},
+        {"canonical": "firewall", "aliases": ["network firewall", "firewall management"]},
+        {"canonical": "proxy", "aliases": ["proxy server", "squid proxy", "reverse proxy"]},
+        {"canonical": "wan", "aliases": ["wide area network", "sd-wan", "mpls"]},
+        {"canonical": "lan", "aliases": ["local area network", "ethernet"]},
+        {"canonical": "vlan", "aliases": ["virtual lan", "network segmentation"]},
+        {"canonical": "wifi", "aliases": ["wireless", "wlan", "802.11", "wireless networking"]},
+        
+        # Network Monitoring
+        {"canonical": "wireshark", "aliases": ["packet capture", "network analysis"]},
+        {"canonical": "nagios", "aliases": ["nagios core", "nagios xi"]},
+        {"canonical": "zabbix", "aliases": []},
+        {"canonical": "prtg", "aliases": ["prtg network monitor"]},
+        {"canonical": "netflow", "aliases": ["sflow", "network flow"]},
+    ],
+    
+    "compliance": [
+        # Healthcare
+        {"canonical": "hipaa", "aliases": ["health insurance portability", "hipaa compliance", "hipaa/hitech"]},
+        {"canonical": "hitech", "aliases": ["hitech act"]},
+        {"canonical": "emr", "aliases": ["electronic medical records", "ehr", "electronic health records"]},
+        {"canonical": "hl7", "aliases": ["hl7 fhir", "health level 7"]},
+        {"canonical": "epic", "aliases": ["epic systems", "epic emr"]},
+        {"canonical": "cerner", "aliases": ["cerner emr"]},
+        {"canonical": "allscripts", "aliases": ["allscripts emr"]},
+        {"canonical": "mckesson", "aliases": ["mckesson emr"]},
+        
+        # Financial/Payment
+        {"canonical": "pci-dss", "aliases": ["pci dss", "pci compliance", "payment card industry"]},
+        {"canonical": "sox", "aliases": ["sarbanes-oxley", "sarbanes oxley", "sox compliance"]},
+        
+        # Data Privacy
+        {"canonical": "gdpr", "aliases": ["general data protection regulation", "gdpr compliance"]},
+        {"canonical": "ccpa", "aliases": ["california consumer privacy act"]},
+        {"canonical": "data privacy", "aliases": ["data protection", "privacy compliance"]},
+        
+        # Security Standards
+        {"canonical": "iso 27001", "aliases": ["iso27001", "iso 27001 certification", "information security management"]},
+        {"canonical": "nist", "aliases": ["nist framework", "nist cybersecurity", "nist 800"]},
+        {"canonical": "cobit", "aliases": ["cobit framework"]},
+        {"canonical": "fedramp", "aliases": ["fed ramp", "federal risk authorization"]},
+        
+        # Audit & Governance
+        {"canonical": "it audit", "aliases": ["information systems audit", "is audit"]},
+        {"canonical": "risk management", "aliases": ["it risk management", "risk assessment"]},
+        {"canonical": "disaster recovery", "aliases": ["dr", "disaster recovery planning", "drp", "business continuity"]},
+        {"canonical": "change management", "aliases": ["change control", "itil change management"]},
     ],
 }
 

@@ -33,20 +33,35 @@ const CATEGORY_CONFIG: Record<string, {
     badgeClass: 'bg-orange-100 text-orange-800',
     order: 4
   },
+  infrastructure: {
+    label: 'Infrastructure',
+    badgeClass: 'bg-slate-100 text-slate-800',
+    order: 5
+  },
+  networking: {
+    label: 'Networking',
+    badgeClass: 'bg-cyan-100 text-cyan-800',
+    order: 6
+  },
+  compliance: {
+    label: 'Compliance',
+    badgeClass: 'bg-amber-100 text-amber-800',
+    order: 7
+  },
   soft_skills: {
     label: 'Soft Skills',
     badgeClass: 'bg-pink-100 text-pink-800',
-    order: 5
+    order: 8
   },
   ai_ml: {
     label: 'AI/ML',
     badgeClass: 'bg-indigo-100 text-indigo-800',
-    order: 6
+    order: 9
   },
   other: {
     label: 'Other',
     badgeClass: 'bg-gray-100 text-gray-800',
-    order: 7
+    order: 10
   }
 };
 

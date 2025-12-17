@@ -276,9 +276,90 @@ class SkillExtractor:
             all_skills.update(skills)
         return sorted(list(all_skills))
     
+    def extract_skills_with_other(
+        self,
+        text: str,
+        llm_skills: Optional[List[str]] = None
+    ) -> Dict[str, List[str]]:
+        """
+        Extract and categorize skills from text, with "other" category for unmatched skills.
+        
+        This method extends extract_skills by:
+        1. Extracting known skills from taxonomy
+        2. Adding LLM-extracted skills that don't match any taxonomy category to "other"
+        
+        Args:
+            text: The text to extract skills from (e.g., CV content).
+            llm_skills: Optional list of skills extracted by LLM from the same text.
+            
+        Returns:
+            Dict mapping category names to lists of unique canonical skill names,
+            including "other" category for unmatched LLM skills.
+            
+        Example:
+            >>> extractor = SkillExtractor()
+            >>> result = extractor.extract_skills_with_other(
+            ...     "Python developer with Windows Server experience",
+            ...     llm_skills=["Python", "Windows Server", "Custom CRM System"]
+            ... )
+            >>> result['programming_languages']
+            ['python']
+            >>> result['other']
+            ['custom crm system']
+        """
+        # First, extract known skills using standard method
+        result = self.extract_skills(text)
+        
+        # Initialize "other" category
+        result["other"] = []
+        
+        if not llm_skills:
+            return result
+        
+        # Collect all already-matched canonical skill names
+        matched_skills: Set[str] = set()
+        for skills in result.values():
+            matched_skills.update(skills)
+        
+        # Process LLM skills - add unmatched ones to "other"
+        other_skills: Set[str] = set()
+        for skill in llm_skills:
+            if not skill or not skill.strip():
+                continue
+            
+            # Try to normalize the skill
+            normalized = self.normalize_skill(skill)
+            
+            if normalized:
+                # Skill is in taxonomy but might not have been found in text
+                # Add it to the appropriate category if not already there
+                category = self._canonical_to_category.get(normalized)
+                if category and normalized not in result.get(category, []):
+                    if category not in result:
+                        result[category] = []
+                    result[category].append(normalized)
+            else:
+                # Skill is NOT in taxonomy - add to "other"
+                # Clean up the skill name
+                clean_skill = skill.strip().lower()
+                if clean_skill and len(clean_skill) >= 2:
+                    other_skills.add(clean_skill)
+        
+        # Sort and add "other" skills
+        result["other"] = sorted(list(other_skills))
+        
+        logger.debug(
+            f"Extracted skills with other: {sum(len(s) for s in result.values())} total, "
+            f"{len(result['other'])} in 'other' category"
+        )
+        
+        return result
+    
     def _empty_result(self) -> Dict[str, List[str]]:
-        """Return an empty result dict with all categories."""
-        return {category: [] for category in SKILL_TAXONOMY.keys()}
+        """Return an empty result dict with all categories including 'other'."""
+        result = {category: [] for category in SKILL_TAXONOMY.keys()}
+        result["other"] = []
+        return result
     
     @classmethod
     def reset_instance(cls) -> None:
