@@ -42,13 +42,19 @@ class SkillCategories(BaseModel):
     """Categorized skills extracted from CV.
     
     Groups skills into standard IT taxonomy categories.
+    Includes enterprise/legacy IT categories for broader CV coverage.
     """
     programming_languages: List[str] = Field(default_factory=list)
     frameworks: List[str] = Field(default_factory=list)
     databases: List[str] = Field(default_factory=list)
     devops: List[str] = Field(default_factory=list)
+    # Enterprise/Legacy IT categories
+    infrastructure: List[str] = Field(default_factory=list)
+    networking: List[str] = Field(default_factory=list)
+    compliance: List[str] = Field(default_factory=list)
     soft_skills: List[str] = Field(default_factory=list)
     ai_ml: List[str] = Field(default_factory=list)
+    other: List[str] = Field(default_factory=list)
 
 
 class AnalysisResult(BaseModel):
