@@ -280,3 +280,264 @@ class TestCVListEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data == []
+
+
+class TestMatchCVWithJD:
+    """Tests for POST /api/v1/ai/cvs/{cv_id}/match endpoint."""
+
+    @pytest.fixture
+    def mock_analysis_with_skills(self, mock_cv):
+        """Create a mock CV analysis with skill_categories populated."""
+        return CVAnalysis(
+            id=uuid.uuid4(),
+            cv_id=mock_cv.id,
+            status=AnalysisStatus.COMPLETED,
+            ai_score=85,
+            ai_summary="Test summary",
+            ai_feedback={},
+            skill_categories={
+                "programming_languages": ["python", "javascript"],
+                "frameworks": ["django", "react"],
+                "databases": ["postgresql"],
+                "devops": ["docker"],
+                "soft_skills": ["communication"],
+                "ai_ml": []
+            },
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+
+    def test_match_cv_with_jd_success(self, test_client, mock_db_session, mock_cv, mock_analysis_with_skills):
+        """Test successful skill matching between CV and JD."""
+        # Mock CV ownership check
+        mock_cv_result = MagicMock()
+        mock_cv_result.scalar_one_or_none.return_value = mock_cv
+
+        # Mock analysis retrieval with skill_categories
+        mock_analysis_result = MagicMock()
+        mock_analysis_result.scalar_one_or_none.return_value = mock_analysis_with_skills
+
+        mock_db_session.execute.side_effect = [mock_cv_result, mock_analysis_result]
+
+        # Make request
+        jd_text = "Looking for Python developer with Django and React experience. Must know PostgreSQL."
+        response = test_client.post(
+            f"/api/v1/ai/cvs/{mock_cv.id}/match",
+            json={"jd_text": jd_text}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify response structure
+        assert "matched_skills" in data
+        assert "missing_skills" in data
+        assert "extra_skills" in data
+        assert "skill_match_rate" in data
+        assert "match_percentage" in data
+        assert "jd_requirements" in data
+        assert "cv_skills" in data
+
+        # Verify match rate is between 0 and 1
+        assert 0.0 <= data["skill_match_rate"] <= 1.0
+
+        # Verify match_percentage is computed correctly
+        assert data["match_percentage"] == data["skill_match_rate"] * 100
+
+        # Verify matched skills include expected skills
+        assert isinstance(data["matched_skills"], dict)
+
+    def test_match_cv_with_jd_cv_not_found(self, test_client, mock_db_session):
+        """Test 404 when CV not found."""
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_result
+
+        jd_text = "Python developer needed with at least 3 years experience"
+        response = test_client.post(
+            f"/api/v1/ai/cvs/{uuid.uuid4()}/match",
+            json={"jd_text": jd_text}
+        )
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_match_cv_with_jd_access_denied(self, mock_db_session):
+        """Test 404 when CV owned by another user (treated as not found for security)."""
+        # Create different user and client
+        other_user = User(id=999, email="other@example.com", hashed_password="hashed")
+        app.dependency_overrides[get_db] = lambda: mock_db_session
+        app.dependency_overrides[get_current_user] = lambda: other_user
+
+        with TestClient(app) as client:
+            # Mock CV ownership check - returns None (not owned by current user)
+            mock_result = MagicMock()
+            mock_result.scalar_one_or_none.return_value = None
+            mock_db_session.execute.return_value = mock_result
+
+            jd_text = "Python developer needed with at least 3 years experience"
+            response = client.post(
+                f"/api/v1/ai/cvs/{uuid.uuid4()}/match",
+                json={"jd_text": jd_text}
+            )
+
+            assert response.status_code == 404
+
+        app.dependency_overrides.clear()
+
+    def test_match_cv_with_jd_not_analyzed(self, test_client, mock_db_session, mock_cv):
+        """Test 400 when CV analysis not completed yet (skill_categories is None)."""
+        # Mock CV ownership check
+        mock_cv_result = MagicMock()
+        mock_cv_result.scalar_one_or_none.return_value = mock_cv
+
+        # Mock analysis without skill_categories
+        incomplete_analysis = CVAnalysis(
+            id=uuid.uuid4(),
+            cv_id=mock_cv.id,
+            status=AnalysisStatus.PROCESSING,
+            ai_score=None,
+            ai_summary=None,
+            ai_feedback={},
+            skill_categories=None,  # Not analyzed yet
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        mock_analysis_result = MagicMock()
+        mock_analysis_result.scalar_one_or_none.return_value = incomplete_analysis
+
+        mock_db_session.execute.side_effect = [mock_cv_result, mock_analysis_result]
+
+        jd_text = "Python developer needed with at least 3 years experience"
+        response = test_client.post(
+            f"/api/v1/ai/cvs/{mock_cv.id}/match",
+            json={"jd_text": jd_text}
+        )
+
+        assert response.status_code == 400
+        assert "not completed" in response.json()["detail"].lower()
+
+    def test_match_cv_with_jd_invalid_jd_text(self, test_client, mock_db_session, mock_cv):
+        """Test 422 when jd_text validation fails (too short)."""
+        # Mock CV ownership check (won't be reached due to validation)
+        mock_cv_result = MagicMock()
+        mock_cv_result.scalar_one_or_none.return_value = mock_cv
+        mock_db_session.execute.return_value = mock_cv_result
+
+        # JD text too short (< 50 chars)
+        jd_text = "Python"
+        response = test_client.post(
+            f"/api/v1/ai/cvs/{mock_cv.id}/match",
+            json={"jd_text": jd_text}
+        )
+
+        assert response.status_code == 422  # Validation error
+
+    def test_match_cv_with_jd_empty_jd_text(self, test_client, mock_db_session, mock_cv):
+        """Test 422 when jd_text is empty or whitespace."""
+        mock_cv_result = MagicMock()
+        mock_cv_result.scalar_one_or_none.return_value = mock_cv
+        mock_db_session.execute.return_value = mock_cv_result
+
+        # Empty jd_text
+        response = test_client.post(
+            f"/api/v1/ai/cvs/{mock_cv.id}/match",
+            json={"jd_text": ""}
+        )
+
+        assert response.status_code == 422
+
+    def test_match_cv_with_jd_calculates_rate_correctly(
+        self, test_client, mock_db_session, mock_cv, mock_analysis_with_skills
+    ):
+        """Test that match_rate is calculated correctly."""
+        # Mock CV ownership check
+        mock_cv_result = MagicMock()
+        mock_cv_result.scalar_one_or_none.return_value = mock_cv
+
+        # Mock analysis with known skills
+        mock_analysis_result = MagicMock()
+        mock_analysis_result.scalar_one_or_none.return_value = mock_analysis_with_skills
+
+        mock_db_session.execute.side_effect = [mock_cv_result, mock_analysis_result]
+
+        # JD requires Python and Django (both in CV) + AWS (not in CV)
+        # CV has: python, javascript, django, react, postgresql, docker, communication
+        # JD requires: python, django, aws
+        # Expected match: 2/3 = 0.67 (python, django matched; aws missing)
+        jd_text = "Looking for Python and Django developer with AWS cloud experience"
+        response = test_client.post(
+            f"/api/v1/ai/cvs/{mock_cv.id}/match",
+            json={"jd_text": jd_text}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify calculation (allowing small float precision errors)
+        # Note: Actual rate depends on what skills SkillExtractor finds in JD
+        assert 0.0 <= data["skill_match_rate"] <= 1.0
+
+        # Verify counts
+        total_matched = sum(len(skills) for skills in data["matched_skills"].values())
+        total_missing = sum(len(skills) for skills in data["missing_skills"].values())
+        total_jd = sum(len(skills) for skills in data["jd_requirements"].values())
+
+        # Total matched + missing should equal total JD requirements
+        assert total_matched + total_missing == total_jd
+
+        # Match rate should be matched / total_jd (if total_jd > 0)
+        if total_jd > 0:
+            expected_rate = total_matched / total_jd
+            assert abs(data["skill_match_rate"] - expected_rate) < 0.01
+
+    def test_match_cv_with_jd_no_match(self, test_client, mock_db_session, mock_cv):
+        """Test matching when CV has no skills that match JD requirements."""
+        # Mock CV ownership check
+        mock_cv_result = MagicMock()
+        mock_cv_result.scalar_one_or_none.return_value = mock_cv
+
+        # CV with completely different skills
+        analysis_different_skills = CVAnalysis(
+            id=uuid.uuid4(),
+            cv_id=mock_cv.id,
+            status=AnalysisStatus.COMPLETED,
+            ai_score=85,
+            ai_summary="Test",
+            ai_feedback={},
+            skill_categories={
+                "programming_languages": ["ruby", "php"],
+                "frameworks": ["rails", "laravel"],
+                "databases": ["mysql"],
+                "devops": [],
+                "soft_skills": [],
+                "ai_ml": []
+            },
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        mock_analysis_result = MagicMock()
+        mock_analysis_result.scalar_one_or_none.return_value = analysis_different_skills
+
+        mock_db_session.execute.side_effect = [mock_cv_result, mock_analysis_result]
+
+        # JD requires completely different skills
+        jd_text = "Looking for Python developer with Django, React, PostgreSQL, Docker experience"
+        response = test_client.post(
+            f"/api/v1/ai/cvs/{mock_cv.id}/match",
+            json={"jd_text": jd_text}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Match rate should be 0.0 (no skills match)
+        assert data["skill_match_rate"] == 0.0
+
+        # No matched skills
+        total_matched = sum(len(skills) for skills in data["matched_skills"].values())
+        assert total_matched == 0
+
+        # All JD requirements should be missing
+        total_missing = sum(len(skills) for skills in data["missing_skills"].values())
+        assert total_missing > 0

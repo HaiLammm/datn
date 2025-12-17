@@ -10,8 +10,7 @@ This module orchestrates the RAG pipeline:
 
 import logging
 import time
-import re
-from typing import List, Dict, Any, Optional, Set, Tuple
+from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 from dataclasses import dataclass
 

@@ -7,7 +7,6 @@ supporting both Vietnamese and English text using a multilingual model.
 
 import logging
 from typing import List, Optional
-from functools import lru_cache
 
 from app.core.config import settings
 

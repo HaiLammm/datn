@@ -33,6 +33,16 @@ class SkillScoreResult(TypedDict):
     recommendations: List[str]
 
 
+class SkillMatchResult(TypedDict):
+    """Type definition for skill matching result."""
+    matched_skills: Dict[str, List[str]]  # skills in both CV and JD
+    missing_skills: Dict[str, List[str]]  # JD requirements not in CV
+    extra_skills: Dict[str, List[str]]  # CV skills not in JD
+    skill_match_rate: float  # 0.0 to 1.0
+    jd_requirements: Dict[str, List[str]]  # all JD skills
+    cv_skills: Dict[str, List[str]]  # all CV skills
+
+
 # Main categories to evaluate for categorization score
 MAIN_CATEGORIES = [
     "programming_languages",
@@ -450,6 +460,132 @@ class SkillScorer:
 
         # Limit to 5 recommendations
         return recommendations[:5]
+
+
+class SkillMatcher:
+    """
+    Skill matching utility for comparing CV skills with JD requirements.
+    
+    This class provides functionality to match candidate skills against
+    job description requirements, calculating match rates and identifying
+    skill gaps. It uses SkillExtractor for parsing JD text.
+    
+    Attributes:
+        _extractor: SkillExtractor instance for parsing JD requirements.
+        
+    Example:
+        >>> matcher = SkillMatcher()
+        >>> cv_skills = {"programming_languages": ["python", "javascript"]}
+        >>> jd_text = "Looking for Python developer with React experience"
+        >>> result = matcher.match_skills(cv_skills, jd_text)
+        >>> print(result["skill_match_rate"])
+        0.5
+    """
+    
+    def __init__(self) -> None:
+        """Initialize SkillMatcher with SkillExtractor dependency."""
+        logger.debug("Initializing SkillMatcher...")
+        self._extractor = SkillExtractor()
+        logger.debug("SkillMatcher initialized successfully")
+    
+    def match_skills(
+        self,
+        cv_skills: Dict[str, List[str]],
+        jd_text: str
+    ) -> SkillMatchResult:
+        """
+        Match CV skills against JD requirements.
+        
+        Extracts skills from JD text, normalizes both CV and JD skills,
+        then calculates matched, missing, and extra skills by category.
+        
+        Args:
+            cv_skills: Categorized CV skills (Dict[category, List[skill_names]]).
+            jd_text: Job description text to extract requirements from.
+            
+        Returns:
+            SkillMatchResult containing:
+                - matched_skills: Skills present in both CV and JD
+                - missing_skills: JD requirements not in CV (skill gaps)
+                - extra_skills: CV skills not required by JD
+                - skill_match_rate: Percentage of JD requirements met (0.0-1.0)
+                - jd_requirements: All skills extracted from JD
+                - cv_skills: All skills from CV (as provided)
+                
+        Example:
+            >>> matcher = SkillMatcher()
+            >>> cv_skills = {
+            ...     "programming_languages": ["python", "java"],
+            ...     "frameworks": ["django"]
+            ... }
+            >>> jd_text = "Python developer with Django and React"
+            >>> result = matcher.match_skills(cv_skills, jd_text)
+            >>> result["skill_match_rate"]
+            0.67  # 2 out of 3 JD requirements matched
+        """
+        logger.info(f"Starting skill match: CV has {sum(len(s) for s in cv_skills.values())} skills, "
+                    f"JD text length: {len(jd_text)} chars")
+        
+        # 1. Extract skills from JD text
+        jd_requirements = self._extractor.extract_skills(jd_text)
+        logger.debug(f"Extracted JD requirements: {jd_requirements}")
+        
+        # 2. Initialize result structures (maintain category organization)
+        matched_skills: Dict[str, List[str]] = {}
+        missing_skills: Dict[str, List[str]] = {}
+        extra_skills: Dict[str, List[str]] = {}
+        
+        # 3. Process each category
+        for category in jd_requirements.keys():
+            # Convert to sets for set operations
+            cv_set = set(cv_skills.get(category, []))
+            jd_set = set(jd_requirements.get(category, []))
+            
+            # Calculate matches, missing, and extras
+            matched = cv_set & jd_set  # intersection
+            missing = jd_set - cv_set  # in JD but not in CV
+            extra = cv_set - jd_set    # in CV but not in JD
+            
+            # Store as sorted lists (only if non-empty)
+            if matched:
+                matched_skills[category] = sorted(list(matched))
+            if missing:
+                missing_skills[category] = sorted(list(missing))
+            if extra:
+                extra_skills[category] = sorted(list(extra))
+            
+            logger.debug(
+                f"Category '{category}': matched={len(matched)}, "
+                f"missing={len(missing)}, extra={len(extra)}"
+            )
+        
+        # 4. Calculate skill match rate
+        total_jd_requirements = sum(len(skills) for skills in jd_requirements.values())
+        total_matched = sum(len(skills) for skills in matched_skills.values())
+        
+        if total_jd_requirements > 0:
+            skill_match_rate = total_matched / total_jd_requirements
+        else:
+            skill_match_rate = 0.0
+        
+        logger.info(
+            f"Match complete: rate={skill_match_rate:.2%}, "
+            f"matched={total_matched}/{total_jd_requirements}, "
+            f"missing={sum(len(s) for s in missing_skills.values())}, "
+            f"extra={sum(len(s) for s in extra_skills.values())}"
+        )
+        
+        # 5. Build and return result
+        result: SkillMatchResult = {
+            "matched_skills": matched_skills,
+            "missing_skills": missing_skills,
+            "extra_skills": extra_skills,
+            "skill_match_rate": round(skill_match_rate, 4),  # Round to 4 decimal places
+            "jd_requirements": jd_requirements,
+            "cv_skills": cv_skills,
+        }
+        
+        return result
 
 
 # Create singleton instance for easy import

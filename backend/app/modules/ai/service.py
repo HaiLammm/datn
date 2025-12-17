@@ -3,7 +3,7 @@ import uuid
 import logging
 import re
 import asyncio
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List
 from pathlib import Path
 
 import httpx
@@ -12,8 +12,9 @@ from sqlalchemy import update
 
 from app.core.config import settings
 from . import models
-from .rag_service import rag_service, RetrievedDocument
-from .skill_scorer import skill_scorer  # Story 5.4: Hybrid skill scoring integration
+from .rag_service import rag_service
+# Story 5.4: Hybrid skill scoring integration
+from .skill_scorer import skill_scorer
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class AIService:
 
     def __init__(self):
         self.ollama_url = settings.OLLAMA_URL or "http://localhost:11434"
-        self.model = settings.LLM_MODEL or "llama3.1:8b"
+        self.model = settings.LLM_MODEL or "phi3:latest"
         self.skill_scorer = skill_scorer  # Story 5.4: Initialize hybrid skill scorer
 
     async def analyze_cv(
@@ -227,8 +228,9 @@ class AIService:
         """
         # Step 1: Split CV into sections
         sections = self.robust_section_split(cv_content)
-        logger.info(f"📑 Extracted {len(sections)} sections from CV: {list(sections.keys())}")
-        
+        logger.info(f"📑 Extracted {len(sections)} sections from CV: {
+                    list(sections.keys())}")
+
         # Step 2: Build smart truncated content with priority sections
         priority_sections = ['experience', 'skills', 'education']
         truncated_cv = self._build_smart_truncated_content(
@@ -236,7 +238,7 @@ class AIService:
             priority_sections=priority_sections,
             max_length=self.MAX_CV_CONTENT_LENGTH
         )
-        
+
         if len(cv_content) > self.MAX_CV_CONTENT_LENGTH:
             logger.info(f"📊 CV content intelligently truncated from {len(cv_content)} to {
                         len(truncated_cv)} chars using section-based chunking")
@@ -294,7 +296,7 @@ JSON only:"""
         try:
             result = await self._call_ollama(analysis_prompt)
             llm_analysis = self._parse_analysis_response(result)
-            
+
             # Story 5.4: Integrate hybrid skill scoring
             try:
                 skill_score_result = self.skill_scorer.calculate_skill_score(
@@ -311,9 +313,11 @@ JSON only:"""
                 }
                 llm_analysis["skill_categories"] = skill_score_result["skill_categories"]
                 llm_analysis["skill_recommendations"] = skill_score_result["recommendations"]
-                logger.info(f"Hybrid skill score calculated: {skill_score_result['total_score']}/25")
+                logger.info(f"Hybrid skill score calculated: {
+                            skill_score_result['total_score']}/25")
             except Exception as skill_err:
-                logger.error(f"Skill scoring failed, using fallback: {str(skill_err)}")
+                logger.error(f"Skill scoring failed, using fallback: {
+                             str(skill_err)}")
                 # Fallback: add empty skill scoring fields
                 llm_analysis["skill_breakdown"] = {
                     "completeness_score": 0,
@@ -324,7 +328,7 @@ JSON only:"""
                 }
                 llm_analysis["skill_categories"] = {}
                 llm_analysis["skill_recommendations"] = []
-            
+
             return llm_analysis
         except Exception as e:
             logger.error(f"AI analysis failed: {str(e)}")
@@ -340,28 +344,39 @@ JSON only:"""
             json_match = re.search(r'\{[\s\S]*\}', response)
             if json_match:
                 data = json.loads(json_match.group())
-                logger.info(f"🔍 RAW LLM RESPONSE - Full JSON keys: {list(data.keys())}")
-                logger.info(f"🔍 RAW LLM RESPONSE - experience_breakdown: {data.get('experience_breakdown')}")
-                logger.info(f"🔍 RAW LLM RESPONSE - criteria: {data.get('criteria')}")
+                logger.info(
+                    f"🔍 RAW LLM RESPONSE - Full JSON keys: {list(data.keys())}")
+                logger.info(
+                    f"🔍 RAW LLM RESPONSE - experience_breakdown: {data.get('experience_breakdown')}")
+                logger.info(
+                    f"🔍 RAW LLM RESPONSE - criteria: {data.get('criteria')}")
             else:
                 raise ValueError("No JSON found in response")
 
             # Validate and sanitize the response
             # First validate experience to get quality-adjusted score
-            experience_breakdown = self._validate_experience(data.get("experience_breakdown", {}))
-            
+            experience_breakdown = self._validate_experience(
+                data.get("experience_breakdown", {}))
+
             # Get initial criteria from LLM
             criteria = self._validate_criteria(data.get("criteria", {}))
-            
+
             # Override experience score with quality-adjusted score
             if experience_breakdown.get("quality_adjusted_score"):
                 quality_score = experience_breakdown["quality_adjusted_score"]["final_score"]
                 original_score = criteria["experience"]
                 criteria["experience"] = quality_score
-                logger.info(f"🎯 EXPERIENCE SCORE OVERRIDE - Original: {original_score} → Quality-Adjusted: {quality_score}")
-            
+                logger.info(f"🎯 EXPERIENCE SCORE OVERRIDE - Original: {
+                            original_score} → Quality-Adjusted: {quality_score}")
+
+            # QA Fix: Recalculate overall score from criteria average for consistency
+            # This ensures the overall score reflects the actual criteria scores (including quality-adjusted experience)
+            criteria_average = sum(criteria.values()) / len(criteria)
+            recalculated_score = int(round(criteria_average))
+            llm_original_score = self._validate_score(data.get("score", 50))
+
             result = {
-                "score": self._validate_score(data.get("score", 50)),
+                "score": recalculated_score,  # Use recalculated score instead of LLM's score
                 "criteria": criteria,
                 "summary": str(data.get("summary", "Analysis summary not available"))[:1000],
                 "skills": self._validate_list(data.get("skills", []))[:50],
@@ -371,11 +386,25 @@ JSON only:"""
                 "formatting_feedback": self._validate_list(data.get("formatting_feedback", []))[:10],
                 "ats_hints": self._validate_list(data.get("ats_hints", []))[:10],
             }
-            
+
+            # QA Fix: Log score consistency check
+            if abs(llm_original_score - recalculated_score) > 5:
+                logger.warning(
+                    f"⚠️ SCORE CONSISTENCY - LLM original: {
+                        llm_original_score}, "
+                    f"Criteria avg: {criteria_average:.1f}, Using recalculated: {
+                        recalculated_score}"
+                )
+            else:
+                logger.info(
+                    f"✓ SCORE CONSISTENT - Recalculated: {recalculated_score} (LLM: {llm_original_score})")
+
             logger.info(f"🔍 PARSED RESULT - Overall score: {result['score']}")
-            logger.info(f"🔍 PARSED RESULT - Experience score (quality-adjusted): {result['criteria']['experience']}")
-            logger.info(f"🔍 PARSED RESULT - Experience years: {result['experience_breakdown']['total_years']}")
-            
+            logger.info(
+                f"🔍 PARSED RESULT - Experience score (quality-adjusted): {result['criteria']['experience']}")
+            logger.info(
+                f"🔍 PARSED RESULT - Experience years: {result['experience_breakdown']['total_years']}")
+
             return result
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse AI response: {str(e)}")
@@ -400,8 +429,9 @@ JSON only:"""
             raw_value = criteria.get(key, 50)
             validated_value = self._validate_score(raw_value)
             validated[key] = validated_value
-            logger.info(f"🔍 CRITERIA DEBUG - {key}: raw={raw_value}, validated={validated_value}")
-        
+            logger.info(
+                f"🔍 CRITERIA DEBUG - {key}: raw={raw_value}, validated={validated_value}")
+
         return validated
 
     def _validate_list(self, items: Any) -> List[str]:
@@ -413,12 +443,13 @@ JSON only:"""
     def _validate_experience(self, exp: Any) -> Dict[str, Any]:
         """
         Validate experience breakdown and calculate quality-adjusted score.
-        
+
         Extracts quality indicators (projects, awards, certifications) from LLM response
         and calculates a more accurate experience score.
         """
         if not isinstance(exp, dict):
-            logger.warning("❌ Experience breakdown is not a dict, using defaults")
+            logger.warning(
+                "❌ Experience breakdown is not a dict, using defaults")
             return {
                 "total_years": 0,
                 "key_roles": [],
@@ -433,40 +464,42 @@ JSON only:"""
 
         raw_years = exp.get("total_years", 0)
         validated_years = self._validate_score(raw_years)
-        
-        logger.info(f"🔍 EXPERIENCE DEBUG - Raw years from LLM: {raw_years}, Validated: {validated_years}")
-        
+
+        logger.info(
+            f"🔍 EXPERIENCE DEBUG - Raw years from LLM: {raw_years}, Validated: {validated_years}")
+
         # Extract quality indicators from LLM response (with safe defaults)
         try:
             num_projects = int(exp.get("num_projects", 0))
         except (ValueError, TypeError):
             num_projects = 0
-        
+
         try:
             num_awards = int(exp.get("num_awards", 0))
         except (ValueError, TypeError):
             num_awards = 0
-        
+
         try:
             num_certifications = int(exp.get("num_certifications", 0))
         except (ValueError, TypeError):
             num_certifications = 0
-        
+
         try:
             has_leadership = bool(exp.get("has_leadership", False))
         except (ValueError, TypeError):
             has_leadership = False
-        
+
         description_quality = exp.get("description_quality", "medium")
-        
+
         # Validate description_quality
         if description_quality not in ["good", "medium", "poor"]:
             description_quality = "medium"
-        
+
         logger.info(f"📊 QUALITY INDICATORS - Projects: {num_projects}, Awards: {num_awards}, "
-                   f"Certs: {num_certifications}, Leadership: {has_leadership}, "
-                   f"Quality: {description_quality}")
-        
+                    f"Certs: {num_certifications}, Leadership: {
+                        has_leadership}, "
+                    f"Quality: {description_quality}")
+
         # Calculate quality-adjusted experience score
         quality_score_data = self._calculate_quality_adjusted_experience_score(
             total_years=validated_years,
@@ -476,7 +509,7 @@ JSON only:"""
             has_leadership=has_leadership,
             job_description_quality=description_quality
         )
-        
+
         result = {
             "total_years": validated_years,
             "key_roles": self._validate_list(exp.get("key_roles", []))[:10],
@@ -488,7 +521,7 @@ JSON only:"""
             "description_quality": description_quality,
             "quality_adjusted_score": quality_score_data,
         }
-        
+
         logger.info(f"🔍 EXPERIENCE DEBUG - Full breakdown: {result}")
         return result
 
@@ -502,121 +535,171 @@ JSON only:"""
         job_description_quality: str = "medium"  # "poor", "medium", "good"
     ) -> Dict[str, Any]:
         """
-        Calculate experience score adjusted by quality indicators.
+        Calculate experience score using sigmoid/log growth model + Impact/Scope bonuses.
         
-        Philosophy: Years of experience is base, but quality matters more.
-        - Junior with many projects/achievements can score higher than senior with few
-        - Senior with no notable achievements gets penalized
+        NEW PHILOSOPHY (v2):
+        - BaseScore(years): Smooth sigmoid/log curve, no sudden jumps
+        - FinalScore = BaseScore + ImpactBonus + ScopeBonus
+        - IC track cap at 85, Management gets separate leadership bonus
         
         Args:
             total_years: Number of years of experience
-            num_projects: Number of projects mentioned
-            num_awards: Number of awards/achievements
-            num_certifications: Number of certifications
-            has_leadership: Whether has leadership/management roles
-            job_description_quality: Quality of job descriptions
+            num_projects: Number of projects mentioned (Impact indicator)
+            num_awards: Number of awards/achievements (Impact indicator)
+            num_certifications: Number of certifications (Scope indicator)
+            has_leadership: Whether has leadership/management roles (Scope indicator)
+            job_description_quality: Quality of job descriptions (Impact indicator)
             
         Returns:
-            Dictionary with score, base_score, bonus, penalty, and explanation
+            Dictionary with score, base_score, impact_bonus, scope_bonus, and explanation
         """
-        # Step 1: Calculate base score from years (0-70 points)
-        if total_years <= 2:
-            base_score = 20 + (total_years * 7.5)  # 20-35
-        elif total_years <= 5:
-            base_score = 35 + ((total_years - 2) * 5)  # 35-50
-        elif total_years <= 10:
-            base_score = 50 + ((total_years - 5) * 2)  # 50-60
+        import math
+        
+        # Step 1: Calculate smooth base score from years using hybrid sigmoid/log model
+        # Target curve: 
+        #   0-2y: 15-40 (junior)
+        #   3-6y: 48-70 (smoothed mid, avoiding jumps)
+        #   7-15y: 72-85 (senior IC cap)
+        #   16+y: 85-90 (management/architect)
+        
+        if total_years < 1:
+            base_score = 15
+        elif total_years <= 2:
+            # Junior ramp-up: linear 15-40
+            base_score = 15 + (total_years * 12.5)
+        elif total_years <= 6:
+            # Smoothed mid-level growth (3-6 years): 40 → 48 → 58 → 68 → 70
+            # Using piecewise linear for exact control
+            milestones = {2: 40, 3: 48, 4: 58, 5: 68, 6: 70}
+            if total_years in milestones:
+                base_score = milestones[total_years]
+            else:
+                # Interpolate between milestones (shouldn't happen with int years)
+                lower = int(total_years)
+                upper = lower + 1
+                fraction = total_years - lower
+                base_score = milestones[lower] + (milestones[upper] - milestones[lower]) * fraction
         elif total_years <= 15:
-            base_score = 60 + ((total_years - 10) * 1)  # 60-65
+            # Senior IC: logarithmic slowdown 70 → 85
+            # Using log formula: 70 + 15 * log(1 + (years-6)/9)
+            t_normalized = (total_years - 6) / 9.0  # Normalize 6-15 to 0-1
+            base_score = 70 + 15 * math.log1p(t_normalized)  # log1p(x) = log(1+x)
+        elif total_years <= 20:
+            # Very senior: slow linear 85 → 87
+            base_score = 85 + ((total_years - 15) * 0.4)
         else:
-            base_score = 65 + min((total_years - 15) * 0.5, 5)  # 65-70 (capped)
+            # Executive: cap at 90
+            base_score = 87 + min((total_years - 20) * 0.2, 3)
         
-        base_score = min(70, base_score)  # Cap at 70
-        
-        # Step 2: Calculate quality bonus (0-30 points)
-        bonus = 0
-        bonus_details = []
-        
-        # Projects bonus (max 10 points)
+        base_score = min(90, round(base_score, 1))
+
+        # Step 2: Calculate Impact Bonus (0-15 points)
+        # Impact = Technical/product influence (projects, awards, job quality)
+        impact_bonus = 0
+        impact_details = []
+
+        # Projects contribution (max 8 points) - quality over quantity
         if num_projects > 0:
-            projects_bonus = min(num_projects * 1.5, 10)
-            bonus += projects_bonus
-            bonus_details.append(f"Projects: +{projects_bonus:.1f} ({num_projects} projects)")
-        
-        # Awards bonus (max 10 points)
+            # Diminishing returns: 1→4pts, 2→6pts, 3→7pts, 4+→8pts
+            projects_impact = min(num_projects * 2.5 if num_projects <= 2 else 6 + (num_projects - 2) * 0.5, 8)
+            impact_bonus += projects_impact
+            impact_details.append(f"Projects: +{projects_impact:.1f} ({num_projects} documented)")
+
+        # Awards/recognition (max 5 points) - signal of exceptional impact
         if num_awards > 0:
-            awards_bonus = min(num_awards * 2.5, 10)
-            bonus += awards_bonus
-            bonus_details.append(f"Awards: +{awards_bonus:.1f} ({num_awards} awards)")
-        
-        # Certifications bonus (max 5 points)
-        if num_certifications > 0:
-            cert_bonus = min(num_certifications * 1, 5)
-            bonus += cert_bonus
-            bonus_details.append(f"Certifications: +{cert_bonus:.1f} ({num_certifications} certs)")
-        
-        # Leadership bonus (max 5 points)
+            awards_impact = min(num_awards * 2, 5)
+            impact_bonus += awards_impact
+            impact_details.append(f"Awards: +{awards_impact:.1f} ({num_awards} recognitions)")
+
+        # Job description quality (max 2 points) - depth of contribution
+        quality_map = {"poor": 0, "medium": 1, "good": 2}
+        desc_impact = quality_map.get(job_description_quality, 1)
+        if desc_impact > 0:
+            impact_bonus += desc_impact
+            impact_details.append(f"Description quality: +{desc_impact} ({job_description_quality})")
+
+        impact_bonus = min(15, impact_bonus)  # Cap at 15
+
+        # Step 3: Calculate Scope Bonus (0-15 points)
+        # Scope = Organizational influence (leadership, certifications, team scale)
+        scope_bonus = 0
+        scope_details = []
+
+        # Leadership roles (max 10 points) - separate from base, scales with seniority
         if has_leadership:
-            leadership_bonus = 5
-            bonus += leadership_bonus
-            bonus_details.append(f"Leadership: +{leadership_bonus}")
+            if total_years >= 15:
+                leadership_scope = 10  # C-level/Director - organizational impact
+            elif total_years >= 10:
+                leadership_scope = 7   # Manager/Lead - team/department impact
+            elif total_years >= 5:
+                leadership_scope = 5   # Team Lead - small team impact
+            else:
+                leadership_scope = 3   # Junior lead - limited scope
+            scope_bonus += leadership_scope
+            scope_details.append(f"Leadership: +{leadership_scope} ({total_years}y experience)")
+
+        # Certifications (max 5 points) - professional breadth and commitment
+        if num_certifications > 0:
+            # Diminishing returns: 1→2pts, 2→3pts, 3→4pts, 4+→5pts
+            cert_scope = min(1 + num_certifications * 0.8, 5)
+            scope_bonus += cert_scope
+            scope_details.append(f"Certifications: +{cert_scope:.1f} ({num_certifications} certs)")
+
+        scope_bonus = min(15, scope_bonus)  # Cap at 15
+
+        # Step 4: Apply career track cap
+        # IC (Individual Contributor) track: cap at 85
+        # Management track (has_leadership + 10+ years): can reach 100
+        is_management_track = has_leadership and total_years >= 10
         
-        bonus = min(30, bonus)  # Cap at 30
-        
-        # Step 3: Calculate quality penalty (0 to -20 points)
-        penalty = 0
-        penalty_details = []
-        
-        # Penalty 1: Many years but few projects (red flag)
-        if total_years >= 10 and num_projects < 3:
-            years_penalty = -10
-            penalty += years_penalty
-            penalty_details.append(f"Few projects for experience level: {years_penalty}")
-        elif total_years >= 5 and num_projects < 2:
-            years_penalty = -5
-            penalty += years_penalty
-            penalty_details.append(f"Limited projects shown: {years_penalty}")
-        
-        # Penalty 2: No notable achievements for senior level
-        if total_years >= 8 and num_awards == 0 and num_projects < 5:
-            achievement_penalty = -5
-            penalty += achievement_penalty
-            penalty_details.append(f"No notable achievements: {achievement_penalty}")
-        
-        # Penalty 3: Poor job description quality
-        if job_description_quality == "poor":
-            quality_penalty = -5
-            penalty += quality_penalty
-            penalty_details.append(f"Vague job descriptions: {quality_penalty}")
-        
-        penalty = max(-20, penalty)  # Cap at -20
-        
-        # Step 4: Calculate final score (0-100)
-        final_score = base_score + bonus + penalty
-        final_score = max(0, min(100, final_score))  # Clamp to 0-100
-        
+        if is_management_track:
+            # Management track: BaseScore + Impact + Scope, cap at 100
+            uncapped_score = base_score + impact_bonus + scope_bonus
+            final_score = min(100, uncapped_score)
+            track = "Management"
+        else:
+            # IC track: BaseScore + Impact + Scope, cap at 85
+            uncapped_score = base_score + impact_bonus + scope_bonus
+            final_score = min(85, uncapped_score)
+            track = "IC"
+            
+            # Warning if IC would exceed cap (suggests should be on management track)
+            if uncapped_score > 85:
+                logger.info(f"⚠️  IC candidate score capped: {uncapped_score:.0f} → 85 (consider leadership path)")
+
+        final_score = max(0, final_score)  # Ensure non-negative
+
         # Step 5: Generate explanation
-        explanation = f"Base ({total_years}y): {base_score:.0f}"
-        if bonus > 0:
-            explanation += f" + Bonus: {bonus:.0f}"
-        if penalty < 0:
-            explanation += f" + Penalty: {penalty:.0f}"
-        explanation += f" = {final_score:.0f}"
-        
+        explanation = f"{track} track: Base ({total_years}y)={base_score:.0f}"
+        if impact_bonus > 0:
+            explanation += f" + Impact={impact_bonus:.0f}"
+        if scope_bonus > 0:
+            explanation += f" + Scope={scope_bonus:.0f}"
+        if uncapped_score != final_score:
+            explanation += f" = {uncapped_score:.0f} (capped→{final_score:.0f})"
+        else:
+            explanation += f" = {final_score:.0f}"
+
         logger.info(f"📊 QUALITY-ADJUSTED SCORE - {explanation}")
-        if bonus_details:
-            logger.info(f"   ✅ Bonuses: {', '.join(bonus_details)}")
-        if penalty_details:
-            logger.info(f"   ❌ Penalties: {', '.join(penalty_details)}")
-        
+        if impact_details:
+            logger.info(f"   💡 Impact Bonus: {', '.join(impact_details)}")
+        if scope_details:
+            logger.info(f"   🎯 Scope Bonus: {', '.join(scope_details)}")
+
         return {
             "final_score": int(final_score),
             "base_score": int(base_score),
-            "quality_bonus": int(bonus),
-            "quality_penalty": int(penalty),
+            "impact_bonus": int(impact_bonus),
+            "scope_bonus": int(scope_bonus),
+            "career_track": track,
             "explanation": explanation,
-            "bonus_details": bonus_details,
-            "penalty_details": penalty_details,
+            "impact_details": impact_details,
+            "scope_details": scope_details,
+            # Legacy fields for backward compatibility (deprecated)
+            "quality_bonus": int(impact_bonus + scope_bonus),
+            "quality_penalty": 0,
+            "bonus_details": impact_details + scope_details,
+            "penalty_details": [],
         }
 
     def _get_fallback_analysis(self) -> Dict[str, Any]:
@@ -913,56 +996,63 @@ JSON only:"""
     ) -> str:
         """
         Build truncated CV content intelligently based on section priority.
-        
+
         Ensures high-priority sections (especially experience) are included fully,
         preventing information loss from naive truncation.
-        
+
         Args:
             sections: Dictionary of section_name -> content
             priority_sections: List of section names in priority order
             max_length: Maximum total character length
-            
+
         Returns:
             Smartly truncated CV content with sections marked
         """
         smart_content = ""
         remaining_budget = max_length
-        
-        logger.info(f"🔧 Building smart content. Total sections: {len(sections)}, Budget: {max_length}")
-        
+
+        logger.info(f"🔧 Building smart content. Total sections: {
+                    len(sections)}, Budget: {max_length}")
+
         # Phase 1: Add priority sections first (guarantee full content)
         for section_name in priority_sections:
             if section_name in sections and remaining_budget > 0:
                 section_content = sections[section_name]
-                section_text = f"\n\n[{section_name.upper()}]\n{section_content}"
-                
+                section_text = f"\n\n[{section_name.upper()}]\n{
+                    section_content}"
+
                 if len(section_text) <= remaining_budget:
                     smart_content += section_text
                     remaining_budget -= len(section_text)
-                    logger.info(f"✅ Added priority section '{section_name}': {len(section_text)} chars, remaining: {remaining_budget}")
+                    logger.info(f"✅ Added priority section '{section_name}': {
+                                len(section_text)} chars, remaining: {remaining_budget}")
                 else:
                     # Priority section too large - add as much as possible
                     smart_content += section_text[:remaining_budget]
-                    logger.warning(f"⚠️  Priority section '{section_name}' truncated: {remaining_budget}/{len(section_text)} chars")
+                    logger.warning(f"⚠️  Priority section '{section_name}' truncated: {
+                                   remaining_budget}/{len(section_text)} chars")
                     remaining_budget = 0
                     break
-        
+
         # Phase 2: Add other sections with remaining budget
         for section_name, content in sections.items():
             if section_name not in priority_sections and remaining_budget > 100:  # Keep min 100 chars for other sections
                 section_text = f"\n\n[{section_name.upper()}]\n{content}"
-                
+
                 if len(section_text) <= remaining_budget:
                     smart_content += section_text
                     remaining_budget -= len(section_text)
-                    logger.info(f"✅ Added non-priority section '{section_name}': {len(section_text)} chars")
+                    logger.info(
+                        f"✅ Added non-priority section '{section_name}': {len(section_text)} chars")
                 elif remaining_budget > 200:  # Only add partial if we have decent space
                     smart_content += section_text[:remaining_budget]
-                    logger.info(f"⚠️  Non-priority section '{section_name}' partially added: {remaining_budget} chars")
+                    logger.info(
+                        f"⚠️  Non-priority section '{section_name}' partially added: {remaining_budget} chars")
                     remaining_budget = 0
                     break
-        
-        logger.info(f"🎯 Smart content built: {len(smart_content)}/{max_length} chars used")
+
+        logger.info(f"🎯 Smart content built: {
+                    len(smart_content)}/{max_length} chars used")
         return smart_content.strip()
 
     async def _call_ollama(self, prompt: str) -> str:
@@ -995,7 +1085,14 @@ JSON only:"""
                     json={
                         "model": self.model,
                         "prompt": prompt,
-                        "stream": False
+                        "stream": False,
+                        "options": {
+                            "seed": 42,  # Fixed seed for reproducibility
+                            # Near-deterministic (0.1 recommended for consistent yet quality results)
+                            "temperature": 0.1,
+                            "top_p": 0.9,  # Nucleus sampling
+                            "num_predict": 2048,  # Max tokens to generate
+                        }
                     }
                 )
                 response.raise_for_status()
@@ -1057,8 +1154,10 @@ JSON only:"""
 
         logger.info(f"💾 SAVING ANALYSIS RESULTS - CV ID: {cv_id}")
         logger.info(f"💾 Overall Score: {results.get('score')}")
-        logger.info(f"💾 Experience Score: {results.get('criteria', {}).get('experience', 'N/A')}")
-        logger.info(f"💾 Experience Years: {results.get('experience_breakdown', {}).get('total_years', 'N/A')}")
+        logger.info(f"💾 Experience Score: {results.get(
+            'criteria', {}).get('experience', 'N/A')}")
+        logger.info(f"💾 Experience Years: {results.get(
+            'experience_breakdown', {}).get('total_years', 'N/A')}")
 
         stmt = (
             update(models.CVAnalysis)
@@ -1076,7 +1175,7 @@ JSON only:"""
         )
         await db.execute(stmt)
         await db.commit()
-        
+
         logger.info(f"✅ ANALYSIS SAVED - CV ID: {cv_id}")
 
 

@@ -37,11 +37,15 @@ from .skill_scorer import (
     SkillScorer,
     SkillScoreResult,
     skill_scorer,
+    SkillMatcher,
+    SkillMatchResult,
 )
 
 from .schemas import (
     SkillBreakdown,
     SkillCategories,
+    SkillMatchRequest,
+    SkillMatchResponse,
 )
 
 __all__ = [
@@ -59,7 +63,12 @@ __all__ = [
     "SkillScorer",
     "SkillScoreResult",
     "skill_scorer",
-    # Schemas (Story 5.3)
+    # Skill Matcher (Story 5.5)
+    "SkillMatcher",
+    "SkillMatchResult",
+    # Schemas (Story 5.3, 5.5)
     "SkillBreakdown",
     "SkillCategories",
+    "SkillMatchRequest",
+    "SkillMatchResponse",
 ]

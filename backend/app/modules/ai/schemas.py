@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 from pydantic import BaseModel, computed_field, Field, field_validator
 
@@ -133,3 +133,75 @@ class SkillExtraction(BaseModel):
 class QualityScore(BaseModel):
     score: int
     criteria: dict
+
+
+class SkillMatchRequest(BaseModel):
+    """Request schema for skill matching endpoint.
+    
+    Attributes:
+        jd_text: Job description text to extract requirements from.
+            Must be at least 50 characters to ensure meaningful matching.
+    """
+    jd_text: str = Field(min_length=50, description="Job description text")
+    
+    @field_validator('jd_text')
+    @classmethod
+    def validate_jd_not_empty(cls, v: str) -> str:
+        """Ensure jd_text is not just whitespace."""
+        if not v.strip():
+            raise ValueError('jd_text cannot be empty or whitespace')
+        return v.strip()
+
+
+class SkillMatchResponse(BaseModel):
+    """Response schema for skill matching endpoint.
+    
+    Contains the results of matching CV skills against JD requirements,
+    including matched skills, skill gaps, and match percentage.
+    
+    Attributes:
+        matched_skills: Skills present in both CV and JD, grouped by category.
+        missing_skills: JD requirements not found in CV (skill gaps).
+        extra_skills: CV skills not required by JD.
+        skill_match_rate: Match percentage (0.0 = no match, 1.0 = perfect match).
+        jd_requirements: All skills extracted from JD, grouped by category.
+        cv_skills: All skills from CV, grouped by category.
+    """
+    matched_skills: dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Skills found in both CV and JD"
+    )
+    missing_skills: dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="JD requirements missing from CV"
+    )
+    extra_skills: dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="CV skills not in JD requirements"
+    )
+    skill_match_rate: float = Field(
+        ge=0.0, le=1.0,
+        description="Match rate (0.0-1.0)"
+    )
+    jd_requirements: dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="All skills extracted from JD"
+    )
+    cv_skills: dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="All skills from CV"
+    )
+    
+    @computed_field
+    @property
+    def match_percentage(self) -> float:
+        """Calculate match percentage (0-100) for display."""
+        return round(self.skill_match_rate * 100, 2)
+    
+    @field_validator('skill_match_rate')
+    @classmethod
+    def validate_match_rate_range(cls, v: float) -> float:
+        """Ensure skill_match_rate is within valid range."""
+        if not 0.0 <= v <= 1.0:
+            raise ValueError('skill_match_rate must be between 0.0 and 1.0')
+        return v
