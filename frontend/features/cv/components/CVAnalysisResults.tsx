@@ -6,6 +6,9 @@ import { getCVAnalysis, getCVAnalysisStatus } from '../actions';
 import { ScoreGauge } from './ScoreGauge';
 import { AnalysisSummary } from './AnalysisSummary';
 import { SkillCloud } from './SkillCloud';
+import { SkillBreakdownCard } from './SkillBreakdownCard';
+import { SkillCategoriesDisplay } from './SkillCategoriesDisplay';
+import { SkillRecommendations } from './SkillRecommendations';
 import { FeedbackSection } from './FeedbackSection';
 import { LoadingState } from './LoadingState';
 
@@ -154,13 +157,37 @@ export function CVAnalysisResults({ cvId, initialAnalysis }: CVAnalysisResultsPr
         </div>
       )}
 
-      {/* Skills Section */}
+      {/* Skill Analysis Section - Show breakdown if available (Story 5.6) */}
+      {analysis.skill_breakdown && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Skill Analysis
+          </h2>
+          <SkillBreakdownCard breakdown={analysis.skill_breakdown} />
+        </div>
+      )}
+
+      {/* Skills Section - Use categorized display if available, fallback to cloud */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          Extracted Skills
+          {analysis.skill_categories ? 'Skills Breakdown' : 'Extracted Skills'}
         </h2>
-        <SkillCloud skills={analysis.extracted_skills || []} />
+        {analysis.skill_categories ? (
+          <SkillCategoriesDisplay categories={analysis.skill_categories} />
+        ) : (
+          <SkillCloud skills={analysis.extracted_skills || []} />
+        )}
       </div>
+
+      {/* Skill Recommendations Section - Show only if recommendations exist */}
+      {analysis.skill_recommendations && analysis.skill_recommendations.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Skill Development Recommendations
+          </h2>
+          <SkillRecommendations recommendations={analysis.skill_recommendations} />
+        </div>
+      )}
 
       {/* Feedback Section */}
       <div className="bg-white rounded-lg shadow p-6">

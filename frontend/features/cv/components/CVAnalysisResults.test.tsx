@@ -77,7 +77,8 @@ describe("CVAnalysisResults", () => {
     render(<CVAnalysisResults cvId="cv-1" initialAnalysis={mockCompletedAnalysis} />);
 
     expect(screen.getByText(/CV Quality Score/i)).toBeInTheDocument();
-    expect(screen.getByText("85")).toBeInTheDocument();
+    // Score 85 appears in both gauge and criteria - use getAllByText
+    expect(screen.getAllByText("85").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders professional summary", () => {
@@ -167,7 +168,7 @@ describe("CVAnalysisResults", () => {
 
     jest.useFakeTimers();
 
-    const { rerender } = render(
+    render(
       <CVAnalysisResults cvId="cv-1" initialAnalysis={mockProcessingAnalysis} />
     );
 
@@ -179,5 +180,107 @@ describe("CVAnalysisResults", () => {
     });
 
     jest.useRealTimers();
+  });
+
+  // Story 5.6: Skill Breakdown UI Integration Tests
+  describe("Skill Analysis Integration (Story 5.6)", () => {
+    const mockAnalysisWithSkillBreakdown: CVAnalysis = {
+      ...mockCompletedAnalysis,
+      skill_breakdown: {
+        completeness_score: 5,
+        categorization_score: 4,
+        evidence_score: 4,
+        market_relevance_score: 4,
+        total_score: 17
+      },
+      skill_categories: {
+        programming_languages: ["Python", "JavaScript"],
+        frameworks: ["React", "FastAPI"],
+        databases: ["PostgreSQL"],
+        devops: ["Docker"],
+        soft_skills: ["Teamwork"],
+        other: []
+      },
+      skill_recommendations: [
+        "Consider learning Kubernetes for container orchestration",
+        "Add more cloud skills like AWS or GCP"
+      ]
+    };
+
+    it("renders Skill Analysis section when skill_breakdown is present", () => {
+      render(<CVAnalysisResults cvId="cv-1" initialAnalysis={mockAnalysisWithSkillBreakdown} />);
+
+      expect(screen.getByText(/Skill Analysis/i)).toBeInTheDocument();
+      expect(screen.getByText(/Skill Score/i)).toBeInTheDocument();
+      expect(screen.getByText("17")).toBeInTheDocument(); // total score
+    });
+
+    it("renders SkillCategoriesDisplay when skill_categories is present", () => {
+      render(<CVAnalysisResults cvId="cv-1" initialAnalysis={mockAnalysisWithSkillBreakdown} />);
+
+      expect(screen.getByText(/Skills Breakdown/i)).toBeInTheDocument();
+      expect(screen.getByText(/Programming Languages/)).toBeInTheDocument();
+      expect(screen.getByText("Python")).toBeInTheDocument();
+      expect(screen.getByText("React")).toBeInTheDocument();
+    });
+
+    it("falls back to SkillCloud when skill_categories is absent", () => {
+      render(<CVAnalysisResults cvId="cv-1" initialAnalysis={mockCompletedAnalysis} />);
+
+      expect(screen.getByText(/Extracted Skills/i)).toBeInTheDocument();
+      expect(screen.getByText("Python")).toBeInTheDocument();
+      expect(screen.queryByText(/Skills Breakdown/i)).not.toBeInTheDocument();
+    });
+
+    it("renders Skill Recommendations section when recommendations exist", () => {
+      render(<CVAnalysisResults cvId="cv-1" initialAnalysis={mockAnalysisWithSkillBreakdown} />);
+
+      expect(screen.getByText(/Skill Development Recommendations/i)).toBeInTheDocument();
+      expect(screen.getByText(/Consider learning Kubernetes/)).toBeInTheDocument();
+      expect(screen.getByText(/Add more cloud skills/)).toBeInTheDocument();
+    });
+
+    it("does not render Recommendations section when array is empty", () => {
+      const analysisWithEmptyRecommendations: CVAnalysis = {
+        ...mockAnalysisWithSkillBreakdown,
+        skill_recommendations: []
+      };
+
+      render(<CVAnalysisResults cvId="cv-1" initialAnalysis={analysisWithEmptyRecommendations} />);
+
+      expect(screen.queryByText(/Skill Development Recommendations/i)).not.toBeInTheDocument();
+    });
+
+    it("does not render Recommendations section when null", () => {
+      const analysisWithNullRecommendations: CVAnalysis = {
+        ...mockAnalysisWithSkillBreakdown,
+        skill_recommendations: null
+      };
+
+      render(<CVAnalysisResults cvId="cv-1" initialAnalysis={analysisWithNullRecommendations} />);
+
+      expect(screen.queryByText(/Skill Development Recommendations/i)).not.toBeInTheDocument();
+    });
+
+    it("does not render Skill Analysis section when skill_breakdown is null", () => {
+      const analysisWithoutSkillBreakdown: CVAnalysis = {
+        ...mockCompletedAnalysis,
+        skill_breakdown: null
+      };
+
+      render(<CVAnalysisResults cvId="cv-1" initialAnalysis={analysisWithoutSkillBreakdown} />);
+
+      expect(screen.queryByText(/Skill Analysis/i)).not.toBeInTheDocument();
+    });
+
+    it("maintains existing UI sections when new skill fields are present", () => {
+      render(<CVAnalysisResults cvId="cv-1" initialAnalysis={mockAnalysisWithSkillBreakdown} />);
+
+      // Existing sections should still be present
+      expect(screen.getByText(/CV Quality Score/i)).toBeInTheDocument();
+      expect(screen.getByText(/Professional Summary/i)).toBeInTheDocument();
+      expect(screen.getByText(/Experience Overview/i)).toBeInTheDocument();
+      expect(screen.getByText(/Detailed Feedback/i)).toBeInTheDocument();
+    });
   });
 });
