@@ -38,23 +38,37 @@ export const jobService = {
 
   /**
    * Create a new Job Description with file upload
+   * Uses native fetch instead of axios for proper FormData handling in Server Actions
    */
   createJDWithFile: async (
     formData: FormData,
     accessToken?: string
   ): Promise<JobDescriptionResponse> => {
     try {
+      const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
       const headers: Record<string, string> = {};
       if (accessToken) {
         headers.Authorization = `Bearer ${accessToken}`;
       }
-      // Don't set Content-Type - let browser set it with boundary for multipart/form-data
-      const response = await apiClient.post<JobDescriptionResponse>(
-        "/jobs/jd/upload",
-        formData,
-        { headers }
-      );
-      return response.data;
+      // Use native fetch for FormData - it handles multipart/form-data correctly
+      // Don't set Content-Type - fetch will set it automatically with proper boundary
+      const response = await fetch(`${baseURL}/jobs/jd/upload`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error('Failed to create JD with file') as Error & {
+          response?: { status: number; data: unknown };
+        };
+        error.response = { status: response.status, data: errorData };
+        throw error;
+      }
+      
+      return await response.json();
     } catch (error) {
       console.error("Error creating JD with file:", error);
       throw error;
@@ -236,6 +250,72 @@ export const jobService = {
       return response.data;
     } catch (error) {
       console.error("Error fetching candidate CV:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get the URL to access a candidate's CV file for preview
+   * Only accessible if CV is public
+   * @param jdId - Job Description ID
+   * @param cvId - CV ID
+   * @returns URL string for embedding in iframe or object tag
+   * @note Uses Next.js API route proxy to handle authentication
+   */
+  getCandidateCVFileUrl: (jdId: string, cvId: string): string => {
+    // Use Next.js API route proxy instead of direct backend URL because:
+    // 1. <embed> tag cannot send HttpOnly cookies cross-origin
+    // 2. Proxy route reads cookie and forwards as Authorization header to backend
+    // 3. Same-origin request ensures cookies are sent automatically
+    return `/api/jobs/jd/${jdId}/candidates/${cvId}/file`;
+  },
+
+  /**
+   * Download a candidate's CV file
+   * Only accessible if CV is public
+   * @param jdId - Job Description ID
+   * @param cvId - CV ID
+   * @returns Blob of the file
+   * @throws 403 if CV is private, 404 if not found
+   * @note Uses Next.js API route proxy for same-origin cookie handling
+   */
+  downloadCandidateCV: async (
+    jdId: string,
+    cvId: string
+  ): Promise<{ blob: Blob; filename: string }> => {
+    try {
+      // Use Next.js proxy route (same-origin) - cookies sent automatically
+      const response = await fetch(
+        `/api/jobs/jd/${jdId}/candidates/${cvId}/file?download=true`,
+        {
+          method: "GET",
+          credentials: "include", // Ensure cookies are sent
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
+
+      // Extract filename from Content-Disposition header
+      const contentDisposition = response.headers.get("content-disposition");
+      let filename = "cv.pdf";
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+?)"?$/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const blob = await response.blob();
+
+      return {
+        blob,
+        filename,
+      };
+    } catch (error) {
+      console.error("Error downloading candidate CV:", error);
       throw error;
     }
   },

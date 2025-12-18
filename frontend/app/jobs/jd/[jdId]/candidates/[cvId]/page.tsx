@@ -10,6 +10,7 @@ import { SkillCloud } from "@/features/cv/components/SkillCloud";
 import { SkillCategoriesDisplay } from "@/features/cv/components/SkillCategoriesDisplay";
 import { SkillBreakdownCard } from "@/features/cv/components/SkillBreakdownCard";
 import { SkillBreakdown, SkillCategories } from "@datn/shared-types";
+import { PDFPreviewSection } from "./PDFPreviewSection";
 
 interface CandidateCVPageProps {
   params: Promise<{
@@ -102,7 +103,7 @@ export default async function CandidateCVPage({ params }: CandidateCVPageProps) 
   const cvData = result.data!;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
       <div className="mb-6">
         <Link
@@ -126,94 +127,111 @@ export default async function CandidateCVPage({ params }: CandidateCVPageProps) 
         </div>
       </div>
 
-      {/* Match Context Section */}
-      {cvData.match_score !== null && (
-        <Card className="p-6 mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Briefcase className="h-5 w-5 text-blue-600" />
-            Do phu hop voi JD
-          </h2>
-          <div className="flex items-center gap-6">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-blue-600">
-                {cvData.match_score}%
-              </div>
-              <div className="text-sm text-gray-500">Diem phu hop</div>
-            </div>
-            {cvData.matched_skills && cvData.matched_skills.length > 0 && (
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  Ky nang phu hop ({cvData.matched_skills.length})
+      {/* Two Column Layout */}
+      <div className="flex gap-6">
+        {/* Left Column - Analysis Data */}
+        <div className="flex-1 min-w-0">
+          {/* Match Context Section */}
+          {cvData.match_score !== null && (
+            <Card className="p-6 mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Briefcase className="h-5 w-5 text-blue-600" />
+                Do phu hop voi JD
+              </h2>
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-blue-600">
+                    {cvData.match_score}%
+                  </div>
+                  <div className="text-sm text-gray-500">Diem phu hop</div>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {cvData.matched_skills.map((skill, index) => (
-                    <span
-                      key={index}
-                      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+                {cvData.matched_skills && cvData.matched_skills.length > 0 && (
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      Ky nang phu hop ({cvData.matched_skills.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {cvData.matched_skills.map((skill, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* CV Quality Score */}
-      {cvData.ai_score !== null && (
-        <Card className="p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Award className="h-5 w-5 text-yellow-500" />
-            Diem chat luong CV
-          </h2>
-          <ScoreGauge score={cvData.ai_score} />
-        </Card>
-      )}
-
-      {/* Summary Section */}
-      {cvData.ai_summary && (
-        <Card className="p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Tom tat chuyen mon
-          </h2>
-          <p className="text-gray-700 leading-relaxed">{cvData.ai_summary}</p>
-        </Card>
-      )}
-
-      {/* Skill Breakdown Section */}
-      {cvData.skill_breakdown && (
-        <Card className="p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Phan tich ky nang
-          </h2>
-          <SkillBreakdownCard breakdown={cvData.skill_breakdown as unknown as SkillBreakdown} />
-        </Card>
-      )}
-
-      {/* Skills Section */}
-      {(cvData.skill_categories || cvData.extracted_skills) && (
-        <Card className="p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            {cvData.skill_categories ? "Phan loai ky nang" : "Ky nang da trich xuat"}
-          </h2>
-          {cvData.skill_categories ? (
-            <SkillCategoriesDisplay categories={cvData.skill_categories as unknown as SkillCategories} />
-          ) : (
-            <SkillCloud skills={cvData.extracted_skills || []} />
+            </Card>
           )}
-        </Card>
-      )}
 
-      {/* Upload Info */}
-      <div className="text-center text-sm text-muted-foreground mt-8">
-        CV duoc tai len: {new Date(cvData.uploaded_at).toLocaleDateString("vi-VN", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })}
+          {/* CV Quality Score */}
+          {cvData.ai_score !== null && (
+            <Card className="p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Award className="h-5 w-5 text-yellow-500" />
+                Diem chat luong CV
+              </h2>
+              <ScoreGauge score={cvData.ai_score} />
+            </Card>
+          )}
+
+          {/* Summary Section */}
+          {cvData.ai_summary && (
+            <Card className="p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                Tom tat chuyen mon
+              </h2>
+              <p className="text-gray-700 leading-relaxed">{cvData.ai_summary}</p>
+            </Card>
+          )}
+
+          {/* Skill Breakdown Section */}
+          {cvData.skill_breakdown && (
+            <Card className="p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                Phan tich ky nang
+              </h2>
+              <SkillBreakdownCard breakdown={cvData.skill_breakdown as unknown as SkillBreakdown} />
+            </Card>
+          )}
+
+          {/* Skills Section */}
+          {(cvData.skill_categories || cvData.extracted_skills) && (
+            <Card className="p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                {cvData.skill_categories ? "Phan loai ky nang" : "Ky nang da trich xuat"}
+              </h2>
+              {cvData.skill_categories ? (
+                <SkillCategoriesDisplay categories={cvData.skill_categories as unknown as SkillCategories} />
+              ) : (
+                <SkillCloud skills={cvData.extracted_skills || []} />
+              )}
+            </Card>
+          )}
+
+          {/* Upload Info */}
+          <div className="text-center text-sm text-muted-foreground mt-8">
+            CV duoc tai len: {new Date(cvData.uploaded_at).toLocaleDateString("vi-VN", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </div>
+        </div>
+
+        {/* Right Column - PDF Preview (Sticky) */}
+        <div className="w-[500px] flex-shrink-0">
+          <div className="sticky top-4">
+            <PDFPreviewSection
+              jdId={jdId}
+              cvId={cvId}
+              filename={cvData.filename}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

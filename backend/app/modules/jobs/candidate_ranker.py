@@ -185,12 +185,19 @@ class CandidateRanker:
         """
         Fetch all completed CV analyses with their CVs.
         
-        Only returns analyses with status COMPLETED that have extracted skills.
+        Only returns analyses with:
+        - status COMPLETED
+        - extracted skills present
+        - CV is active (not soft-deleted)
         """
         result = await db.execute(
             select(CVAnalysis)
+            .join(CV, CVAnalysis.cv_id == CV.id)
             .options(selectinload(CVAnalysis.cv))
-            .where(CVAnalysis.status == AnalysisStatus.COMPLETED.value)
+            .where(
+                CVAnalysis.status == AnalysisStatus.COMPLETED.value,
+                CV.is_active == True,  # Exclude soft-deleted CVs
+            )
         )
         analyses = list(result.scalars().all())
         

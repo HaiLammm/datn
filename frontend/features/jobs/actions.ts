@@ -78,6 +78,48 @@ function parseNumberString(value: string | undefined): number | undefined {
   return isNaN(num) ? undefined : num;
 }
 
+/**
+ * Extract error message from FastAPI response.
+ * FastAPI can return errors in different formats:
+ * - String: "Error message"
+ * - Array of validation errors: [{type, loc, msg, input}, ...]
+ * - Object with detail: {detail: "message"} or {detail: [...]}
+ */
+function extractErrorMessage(detail: unknown, defaultMessage: string): string {
+  if (typeof detail === "string") {
+    return detail;
+  }
+  
+  if (Array.isArray(detail)) {
+    // Pydantic validation errors format: [{type, loc, msg, input}, ...]
+    const messages = detail
+      .map((err) => {
+        if (typeof err === "string") return err;
+        if (err && typeof err === "object" && "msg" in err) {
+          const loc = Array.isArray(err.loc) ? err.loc.join(".") : "";
+          return loc ? `${loc}: ${err.msg}` : String(err.msg);
+        }
+        return null;
+      })
+      .filter(Boolean);
+    
+    return messages.length > 0 ? messages.join("; ") : defaultMessage;
+  }
+  
+  if (detail && typeof detail === "object") {
+    // If it's an object with a 'msg' property (single validation error)
+    if ("msg" in detail) {
+      return String((detail as { msg: unknown }).msg);
+    }
+    // If it's an object with a 'message' property
+    if ("message" in detail) {
+      return String((detail as { message: unknown }).message);
+    }
+  }
+  
+  return defaultMessage;
+}
+
 export async function createJDAction(
   prevState: ActionState,
   formData: FormData
@@ -215,13 +257,17 @@ export async function createJDAction(
     }
   } catch (error: unknown) {
     console.error("Server Action Error:", error);
-    let errorMessage = "Đã xảy ra lỗi khi tạo Job Description.";
+    const defaultMessage = "Đã xảy ra lỗi khi tạo Job Description.";
+    let errorMessage = defaultMessage;
+    
     if (error && typeof error === "object" && "response" in error) {
       const axiosError = error as {
-        response?: { data?: { detail?: string } };
+        response?: { data?: { detail?: unknown } };
       };
-      errorMessage = axiosError.response?.data?.detail || errorMessage;
+      const detail = axiosError.response?.data?.detail;
+      errorMessage = extractErrorMessage(detail, defaultMessage);
     }
+    
     return {
       message: errorMessage,
       errors: {},
@@ -273,12 +319,14 @@ export async function deleteJDAction(
     return { success: true, message: "Job Description đã được xóa thành công." };
   } catch (error) {
     console.error("Server Action Delete Error:", error);
-    let errorMessage = "Đã xảy ra lỗi khi xóa Job Description.";
+    const defaultMessage = "Đã xảy ra lỗi khi xóa Job Description.";
+    let errorMessage = defaultMessage;
     if (error && typeof error === "object" && "response" in error) {
       const axiosError = error as {
-        response?: { data?: { detail?: string } };
+        response?: { data?: { detail?: unknown } };
       };
-      errorMessage = axiosError.response?.data?.detail || errorMessage;
+      const detail = axiosError.response?.data?.detail;
+      errorMessage = extractErrorMessage(detail, defaultMessage);
     }
     return { success: false, message: errorMessage };
   }
@@ -299,12 +347,14 @@ export async function updateParsedRequirementsAction(
     };
   } catch (error) {
     console.error("Server Action Update Error:", error);
-    let errorMessage = "Đã xảy ra lỗi khi cập nhật yêu cầu.";
+    const defaultMessage = "Đã xảy ra lỗi khi cập nhật yêu cầu.";
+    let errorMessage = defaultMessage;
     if (error && typeof error === "object" && "response" in error) {
       const axiosError = error as {
-        response?: { data?: { detail?: string } };
+        response?: { data?: { detail?: unknown } };
       };
-      errorMessage = axiosError.response?.data?.detail || errorMessage;
+      const detail = axiosError.response?.data?.detail;
+      errorMessage = extractErrorMessage(detail, defaultMessage);
     }
     return { success: false, message: errorMessage };
   }

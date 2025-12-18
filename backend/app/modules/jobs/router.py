@@ -1,8 +1,14 @@
+import mimetypes
+import os
+from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
 
 from app.core.database import get_db, AsyncSessionLocal
 from app.modules.auth.dependencies import get_current_user
@@ -602,6 +608,13 @@ async def get_candidate_cv_for_recruiter(
             detail="Candidate not found for this JD",
         )
     
+    # 2.1. Check if CV is active (not soft-deleted)
+    if not cv.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found for this JD",
+        )
+    
     # 3. Check if CV is public
     if not cv.is_public:
         raise HTTPException(
@@ -652,4 +665,155 @@ async def get_candidate_cv_for_recruiter(
         skill_categories=analysis.skill_categories if analysis else None,
         match_score=candidate_match.match_score,
         matched_skills=candidate_match.breakdown.matched_skills,
+    )
+
+
+@router.get(
+    "/jd/{jd_id}/candidates/{cv_id}/file",
+    summary="Get CV file for a candidate (recruiter access)",
+    responses={
+        200: {
+            "description": "CV file for viewing or download",
+            "content": {"application/pdf": {}, "application/octet-stream": {}},
+        },
+        403: {"description": "CV is private"},
+        404: {"description": "JD or CV not found"},
+    },
+)
+async def get_candidate_cv_file_for_recruiter(
+    jd_id: UUID,
+    cv_id: UUID,
+    download: bool = Query(False, description="If true, return as attachment for download"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """
+    Get the original CV file for a specific candidate.
+    
+    **Requirements:**
+    - The JD must belong to the authenticated user (recruiter)
+    - The CV must have been matched with this JD (via candidate ranking)
+    - The CV must be public (is_public = true)
+    
+    **Query Parameters:**
+    - **download**: If true, returns file as attachment for download. 
+                   Default: false (inline for preview)
+    
+    **Returns:**
+    - CV file as StreamingResponse with appropriate content-type
+    
+    **Errors:**
+    - 404: JD or CV not found, or CV was not matched with this JD
+    - 403: CV is private (is_public = false)
+    """
+    # 1. Verify JD exists and belongs to current user
+    jd = await job_service.get_job_description(db, jd_id, current_user.id)
+    if jd is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job description not found",
+        )
+    
+    # 2. Fetch CV
+    result = await db.execute(
+        select(CV).where(CV.id == cv_id)
+    )
+    cv = result.scalar_one_or_none()
+    
+    if cv is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found for this JD",
+        )
+    
+    # 2.1. Check if CV is active (not soft-deleted)
+    if not cv.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found for this JD",
+        )
+    
+    # Store file info before any potential session issues
+    cv_file_path = cv.file_path
+    cv_filename = cv.filename
+    cv_is_public = cv.is_public
+    
+    # 3. Check if CV is public
+    if not cv_is_public:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CV is private. Cannot access file.",
+        )
+    
+    # 4. Verify CV was matched with this JD
+    try:
+        candidates, _ = await candidate_ranker.rank_candidates(
+            db=db,
+            jd_id=jd_id,
+            limit=1000,
+            offset=0,
+            min_score=0,
+        )
+        
+        candidate_match = next(
+            (c for c in candidates if c.cv_id == cv_id),
+            None
+        )
+        
+        if candidate_match is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Candidate not found for this JD",
+            )
+            
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    
+    # 5. Verify file exists on disk
+    # Handle file path resolution:
+    # - file_path in DB may be "data/cv_uploads/xxx.pdf" (relative from project root)
+    # - or just "xxx.pdf" (filename only, older format)
+    # - or absolute path
+    cv_path = Path(cv_file_path)
+    if cv_path.is_absolute():
+        full_path = cv_path
+    elif cv_file_path.startswith("data/cv_uploads/"):
+        # Already includes the storage path prefix, use from project root
+        full_path = Path(cv_file_path)
+    else:
+        # Just filename, prepend storage path
+        full_path = settings.CV_STORAGE_PATH / cv_file_path
+    
+    if not os.path.exists(full_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CV file not found on server",
+        )
+    
+    # 6. Determine content type
+    content_type, _ = mimetypes.guess_type(cv_filename)
+    if content_type is None:
+        content_type = "application/octet-stream"
+    
+    # 7. Set content disposition
+    if download:
+        content_disposition = f'attachment; filename="{cv_filename}"'
+    else:
+        content_disposition = f'inline; filename="{cv_filename}"'
+    
+    # 8. Create file iterator for streaming
+    def file_iterator():
+        with open(full_path, "rb") as f:
+            while chunk := f.read(8192):
+                yield chunk
+    
+    return StreamingResponse(
+        file_iterator(),
+        media_type=content_type,
+        headers={
+            "Content-Disposition": content_disposition,
+        },
     )
