@@ -12,6 +12,9 @@ import {
   RankedCandidateListResponse,
   CandidateQueryParams,
   RecruiterCVAccessResponse,
+  SemanticSearchRequest,
+  SearchResultListResponse,
+  CandidateCVFromSearchResponse,
 } from "@datn/shared-types";
 
 export interface ActionState {
@@ -390,6 +393,102 @@ export async function getCandidateCVAction(
     return { success: true, data };
   } catch (error) {
     console.error("Error fetching candidate CV:", error);
+    
+    // Check for specific error codes
+    if (error && typeof error === "object" && "response" in error) {
+      const axiosError = error as {
+        response?: { status?: number; data?: { detail?: string } };
+      };
+      
+      if (axiosError.response?.status === 403) {
+        return {
+          success: false,
+          error: axiosError.response?.data?.detail || "CV is private",
+          errorCode: "PRIVATE",
+        };
+      }
+      
+      if (axiosError.response?.status === 404) {
+        return {
+          success: false,
+          error: axiosError.response?.data?.detail || "Candidate not found",
+          errorCode: "NOT_FOUND",
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      error: "Failed to load candidate CV",
+      errorCode: "UNKNOWN",
+    };
+  }
+}
+
+// ============================================================
+// Semantic Search Actions (Story 3.7)
+// ============================================================
+
+const SemanticSearchParamsSchema = z.object({
+  query: z.string().min(2, "Query phải có ít nhất 2 ký tự"),
+  limit: z.number().min(1).max(100).optional(),
+  offset: z.number().min(0).optional(),
+  min_score: z.number().min(0).max(100).optional(),
+});
+
+export type SemanticSearchParams = z.infer<typeof SemanticSearchParamsSchema>;
+
+/**
+ * Search for candidates using natural language query
+ * @param params - Search parameters (query, limit, offset, min_score)
+ * @returns Paginated list of search results with parsed query, or null on error
+ */
+export async function searchCandidatesAction(
+  params: SemanticSearchParams
+): Promise<SearchResultListResponse | null> {
+  try {
+    // Validate params
+    const validatedParams = SemanticSearchParamsSchema.safeParse(params);
+    if (!validatedParams.success) {
+      console.error("Validation error:", validatedParams.error);
+      return null;
+    }
+
+    const accessToken = await getAccessToken();
+    const searchRequest: SemanticSearchRequest = {
+      query: validatedParams.data.query,
+      limit: validatedParams.data.limit,
+      offset: validatedParams.data.offset,
+      min_score: validatedParams.data.min_score,
+    };
+    return await jobService.searchCandidates(searchRequest, accessToken);
+  } catch (error) {
+    console.error("Error searching candidates:", error);
+    return null;
+  }
+}
+
+export interface GetCandidateCVFromSearchResult {
+  success: boolean;
+  data?: CandidateCVFromSearchResponse;
+  error?: string;
+  errorCode?: "NOT_FOUND" | "PRIVATE" | "UNKNOWN";
+}
+
+/**
+ * Get a candidate's CV details from search results (no JD context)
+ * @param cvId - CV ID
+ * @returns CV analysis without JD match context
+ */
+export async function getCandidateCVFromSearchAction(
+  cvId: string
+): Promise<GetCandidateCVFromSearchResult> {
+  try {
+    const accessToken = await getAccessToken();
+    const data = await jobService.getCandidateCVFromSearch(cvId, accessToken);
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error fetching candidate CV from search:", error);
     
     // Check for specific error codes
     if (error && typeof error === "object" && "response" in error) {

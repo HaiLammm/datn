@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getJDListAction } from "@/features/jobs/actions";
 import { JDList } from "@/features/jobs/components/JDList";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 export default async function JobsPage() {
   // Authentication Guard
@@ -30,12 +30,20 @@ export default async function JobsPage() {
           </p>
         </div>
 
-        <Link href="/jobs/jd/upload">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Tạo JD mới
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/jobs/search">
+            <Button variant="outline">
+              <Search className="h-4 w-4 mr-2" />
+              Tim kiem ung vien
+            </Button>
+          </Link>
+          <Link href="/jobs/jd/upload">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Tao JD moi
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Suspense fallback={<JDsSkeleton />}>

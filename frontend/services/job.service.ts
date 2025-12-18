@@ -7,6 +7,9 @@ import {
   RankedCandidateListResponse,
   CandidateQueryParams,
   RecruiterCVAccessResponse,
+  SemanticSearchRequest,
+  SearchResultListResponse,
+  CandidateCVFromSearchResponse,
 } from "@datn/shared-types";
 
 export const jobService = {
@@ -318,5 +321,74 @@ export const jobService = {
       console.error("Error downloading candidate CV:", error);
       throw error;
     }
+  },
+
+  /**
+   * Search for candidates using natural language query
+   * @param params - Search parameters (query, limit, offset, min_score)
+   * @param accessToken - Optional access token
+   * @returns Paginated list of search results with parsed query
+   */
+  searchCandidates: async (
+    params: SemanticSearchRequest,
+    accessToken?: string
+  ): Promise<SearchResultListResponse> => {
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.post<SearchResultListResponse>(
+        "/jobs/search",
+        params,
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error searching candidates:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get a candidate's CV details from search results (no JD context)
+   * Only returns data if CV is public
+   * @param cvId - CV ID
+   * @param accessToken - Optional access token
+   * @returns CV analysis without JD match context
+   * @throws 403 if CV is private, 404 if not found
+   */
+  getCandidateCVFromSearch: async (
+    cvId: string,
+    accessToken?: string
+  ): Promise<CandidateCVFromSearchResponse> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.get<CandidateCVFromSearchResponse>(
+        `/jobs/candidates/${cvId}`,
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching candidate CV from search:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get the URL to access a candidate's CV file from search results
+   * Only accessible if CV is public
+   * @param cvId - CV ID
+   * @returns URL string for embedding in iframe or object tag
+   * @note Uses Next.js API route proxy to handle authentication
+   */
+  getCandidateCVFromSearchFileUrl: (cvId: string): string => {
+    // Use Next.js API route proxy for same-origin cookie handling
+    return `/api/jobs/candidates/${cvId}/file`;
   },
 };

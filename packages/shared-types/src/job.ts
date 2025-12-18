@@ -128,3 +128,64 @@ export interface RecruiterCVAccessResponse {
   match_score: number | null;
   matched_skills: string[] | null;
 }
+
+// ============================================================
+// Semantic Search Types (Story 3.7)
+// ============================================================
+
+/**
+ * Request payload for semantic candidate search
+ */
+export interface SemanticSearchRequest {
+  query: string; // Natural language query (min 2 chars)
+  limit?: number; // Default 20, max 100
+  offset?: number; // Default 0
+  min_score?: number; // Default 0, range 0-100
+}
+
+/**
+ * Parsed query interpretation from LLM
+ */
+export interface ParsedQueryResponse {
+  extracted_skills: string[];
+  experience_keywords: string[];
+  raw_query: string;
+}
+
+/**
+ * Single search result for a candidate
+ */
+export interface SearchResultResponse {
+  cv_id: string; // UUID
+  user_id: number;
+  relevance_score: number; // 0-100
+  matched_skills: string[];
+  cv_summary: string | null;
+  filename: string | null;
+}
+
+/**
+ * Paginated list of search results
+ */
+export interface SearchResultListResponse {
+  items: SearchResultResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+  parsed_query: ParsedQueryResponse;
+}
+
+/**
+ * Response for recruiter accessing a candidate's CV from search (no JD context)
+ */
+export interface CandidateCVFromSearchResponse {
+  cv_id: string;
+  filename: string;
+  uploaded_at: string;
+  ai_score: number | null;
+  ai_summary: string | null;
+  extracted_skills: string[] | null;
+  skill_breakdown: Record<string, number> | null;
+  skill_categories: Record<string, string[]> | null;
+  is_public: boolean;
+}

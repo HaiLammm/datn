@@ -14,6 +14,7 @@ from app.core.database import get_db, AsyncSessionLocal
 from app.modules.auth.dependencies import get_current_user
 from app.modules.jobs import services as job_service
 from app.modules.jobs.schemas import (
+    CandidateCVFromSearchResponse,
     JDParseStatus,
     JDParseStatusResponse,
     JobDescriptionCreate,
@@ -557,6 +558,186 @@ async def search_candidates(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Search failed: {str(e)}",
         )
+
+
+@router.get(
+    "/candidates/{cv_id}",
+    response_model=CandidateCVFromSearchResponse,
+    summary="Get CV details from search results (no JD context)",
+)
+async def get_candidate_cv_from_search(
+    cv_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CandidateCVFromSearchResponse:
+    """
+    Get CV analysis details for a candidate from search results.
+    
+    This endpoint is used when viewing a candidate found via semantic search,
+    without a specific JD context for matching.
+    
+    **Requirements:**
+    - User must be authenticated (recruiter)
+    - The CV must be public (is_public = true)
+    
+    **Returns:**
+    - CV analysis including AI score, summary, skills, and breakdown
+    - No match context (no JD to compare against)
+    
+    **Errors:**
+    - 404: CV not found or inactive
+    - 403: CV is private (is_public = false)
+    """
+    # 1. Fetch CV with analysis
+    result = await db.execute(
+        select(CV)
+        .options(selectinload(CV.analyses))
+        .where(CV.id == cv_id)
+    )
+    cv = result.scalar_one_or_none()
+    
+    if cv is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found",
+        )
+    
+    # 2. Check if CV is active (not soft-deleted)
+    if not cv.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found",
+        )
+    
+    # 3. Check if CV is public
+    if not cv.is_public:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CV is private. Contact candidate directly.",
+        )
+    
+    # 4. Get analysis data
+    analysis = cv.analyses[0] if cv.analyses else None
+    
+    return CandidateCVFromSearchResponse(
+        cv_id=cv.id,
+        filename=cv.filename,
+        uploaded_at=cv.uploaded_at,
+        ai_score=analysis.ai_score if analysis else None,
+        ai_summary=analysis.ai_summary if analysis else None,
+        extracted_skills=analysis.extracted_skills if analysis else None,
+        skill_breakdown=analysis.skill_breakdown if analysis else None,
+        skill_categories=analysis.skill_categories if analysis else None,
+        is_public=cv.is_public,
+    )
+
+
+@router.get(
+    "/candidates/{cv_id}/file",
+    summary="Get CV file from search results (no JD context)",
+    responses={
+        200: {
+            "description": "CV file for viewing or download",
+            "content": {"application/pdf": {}, "application/octet-stream": {}},
+        },
+        403: {"description": "CV is private"},
+        404: {"description": "CV not found"},
+    },
+)
+async def get_candidate_cv_file_from_search(
+    cv_id: UUID,
+    download: bool = Query(False, description="If true, return as attachment for download"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """
+    Get the original CV file for a candidate from search results.
+    
+    **Requirements:**
+    - User must be authenticated (recruiter)
+    - The CV must be public (is_public = true)
+    
+    **Query Parameters:**
+    - **download**: If true, returns file as attachment for download. 
+                   Default: false (inline for preview)
+    
+    **Returns:**
+    - CV file as StreamingResponse with appropriate content-type
+    
+    **Errors:**
+    - 404: CV not found or inactive
+    - 403: CV is private (is_public = false)
+    """
+    # 1. Fetch CV
+    result = await db.execute(
+        select(CV).where(CV.id == cv_id)
+    )
+    cv = result.scalar_one_or_none()
+    
+    if cv is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found",
+        )
+    
+    # 2. Check if CV is active (not soft-deleted)
+    if not cv.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found",
+        )
+    
+    # Store file info before any potential session issues
+    cv_file_path = cv.file_path
+    cv_filename = cv.filename
+    cv_is_public = cv.is_public
+    
+    # 3. Check if CV is public
+    if not cv_is_public:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CV is private. Cannot access file.",
+        )
+    
+    # 4. Verify file exists on disk
+    cv_path = Path(cv_file_path)
+    if cv_path.is_absolute():
+        full_path = cv_path
+    elif cv_file_path.startswith("data/cv_uploads/"):
+        full_path = Path(cv_file_path)
+    else:
+        full_path = settings.CV_STORAGE_PATH / cv_file_path
+    
+    if not os.path.exists(full_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CV file not found on server",
+        )
+    
+    # 5. Determine content type
+    content_type, _ = mimetypes.guess_type(cv_filename)
+    if content_type is None:
+        content_type = "application/octet-stream"
+    
+    # 6. Set content disposition
+    if download:
+        content_disposition = f'attachment; filename="{cv_filename}"'
+    else:
+        content_disposition = f'inline; filename="{cv_filename}"'
+    
+    # 7. Create file iterator for streaming
+    def file_iterator():
+        with open(full_path, "rb") as f:
+            while chunk := f.read(8192):
+                yield chunk
+    
+    return StreamingResponse(
+        file_iterator(),
+        media_type=content_type,
+        headers={
+            "Content-Disposition": content_disposition,
+        },
+    )
 
 
 @router.get(

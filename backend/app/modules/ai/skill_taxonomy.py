@@ -14,6 +14,7 @@ Categories:
 - compliance: Regulatory compliance and IT governance frameworks
 - soft_skills: Non-technical professional skills
 - ai_ml: AI/ML frameworks and tools
+- it_management: IT team management, leadership, and organizational skills
 - other: Skills not matching other categories (populated dynamically)
 """
 
@@ -479,6 +480,81 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
         {"canonical": "disaster recovery", "aliases": ["dr", "disaster recovery planning", "drp", "business continuity"]},
         {"canonical": "change management", "aliases": ["change control", "itil change management"]},
     ],
+    
+    "it_management": [
+        # Team Leadership & Management
+        {"canonical": "team management", "aliases": ["team lead", "team leader", "quan ly doi nhom", "quan ly team", "it team management", "managing teams"]},
+        {"canonical": "engineering management", "aliases": ["engineering manager", "em", "software engineering management", "dev management"]},
+        {"canonical": "technical leadership", "aliases": ["tech lead", "technical lead", "technical leader", "tech leadership"]},
+        {"canonical": "people management", "aliases": ["people leader", "direct reports", "managing people", "staff management"]},
+        {"canonical": "cross-functional leadership", "aliases": ["cross-functional teams", "cross functional collaboration", "matrix management"]},
+        
+        # Resource & Capacity Planning
+        {"canonical": "resource planning", "aliases": ["resource allocation", "capacity planning", "workforce planning", "resource management"]},
+        {"canonical": "headcount planning", "aliases": ["headcount management", "staffing plan", "team sizing"]},
+        {"canonical": "skill gap analysis", "aliases": ["skills assessment", "competency mapping", "skill matrix"]},
+        {"canonical": "succession planning", "aliases": ["leadership pipeline", "talent pipeline"]},
+        
+        # Performance & Development
+        {"canonical": "performance management", "aliases": ["performance review", "performance evaluation", "kpi management", "okr", "okrs"]},
+        {"canonical": "career development", "aliases": ["career path", "career growth", "professional development", "career coaching"]},
+        {"canonical": "talent development", "aliases": ["talent management", "employee development", "learning and development", "l&d"]},
+        {"canonical": "1-on-1", "aliases": ["one on one", "1:1", "one-on-one meetings", "1on1"]},
+        {"canonical": "feedback", "aliases": ["giving feedback", "constructive feedback", "360 feedback", "continuous feedback"]},
+        
+        # Hiring & Recruiting
+        {"canonical": "technical interviewing", "aliases": ["tech interview", "coding interview", "technical hiring", "interview process"]},
+        {"canonical": "hiring", "aliases": ["recruitment", "recruiting", "talent acquisition", "hiring process"]},
+        {"canonical": "onboarding", "aliases": ["new hire onboarding", "employee onboarding", "orientation"]},
+        {"canonical": "employer branding", "aliases": ["tech branding", "engineering brand"]},
+        
+        # IT Strategy & Planning
+        {"canonical": "it strategy", "aliases": ["technology strategy", "tech strategy", "it roadmap", "digital strategy"]},
+        {"canonical": "technology roadmap", "aliases": ["tech roadmap", "product roadmap", "technical roadmap"]},
+        {"canonical": "digital transformation", "aliases": ["dx", "digitalization", "modernization"]},
+        {"canonical": "it governance", "aliases": ["technology governance", "it policies"]},
+        {"canonical": "enterprise architecture", "aliases": ["ea", "solution architecture", "technical architecture"]},
+        
+        # Budget & Vendor Management
+        {"canonical": "it budgeting", "aliases": ["it budget", "technology budget", "budget management", "cost management"]},
+        {"canonical": "vendor management", "aliases": ["supplier management", "vendor relationship", "third-party management", "outsourcing management"]},
+        {"canonical": "contract negotiation", "aliases": ["vendor negotiation", "it contracts", "software licensing"]},
+        {"canonical": "procurement", "aliases": ["it procurement", "technology procurement", "purchasing"]},
+        {"canonical": "cost optimization", "aliases": ["cost reduction", "it cost optimization", "cloud cost optimization", "finops"]},
+        
+        # Process & Methodology
+        {"canonical": "process improvement", "aliases": ["process optimization", "continuous improvement", "kaizen", "lean it"]},
+        {"canonical": "devops culture", "aliases": ["devops transformation", "devops practices", "sre culture"]},
+        {"canonical": "engineering excellence", "aliases": ["technical excellence", "engineering practices", "best practices"]},
+        {"canonical": "quality assurance management", "aliases": ["qa management", "quality management", "testing strategy"]},
+        {"canonical": "release management", "aliases": ["deployment management", "release planning", "release coordination"]},
+        
+        # Communication & Stakeholder Management
+        {"canonical": "executive communication", "aliases": ["c-level communication", "board presentation", "leadership communication"]},
+        {"canonical": "technical communication", "aliases": ["tech communication", "engineering communication"]},
+        {"canonical": "stakeholder management", "aliases": ["stakeholder engagement", "stakeholder communication", "managing stakeholders"]},
+        {"canonical": "conflict resolution", "aliases": ["conflict management", "dispute resolution", "mediation"]},
+        {"canonical": "influence without authority", "aliases": ["lateral leadership", "persuasion", "building consensus"]},
+        
+        # Team Culture & Organization
+        {"canonical": "team building", "aliases": ["team bonding", "team culture", "building teams"]},
+        {"canonical": "remote team management", "aliases": ["distributed team", "virtual team management", "remote leadership"]},
+        {"canonical": "organizational design", "aliases": ["org design", "team structure", "org structure"]},
+        {"canonical": "culture building", "aliases": ["engineering culture", "team culture", "company culture"]},
+        {"canonical": "diversity and inclusion", "aliases": ["d&i", "dei", "inclusive leadership", "diverse teams"]},
+        
+        # Incident & Crisis Management
+        {"canonical": "incident management", "aliases": ["incident response", "incident commander", "on-call management"]},
+        {"canonical": "crisis management", "aliases": ["crisis response", "emergency management", "crisis leadership"]},
+        {"canonical": "postmortem", "aliases": ["post-mortem", "retrospective", "blameless postmortem", "incident review"]},
+        {"canonical": "escalation management", "aliases": ["escalation process", "escalation handling"]},
+        
+        # Metrics & Reporting
+        {"canonical": "engineering metrics", "aliases": ["dora metrics", "team metrics", "productivity metrics", "development metrics"]},
+        {"canonical": "kpi tracking", "aliases": ["key performance indicators", "metrics tracking", "performance tracking"]},
+        {"canonical": "reporting", "aliases": ["status reporting", "executive reporting", "management reporting"]},
+        {"canonical": "data-driven decision making", "aliases": ["data-driven management", "evidence-based management"]},
+    ],
 }
 
 
@@ -489,6 +565,7 @@ HOT_SKILLS_2024: Dict[str, List[str]] = {
     "databases": ["postgresql", "mongodb", "redis", "chromadb"],
     "devops": ["docker", "kubernetes", "aws", "terraform", "github actions"],
     "ai_ml": ["pytorch", "langchain", "huggingface", "openai", "rag"],
+    "it_management": ["engineering management", "technical leadership", "devops culture", "remote team management"],
 }
 
 
