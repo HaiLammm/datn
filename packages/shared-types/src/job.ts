@@ -89,6 +89,7 @@ export interface RankedCandidateResponse {
   breakdown: MatchBreakdownResponse;
   cv_summary: string | null;
   filename: string | null;
+  is_public: boolean;
 }
 
 /**
@@ -108,4 +109,22 @@ export interface CandidateQueryParams {
   limit?: number;
   offset?: number;
   min_score?: number;
+}
+
+/**
+ * Response for recruiter accessing a candidate's CV
+ */
+export interface RecruiterCVAccessResponse {
+  cv_id: string;
+  filename: string;
+  uploaded_at: string;
+  ai_score: number | null;
+  ai_summary: string | null;
+  extracted_skills: string[] | null;
+  /** Skill breakdown - may be partial or null */
+  skill_breakdown: Record<string, number> | null;
+  /** Skill categories - may be partial or null */
+  skill_categories: Record<string, string[]> | null;
+  match_score: number | null;
+  matched_skills: string[] | null;
 }

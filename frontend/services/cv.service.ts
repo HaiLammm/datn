@@ -74,4 +74,22 @@ export const cvService = {
       throw error;
     }
   },
+
+  updateVisibility: async (cvId: string, isPublic: boolean, accessToken?: string): Promise<CVWithStatus> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.patch<CVWithStatus>(
+        `/cvs/${cvId}/visibility`,
+        { is_public: isPublic },
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error updating CV visibility:", error);
+      throw error;
+    }
+  },
 };

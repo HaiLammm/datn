@@ -259,6 +259,10 @@ class RankedCandidateResponse(BaseModel):
         default=None,
         description="Original filename of the CV"
     )
+    is_public: bool = Field(
+        default=False,
+        description="Whether the CV is public and viewable by recruiters"
+    )
     
     model_config = {"from_attributes": True}
 
@@ -394,6 +398,53 @@ class SearchResultListResponse(BaseModel):
     )
     parsed_query: ParsedQueryResponse = Field(
         description="Information about how the query was parsed"
+    )
+    
+    model_config = {"from_attributes": True}
+
+
+# ============================================================================
+# Recruiter CV Access Schemas
+# ============================================================================
+
+
+class RecruiterCVAccessResponse(BaseModel):
+    """Response schema for recruiter accessing a candidate's CV."""
+    
+    cv_id: UUID = Field(description="CV unique identifier")
+    filename: str = Field(description="Original filename of the CV")
+    uploaded_at: datetime = Field(description="When the CV was uploaded")
+    
+    # Analysis data
+    ai_score: Optional[int] = Field(
+        default=None,
+        description="AI-generated quality score (0-100)"
+    )
+    ai_summary: Optional[str] = Field(
+        default=None,
+        description="AI-generated summary of the CV"
+    )
+    extracted_skills: Optional[List[str]] = Field(
+        default=None,
+        description="Skills extracted from the CV"
+    )
+    skill_breakdown: Optional[Dict] = Field(
+        default=None,
+        description="Detailed skill scoring breakdown"
+    )
+    skill_categories: Optional[Dict] = Field(
+        default=None,
+        description="Skills organized by category"
+    )
+    
+    # Match context (if applicable)
+    match_score: Optional[int] = Field(
+        default=None,
+        description="Match score against the JD (0-100)"
+    )
+    matched_skills: Optional[List[str]] = Field(
+        default=None,
+        description="Skills matching the JD requirements"
     )
     
     model_config = {"from_attributes": True}

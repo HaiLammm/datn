@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { toast } from "sonner";
 import { JobDescriptionResponse, JDParseStatus } from "@datn/shared-types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -80,11 +81,14 @@ export function JDCard({ jd, onDelete }: JDCardProps) {
     try {
       const result = await deleteJDAction(jd.id);
       if (result.success) {
+        toast.success(`JD "${jd.title}" has been deleted`);
         onDelete?.();
       } else {
+        toast.error(result.message || "Failed to delete JD");
         setDeleteError(result.message);
       }
     } catch (error) {
+      toast.error("An unexpected error occurred");
       setDeleteError("Đã xảy ra lỗi khi xóa JD.");
       console.error("Delete error:", error);
     } finally {

@@ -67,6 +67,7 @@ class RankedCandidate:
     breakdown: MatchBreakdown
     cv_summary: Optional[str] = None
     filename: Optional[str] = None
+    is_public: bool = False
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -77,6 +78,7 @@ class RankedCandidate:
             "breakdown": self.breakdown.to_dict(),
             "cv_summary": self.cv_summary,
             "filename": self.filename,
+            "is_public": self.is_public,
         }
 
 
@@ -264,6 +266,7 @@ class CandidateRanker:
             breakdown=breakdown,
             cv_summary=cv_analysis.ai_summary,
             filename=cv_analysis.cv.filename if cv_analysis.cv else None,
+            is_public=cv_analysis.cv.is_public if cv_analysis.cv else False,
         )
     
     def _calculate_skill_score(

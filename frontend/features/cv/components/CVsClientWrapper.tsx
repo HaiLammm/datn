@@ -3,6 +3,7 @@
 import { CVWithStatus } from "@datn/shared-types";
 import Link from "next/link";
 import { DeleteCVDialog } from "@/features/cv/components/DeleteCVDialog";
+import { CVVisibilityToggle } from "@/features/cv/components/CVVisibilityToggle";
 import {
   DeleteModeProvider,
   useDeleteMode,
@@ -127,6 +128,11 @@ function CVCard({ cv }: { cv: CVWithStatus }) {
           </p>
         </div>
         {getStatusBadge(cv.analysis_status)}
+      </div>
+
+      {/* Visibility Toggle */}
+      <div className="mb-4 py-3 border-t border-b border-gray-100">
+        <CVVisibilityToggle cvId={cv.id} isPublic={cv.is_public} />
       </div>
 
       <div className="flex space-x-3">

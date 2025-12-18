@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { ParsedJDRequirements } from "@datn/shared-types";
 import { updateParsedRequirementsAction } from "@/features/jobs/actions";
 import { Button } from "@/components/ui/button";
@@ -94,11 +95,14 @@ export function EditParsedRequirements({
       const result = await updateParsedRequirementsAction(jdId, data);
 
       if (result.success) {
+        toast.success("Requirements saved successfully");
         onSave();
       } else {
+        toast.error(result.message || "Failed to save requirements");
         setError(result.message);
       }
     } catch (err) {
+      toast.error("An unexpected error occurred");
       setError("Đã xảy ra lỗi khi lưu thay đổi.");
       console.error("Save error:", err);
     } finally {

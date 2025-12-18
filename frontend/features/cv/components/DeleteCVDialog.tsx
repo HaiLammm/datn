@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { deleteCVAction } from "@/features/cv/actions";
 import { useDeleteMode } from "@/features/cv/context/DeleteModeContext";
 import {
@@ -30,7 +31,12 @@ export function DeleteCVDialog({ cvId, filename }: DeleteCVDialogProps) {
 
   const executeDelete = () => {
     startTransition(async () => {
-      await deleteCVAction(cvId);
+      const result = await deleteCVAction(cvId);
+      if (result.success) {
+        toast.success(`CV "${filename}" has been deleted`);
+      } else {
+        toast.error(result.message || "Failed to delete CV");
+      }
       setOpen(false);
     });
   };

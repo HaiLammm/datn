@@ -5,4 +5,5 @@ export interface CV {
   file_path: string;
   uploaded_at: string; // ISO 8601 string
   is_active: boolean;
+  is_public: boolean;
 }

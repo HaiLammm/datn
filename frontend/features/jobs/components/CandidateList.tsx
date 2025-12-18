@@ -148,6 +148,7 @@ export function CandidateList({ jdId, initialData }: CandidateListProps) {
                 key={candidate.cv_id}
                 candidate={candidate}
                 rank={offset + index + 1}
+                jdId={jdId}
               />
             ))}
           </div>

@@ -20,6 +20,7 @@ from app.modules.jobs.schemas import (
     ParsedRequirementsUpdate,
     RankedCandidateListResponse,
     RankedCandidateResponse,
+    RecruiterCVAccessResponse,
     SearchResultListResponse,
     SearchResultResponse,
     SemanticSearchRequest,
@@ -27,6 +28,10 @@ from app.modules.jobs.schemas import (
 from app.modules.jobs.candidate_ranker import candidate_ranker
 from app.modules.jobs.semantic_searcher import semantic_searcher
 from app.modules.users.models import User
+from app.modules.cv.models import CV
+from app.modules.ai.models import CVAnalysis
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -437,6 +442,7 @@ async def get_candidates_for_jd(
                 ),
                 cv_summary=c.cv_summary,
                 filename=c.filename,
+                is_public=c.is_public,
             )
             for c in candidates
         ]
@@ -545,3 +551,105 @@ async def search_candidates(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Search failed: {str(e)}",
         )
+
+
+@router.get(
+    "/jd/{jd_id}/candidates/{cv_id}",
+    response_model=RecruiterCVAccessResponse,
+    summary="Get full CV details for a candidate (recruiter access)",
+)
+async def get_candidate_cv_for_recruiter(
+    jd_id: UUID,
+    cv_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RecruiterCVAccessResponse:
+    """
+    Get full CV analysis details for a specific candidate.
+    
+    **Requirements:**
+    - The JD must belong to the authenticated user (recruiter)
+    - The CV must have been matched with this JD (via candidate ranking)
+    - The CV must be public (is_public = true)
+    
+    **Returns:**
+    - Full CV analysis including AI score, summary, skills, and breakdown
+    - Match context (score and matched skills) for this JD
+    
+    **Errors:**
+    - 404: JD or CV not found, or CV was not matched with this JD
+    - 403: CV is private (is_public = false)
+    """
+    # 1. Verify JD exists and belongs to current user
+    jd = await job_service.get_job_description(db, jd_id, current_user.id)
+    if jd is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job description not found",
+        )
+    
+    # 2. Fetch CV with analysis
+    result = await db.execute(
+        select(CV)
+        .options(selectinload(CV.analyses))
+        .where(CV.id == cv_id)
+    )
+    cv = result.scalar_one_or_none()
+    
+    if cv is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found for this JD",
+        )
+    
+    # 3. Check if CV is public
+    if not cv.is_public:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CV is private. Contact candidate directly.",
+        )
+    
+    # 4. Get the match context by re-ranking this specific CV
+    # This ensures the CV was indeed matched with this JD
+    try:
+        candidates, _ = await candidate_ranker.rank_candidates(
+            db=db,
+            jd_id=jd_id,
+            limit=1000,  # Get all to find this specific CV
+            offset=0,
+            min_score=0,
+        )
+        
+        # Find this CV in the ranked candidates
+        candidate_match = next(
+            (c for c in candidates if c.cv_id == cv_id),
+            None
+        )
+        
+        if candidate_match is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Candidate not found for this JD",
+            )
+            
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    
+    # 5. Get analysis data
+    analysis = cv.analyses[0] if cv.analyses else None
+    
+    return RecruiterCVAccessResponse(
+        cv_id=cv.id,
+        filename=cv.filename,
+        uploaded_at=cv.uploaded_at,
+        ai_score=analysis.ai_score if analysis else None,
+        ai_summary=analysis.ai_summary if analysis else None,
+        extracted_skills=analysis.extracted_skills if analysis else None,
+        skill_breakdown=analysis.skill_breakdown if analysis else None,
+        skill_categories=analysis.skill_categories if analysis else None,
+        match_score=candidate_match.match_score,
+        matched_skills=candidate_match.breakdown.matched_skills,
+    )

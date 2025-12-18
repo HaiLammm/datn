@@ -19,6 +19,7 @@ class CVResponse(CVBase):
     file_path: str
     uploaded_at: datetime
     is_active: bool
+    is_public: bool
 
     class Config:
         from_attributes = True
@@ -26,4 +27,8 @@ class CVResponse(CVBase):
 
 class CVWithStatusResponse(CVResponse):
     analysis_status: str
+
+
+class CVVisibilityUpdate(BaseModel):
+    is_public: bool
 

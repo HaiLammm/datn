@@ -11,6 +11,7 @@ import {
   LocationType,
   RankedCandidateListResponse,
   CandidateQueryParams,
+  RecruiterCVAccessResponse,
 } from "@datn/shared-types";
 
 export interface ActionState {
@@ -319,5 +320,54 @@ export async function getCandidatesAction(
   } catch (error) {
     console.error("Error fetching candidates:", error);
     return null;
+  }
+}
+
+export interface GetCandidateCVResult {
+  success: boolean;
+  data?: RecruiterCVAccessResponse;
+  error?: string;
+  errorCode?: "NOT_FOUND" | "PRIVATE" | "UNKNOWN";
+}
+
+export async function getCandidateCVAction(
+  jdId: string,
+  cvId: string
+): Promise<GetCandidateCVResult> {
+  try {
+    const accessToken = await getAccessToken();
+    const data = await jobService.getCandidateCV(jdId, cvId, accessToken);
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error fetching candidate CV:", error);
+    
+    // Check for specific error codes
+    if (error && typeof error === "object" && "response" in error) {
+      const axiosError = error as {
+        response?: { status?: number; data?: { detail?: string } };
+      };
+      
+      if (axiosError.response?.status === 403) {
+        return {
+          success: false,
+          error: axiosError.response?.data?.detail || "CV is private",
+          errorCode: "PRIVATE",
+        };
+      }
+      
+      if (axiosError.response?.status === 404) {
+        return {
+          success: false,
+          error: axiosError.response?.data?.detail || "Candidate not found",
+          errorCode: "NOT_FOUND",
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      error: "Failed to load candidate CV",
+      errorCode: "UNKNOWN",
+    };
   }
 }

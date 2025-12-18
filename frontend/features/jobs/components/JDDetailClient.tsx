@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { JobDescriptionResponse, ParsedJDRequirements } from "@datn/shared-types";
 import { ParseStatusDisplay } from "@/features/jobs/components/ParseStatusDisplay";
 import { EditParsedRequirements } from "@/features/jobs/components/EditParsedRequirements";
@@ -60,9 +61,13 @@ export function JDDetailClient({ jd }: JDDetailClientProps) {
     try {
       const result = await deleteJDAction(jd.id);
       if (result.success) {
+        toast.success(`JD "${jd.title}" has been deleted`);
         router.push("/jobs");
+      } else {
+        toast.error(result.message || "Failed to delete JD");
       }
     } catch (error) {
+      toast.error("An unexpected error occurred");
       console.error("Delete error:", error);
     } finally {
       setIsDeleting(false);

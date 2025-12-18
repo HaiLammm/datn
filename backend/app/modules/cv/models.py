@@ -23,6 +23,7 @@ class CV(Base):
         DateTime, default=datetime.utcnow, nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     owner = relationship("User", back_populates="cvs")
     analyses = relationship("CVAnalysis", back_populates="cv")

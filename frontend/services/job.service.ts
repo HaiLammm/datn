@@ -6,6 +6,7 @@ import {
   ParsedJDRequirements,
   RankedCandidateListResponse,
   CandidateQueryParams,
+  RecruiterCVAccessResponse,
 } from "@datn/shared-types";
 
 export const jobService = {
@@ -205,6 +206,36 @@ export const jobService = {
       return response.data;
     } catch (error) {
       console.error("Error fetching candidates for JD:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get a candidate's CV details for recruiter access
+   * Only returns data if CV is public
+   * @param jdId - Job Description ID
+   * @param cvId - CV ID
+   * @param accessToken - Optional access token
+   * @returns CV analysis and match context
+   * @throws 403 if CV is private, 404 if not found
+   */
+  getCandidateCV: async (
+    jdId: string,
+    cvId: string,
+    accessToken?: string
+  ): Promise<RecruiterCVAccessResponse> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.get<RecruiterCVAccessResponse>(
+        `/jobs/jd/${jdId}/candidates/${cvId}`,
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching candidate CV:", error);
       throw error;
     }
   },

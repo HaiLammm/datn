@@ -122,3 +122,53 @@ export async function deleteCVAction(cvId: string): Promise<{ success: boolean; 
     return { success: false, message: errorMessage };
   }
 }
+
+export async function updateCVVisibilityAction(
+  cvId: string, 
+  isPublic: boolean
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const accessToken = await getAccessToken();
+    
+    if (!accessToken) {
+      console.error("updateCVVisibilityAction: No access token found in cookies");
+      return { success: false, error: "Authentication required. Please log in again." };
+    }
+    
+    await cvService.updateVisibility(cvId, isPublic, accessToken);
+    revalidatePath("/cvs");
+    return { success: true };
+  } catch (error) {
+    console.error("updateCVVisibilityAction: Error caught:", error);
+    
+    let errorMessage = "Failed to update CV visibility.";
+    
+    if (error && typeof error === "object") {
+      if ("response" in error) {
+        const axiosError = error as { 
+          response?: { 
+            status?: number;
+            data?: { detail?: string } 
+          } 
+        };
+        
+        const status = axiosError.response?.status;
+        const detail = axiosError.response?.data?.detail;
+        
+        if (status === 401) {
+          errorMessage = "Session expired. Please log in again.";
+        } else if (status === 403) {
+          errorMessage = "You don't have permission to modify this CV.";
+        } else if (status === 404) {
+          errorMessage = "CV not found.";
+        } else if (detail) {
+          errorMessage = detail;
+        }
+      } else if ("message" in error) {
+        errorMessage = (error as Error).message;
+      }
+    }
+    
+    return { success: false, error: errorMessage };
+  }
+}

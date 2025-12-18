@@ -90,5 +90,6 @@ export interface CVWithStatus {
   file_path: string;
   uploaded_at: string;
   is_active: boolean;
+  is_public: boolean;
   analysis_status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 }
