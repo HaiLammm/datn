@@ -39,3 +39,4 @@ class User(Base):
     )
 
     cvs = relationship("CV", back_populates="owner")
+    job_descriptions = relationship("JobDescription", back_populates="user")

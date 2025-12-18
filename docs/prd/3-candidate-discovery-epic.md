@@ -345,6 +345,30 @@ frontend/features/jobs/
 
 ---
 
+### Story 3.8: CV Visibility & Recruiter Access
+
+**As a** Job Seeker,
+**I want** to control the visibility of my CV to recruiters,
+**So that** I can choose whether to share my detailed CV analysis with potential employers while maintaining my privacy.
+
+**As a** Talent Seeker (Recruiter),
+**I want** to view full CV details of candidates who have opted-in to sharing,
+**So that** I can make informed hiring decisions based on complete candidate information.
+
+#### Acceptance Criteria
+
+1. Add `is_public` boolean field to CV model (default: false)
+2. Job Seeker can toggle CV visibility from CV list page
+3. Show clear visibility status indicator (Public/Private badge)
+4. Recruiter "Xem CV" button behavior based on visibility:
+   - Public: Navigate to CV detail view
+   - Private: Show "CV is private" message
+5. New API endpoint for recruiter CV access with visibility check
+6. Visual indicator on candidate card showing CV visibility status
+7. Database migration, updated schemas, frontend components
+
+---
+
 ## 3.6. Implementation Priority
 
 | Priority | Story | Rationale |

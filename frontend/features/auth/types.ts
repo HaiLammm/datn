@@ -16,6 +16,7 @@ export const RegisterSchema = z.object({
   birthday: z.string().refine((val) => val === "" || !isNaN(Date.parse(val)), {
     message: "Please enter a valid date",
   }),
+  role: z.enum(["user", "recruiter"], { message: "Please select a role" }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],

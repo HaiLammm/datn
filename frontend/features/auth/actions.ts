@@ -104,7 +104,7 @@ export async function loginUser(prevState: LoginFormState, formData: FormData): 
 
 // 2. REGISTER ACTION
 export type RegisterFormState = {
-  errors?: { full_name?: string[]; email?: string[]; password?: string[]; server?: string[] };
+  errors?: { full_name?: string[]; email?: string[]; password?: string[]; confirmPassword?: string[]; role?: string[]; server?: string[] };
   message?: string;
 };
 

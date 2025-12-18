@@ -13,6 +13,7 @@ from app.core.config import settings
 # Import all models here for Alembic autogenerate support
 from app.modules.users.models import User  # noqa: F401
 from app.modules.cv.models import CV  # noqa: F401
+from app.modules.jobs.models import JobDescription  # noqa: F401
 
 
 # this is the Alembic Config object, which provides
