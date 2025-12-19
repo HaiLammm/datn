@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { CVAnalysisResults } from '@/features/cv/components/CVAnalysisResults';
 import { DeleteCVButton } from '@/features/cv/components/DeleteCVButton';
+import { DownloadCVButton } from '@/features/cv/components/DownloadCVButton';
 import { getCVAnalysis } from '@/features/cv/actions';
 
 interface PageProps {
@@ -84,7 +85,10 @@ export default async function CVAnalysisPage({ params }: PageProps) {
           >
             &larr; Back to My CVs
           </Link>
-          <DeleteCVButton cvId={cv_id} filename={filename} redirectTo="/cvs" />
+          <div className="flex items-center space-x-2">
+            <DownloadCVButton cvId={cv_id} filename={filename} variant="button" />
+            <DeleteCVButton cvId={cv_id} filename={filename} redirectTo="/cvs" />
+          </div>
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           CV Analysis Results

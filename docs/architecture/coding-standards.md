@@ -103,6 +103,140 @@ async def get_user(user_id: int, db: AsyncSession) -> UserResponse:
 | Need to use object after commit | Call `await db.refresh(obj)` |
 | Return data from function | Convert to Pydantic model |
 
+## Code Reusability and Refactoring Standards
+
+### 1. DRY Principle - Don't Repeat Yourself
+
+When implementing new features, **always check for existing similar functionality** before writing new code. If similar logic exists:
+
+1. **Extract common logic** into a shared hook, utility, or component
+2. **Refactor existing code** to use the shared abstraction
+3. **Document the shared component** with clear usage examples
+
+### 2. Frontend Component Hierarchy
+
+Follow this hierarchy when creating reusable components:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  lib/hooks/                                                     │
+│  - Custom hooks for shared stateful logic                       │
+│  - Example: useFileDownload, useDebounce, usePagination         │
+├─────────────────────────────────────────────────────────────────┤
+│  components/common/                                             │
+│  - Generic, reusable UI components                              │
+│  - No business logic, only presentation + basic behavior        │
+│  - Example: DownloadButton, LoadingSpinner, ConfirmDialog       │
+├─────────────────────────────────────────────────────────────────┤
+│  features/{feature}/components/                                 │
+│  - Feature-specific wrappers around common components           │
+│  - Contains business logic, API URLs, error messages            │
+│  - Example: DownloadCVButton (wraps DownloadButton)             │
+├─────────────────────────────────────────────────────────────────┤
+│  app/{route}/                                                   │
+│  - Page components that compose feature components              │
+│  - Handles routing, layout, data fetching                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 3. When to Create Shared Components
+
+Create a shared component when:
+
+| Criteria | Threshold |
+|----------|-----------|
+| Same UI pattern appears in | 2+ places |
+| Same logic/behavior appears in | 2+ places |
+| Component has no feature-specific dependencies | Yes |
+| Can be configured via props | Yes |
+
+### 4. Shared Component Design Guidelines
+
+```typescript
+// ✅ GOOD - Configurable, reusable component
+interface DownloadButtonProps {
+  downloadUrl: string;           // Required - what to download
+  filename: string;              // Required - save as name
+  variant?: "icon" | "button";   // Optional - visual style
+  buttonText?: string;           // Optional - customizable text
+  errorMessages?: {              // Optional - custom error messages
+    401?: string;
+    403?: string;
+    404?: string;
+  };
+}
+
+// ❌ BAD - Hardcoded, not reusable
+interface DownloadCVButtonProps {
+  cvId: string;  // Only works for CVs
+}
+// This component has hardcoded URL: `/api/cvs/${cvId}/download`
+```
+
+### 5. API Proxy Routes for Cross-Origin Authentication
+
+**Problem:** HttpOnly cookies are not sent in cross-origin fetch requests.
+
+**Solution:** Create Next.js API proxy routes for authenticated file downloads/uploads.
+
+```
+Frontend (port 3000)          Next.js API Route              Backend (port 8000)
+       │                            │                              │
+       │  fetch("/api/cvs/1/download")                             │
+       │  ✓ Cookie sent (same-origin)                              │
+       │ ──────────────────────────► │                             │
+       │                             │  1. Read access_token       │
+       │                             │     from cookies            │
+       │                             │                             │
+       │                             │  fetch(backend_url, {       │
+       │                             │    Authorization: Bearer... │
+       │                             │  })                         │
+       │                             │ ───────────────────────────►│
+       │                             │                             │
+       │                             │ ◄─────── File Response ─────│
+       │ ◄─── Forward Response ──────│                             │
+```
+
+**Proxy route location:** `frontend/app/api/{resource}/[id]/{action}/route.ts`
+
+**Existing proxy routes:**
+- `/api/cvs/[cvId]/download` - Job Seeker CV download
+- `/api/jobs/candidates/[cvId]/file` - Recruiter view candidate CV (search context)
+- `/api/jobs/jd/[jdId]/candidates/[cvId]/file` - Recruiter view candidate CV (JD context)
+
+### 6. Refactoring Checklist
+
+Before adding new functionality, verify:
+
+- [ ] Does similar functionality exist elsewhere in the codebase?
+- [ ] Can the existing code be extracted into a shared component/hook?
+- [ ] If creating new shared code, is it properly generalized (no hardcoded values)?
+- [ ] Are there proper TypeScript interfaces with optional customization props?
+- [ ] Is the shared code documented with usage examples?
+- [ ] Are existing usages refactored to use the new shared code?
+
+### 7. Example: File Download Refactoring
+
+**Before (duplicated logic):**
+```
+DownloadCVButton.tsx (Job Seeker)     PDFPreviewSection.tsx (Recruiter)
+├── useState for loading              ├── useState for loading
+├── fetch with credentials            ├── fetch with credentials  
+├── blob → URL → anchor click         ├── blob → URL → anchor click
+├── error handling                    ├── error handling
+└── toast notifications               └── error display
+```
+
+**After (shared abstraction):**
+```
+lib/hooks/useFileDownload.ts          ← Shared download logic
+components/common/DownloadButton.tsx  ← Shared UI component
+        ▲                   ▲
+        │                   │
+DownloadCVButton.tsx    PDFPreviewSection.tsx
+(thin wrapper)          (uses DownloadButton)
+```
+
 ## Naming Conventions
 
 | Element | Frontend Convention | Backend Convention | Example |

@@ -168,3 +168,160 @@ async def test_delete_cv_invalid_uuid(client: TestClient):
     
     assert response.status_code == 422  # Validation error
 
+
+# ============================================================================
+# GET /api/v1/cvs/{cv_id}/download Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_download_cv_success_pdf(client: TestClient, test_user: DBUser, mock_db_session: AsyncMock, tmp_path):
+    """Test downloading a PDF CV returns file with correct content-type."""
+    cv_id = uuid.uuid4()
+    
+    # Create a temporary PDF file
+    pdf_file = tmp_path / "test_cv.pdf"
+    pdf_content = b"%PDF-1.4\ntest content"
+    pdf_file.write_bytes(pdf_content)
+    
+    with patch("app.modules.cv.router.get_cv_for_download") as mock_get_cv:
+        mock_cv = MagicMock()
+        mock_cv.id = cv_id
+        mock_cv.user_id = test_user.id
+        mock_cv.filename = "my_resume.pdf"
+        mock_cv.file_path = str(pdf_file)
+        
+        mock_get_cv.return_value = mock_cv
+        
+        response = client.get(f"/api/v1/cvs/{cv_id}/download")
+        
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/pdf"
+        assert 'filename="my_resume.pdf"' in response.headers.get("content-disposition", "")
+        assert response.content == pdf_content
+
+
+@pytest.mark.asyncio
+async def test_download_cv_success_docx(client: TestClient, test_user: DBUser, mock_db_session: AsyncMock, tmp_path):
+    """Test downloading a DOCX CV returns file with correct content-type."""
+    cv_id = uuid.uuid4()
+    
+    # Create a temporary DOCX file (just bytes for testing)
+    docx_file = tmp_path / "test_cv.docx"
+    docx_content = b"PK\x03\x04docx content"  # DOCX files start with PK (zip)
+    docx_file.write_bytes(docx_content)
+    
+    with patch("app.modules.cv.router.get_cv_for_download") as mock_get_cv:
+        mock_cv = MagicMock()
+        mock_cv.id = cv_id
+        mock_cv.user_id = test_user.id
+        mock_cv.filename = "my_resume.docx"
+        mock_cv.file_path = str(docx_file)
+        
+        mock_get_cv.return_value = mock_cv
+        
+        response = client.get(f"/api/v1/cvs/{cv_id}/download")
+        
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        assert 'filename="my_resume.docx"' in response.headers.get("content-disposition", "")
+
+
+@pytest.mark.asyncio
+async def test_download_cv_not_found(client: TestClient, test_user: DBUser, mock_db_session: AsyncMock):
+    """Test downloading non-existent CV returns 404 Not Found."""
+    from fastapi import HTTPException
+    
+    cv_id = uuid.uuid4()
+    
+    with patch("app.modules.cv.router.get_cv_for_download") as mock_get_cv:
+        mock_get_cv.side_effect = HTTPException(status_code=404, detail="CV not found")
+        
+        response = client.get(f"/api/v1/cvs/{cv_id}/download")
+        
+        assert response.status_code == 404
+        assert response.json()["detail"] == "CV not found"
+
+
+@pytest.mark.asyncio
+async def test_download_cv_not_owner(client: TestClient, test_user: DBUser, mock_db_session: AsyncMock):
+    """Test downloading CV owned by another user returns 403 Forbidden."""
+    from fastapi import HTTPException
+    
+    cv_id = uuid.uuid4()
+    
+    with patch("app.modules.cv.router.get_cv_for_download") as mock_get_cv:
+        mock_get_cv.side_effect = HTTPException(
+            status_code=403, 
+            detail="You do not have permission to download this CV"
+        )
+        
+        response = client.get(f"/api/v1/cvs/{cv_id}/download")
+        
+        assert response.status_code == 403
+        assert response.json()["detail"] == "You do not have permission to download this CV"
+
+
+@pytest.mark.asyncio
+async def test_download_cv_file_missing(client: TestClient, test_user: DBUser, mock_db_session: AsyncMock):
+    """Test downloading CV when file is missing from disk returns 404."""
+    from fastapi import HTTPException
+    
+    cv_id = uuid.uuid4()
+    
+    with patch("app.modules.cv.router.get_cv_for_download") as mock_get_cv:
+        mock_get_cv.side_effect = HTTPException(
+            status_code=404, 
+            detail="CV file not found on server"
+        )
+        
+        response = client.get(f"/api/v1/cvs/{cv_id}/download")
+        
+        assert response.status_code == 404
+        assert response.json()["detail"] == "CV file not found on server"
+
+
+@pytest.mark.asyncio
+async def test_download_cv_unauthorized():
+    """Test downloading CV without authentication returns 401 Unauthorized."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    
+    cv_id = uuid.uuid4()
+    
+    # Use fresh client without auth overrides
+    app.dependency_overrides = {}
+    
+    with TestClient(app) as unauthenticated_client:
+        response = unauthenticated_client.get(f"/api/v1/cvs/{cv_id}/download")
+        
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_download_cv_preserves_original_filename(client: TestClient, test_user: DBUser, mock_db_session: AsyncMock, tmp_path):
+    """Test that download preserves the original filename in Content-Disposition."""
+    cv_id = uuid.uuid4()
+    
+    # Create temp file with UUID name (as stored on disk)
+    stored_file = tmp_path / f"{cv_id}.pdf"
+    stored_file.write_bytes(b"%PDF-1.4\ncontent")
+    
+    with patch("app.modules.cv.router.get_cv_for_download") as mock_get_cv:
+        mock_cv = MagicMock()
+        mock_cv.id = cv_id
+        mock_cv.user_id = test_user.id
+        mock_cv.filename = "John_Doe_Resume_2025.pdf"  # Original user filename
+        mock_cv.file_path = str(stored_file)
+        
+        mock_get_cv.return_value = mock_cv
+        
+        response = client.get(f"/api/v1/cvs/{cv_id}/download")
+        
+        assert response.status_code == 200
+        # Should use the original filename, not the UUID
+        content_disposition = response.headers.get("content-disposition", "")
+        assert "John_Doe_Resume_2025.pdf" in content_disposition
+        assert str(cv_id) not in content_disposition
+

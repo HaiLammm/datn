@@ -2,7 +2,10 @@ from typing import List
 import uuid
 import logging
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -11,7 +14,7 @@ from app.modules.auth.dependencies import get_current_user, rate_limit_cv_upload
 from app.modules.users.models import User
 from app.core.database import get_db
 from app.modules.cv.schemas import CVResponse, CVWithStatusResponse, CVVisibilityUpdate
-from app.modules.cv.service import create_cv, delete_cv
+from app.modules.cv.service import create_cv, delete_cv, get_cv_for_download
 from app.modules.cv.models import CV
 
 logger = logging.getLogger(__name__)
@@ -93,6 +96,46 @@ async def remove_cv(
 ):
     await delete_cv(db=db, cv_id=cv_id, current_user=current_user)
     return None
+
+
+@router.get("/{cv_id}/download")
+async def download_cv(
+    cv_id: uuid.UUID,
+    current_user: User = Depends(require_job_seeker),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Download the original CV file.
+    
+    Returns the file with correct content-type and Content-Disposition header
+    to preserve the original filename.
+    """
+    cv = await get_cv_for_download(db=db, cv_id=cv_id, current_user=current_user)
+    
+    file_path = Path(cv.file_path)
+    
+    # Double-check file exists (service already checks, but be safe)
+    if not file_path.exists():
+        logger.error("CV file disappeared after service check: %s", file_path)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CV file not found on server",
+        )
+    
+    # Determine content type based on file extension
+    content_type = "application/pdf"
+    if cv.filename.lower().endswith(".docx"):
+        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif cv.filename.lower().endswith(".doc"):
+        content_type = "application/msword"
+    
+    logger.info("Serving CV file: %s for CV ID: %s", cv.filename, cv_id)
+    
+    return FileResponse(
+        path=str(file_path),
+        filename=cv.filename,  # Original filename for download
+        media_type=content_type,
+    )
 
 
 @router.patch("/{cv_id}/visibility", response_model=CVWithStatusResponse)

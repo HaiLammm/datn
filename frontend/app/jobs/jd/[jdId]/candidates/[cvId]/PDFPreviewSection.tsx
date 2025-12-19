@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Eye, AlertCircle, FileText, ExternalLink } from "lucide-react";
+import { Eye, FileText, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DownloadButton } from "@/components/common/DownloadButton";
 import { jobService } from "@/services/job.service";
 
 interface PDFPreviewSectionProps {
@@ -13,38 +14,10 @@ interface PDFPreviewSectionProps {
 }
 
 export function PDFPreviewSection({ jdId, cvId, filename }: PDFPreviewSectionProps) {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState(false);
 
   const fileUrl = jobService.getCandidateCVFileUrl(jdId, cvId);
-
-  const handleDownload = async () => {
-    setIsDownloading(true);
-    setDownloadError(null);
-
-    try {
-      const { blob, filename: downloadFilename } = await jobService.downloadCandidateCV(
-        jdId,
-        cvId
-      );
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = downloadFilename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Download error:", error);
-      setDownloadError("Khong the tai xuong CV. Vui long thu lai.");
-    } finally {
-      setIsDownloading(false);
-    }
-  };
+  const downloadUrl = `${fileUrl}?download=true`;
 
   const handleOpenInNewTab = () => {
     window.open(fileUrl, "_blank");
@@ -67,25 +40,22 @@ export function PDFPreviewSection({ jdId, cvId, filename }: PDFPreviewSectionPro
             <ExternalLink className="h-3 w-3" />
             Tab moi
           </Button>
-          <Button
-            variant="default"
+          <DownloadButton
+            downloadUrl={downloadUrl}
+            filename={filename}
+            variant="button"
             size="sm"
-            onClick={handleDownload}
-            disabled={isDownloading}
-            className="flex items-center gap-1 text-xs px-2"
-          >
-            <Download className="h-3 w-3" />
-            {isDownloading ? "..." : "Tai xuong"}
-          </Button>
+            buttonText="Tai xuong"
+            loadingText="..."
+            successMessage=""
+            className="text-xs px-2"
+            errorMessages={{
+              403: "CV nay khong cong khai",
+              404: "Khong tim thay CV",
+            }}
+          />
         </div>
       </div>
-
-      {downloadError && (
-        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-md flex items-center gap-2 text-red-700 text-xs">
-          <AlertCircle className="h-3 w-3" />
-          {downloadError}
-        </div>
-      )}
 
       {/* PDF Embed - Full height */}
       <div className="border rounded-lg overflow-hidden bg-gray-100">
@@ -111,10 +81,18 @@ export function PDFPreviewSection({ jdId, cvId, filename }: PDFPreviewSectionPro
                 <ExternalLink className="h-3 w-3 mr-1" />
                 Mo tab moi
               </Button>
-              <Button variant="default" size="sm" onClick={handleDownload}>
-                <Download className="h-3 w-3 mr-1" />
-                Tai xuong
-              </Button>
+              <DownloadButton
+                downloadUrl={downloadUrl}
+                filename={filename}
+                variant="button"
+                size="sm"
+                buttonText="Tai xuong"
+                successMessage=""
+                errorMessages={{
+                  403: "CV nay khong cong khai",
+                  404: "Khong tim thay CV",
+                }}
+              />
             </div>
           </div>
         )}
