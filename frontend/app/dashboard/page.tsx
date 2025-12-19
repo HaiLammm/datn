@@ -1,9 +1,13 @@
 // app/dashboard/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { FileText, Briefcase, Shield, Upload, Search, Users } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { getSession, getRoleDisplayName } from "@/lib/auth";
+import { getCVList } from "@/features/cv/actions";
+import { JobSeekerDashboardContent } from "@/features/dashboard/components/JobSeekerDashboardContent";
+import { DashboardSkeleton } from "@/features/dashboard/components/DashboardSkeleton";
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -23,7 +27,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                Welcome back!
+                Dashboard
               </h1>
               <p className="text-gray-600 mt-1">
                 Logged in as <span className="font-medium">{user.email}</span>
@@ -37,7 +41,11 @@ export default async function DashboardPage() {
         </div>
 
         {/* Role-specific content */}
-        {user.role === 'job_seeker' && <JobSeekerDashboard />}
+        {user.role === 'job_seeker' && (
+          <Suspense fallback={<DashboardSkeleton />}>
+            <JobSeekerDashboard userEmail={user.email} />
+          </Suspense>
+        )}
         {user.role === 'recruiter' && <RecruiterDashboard />}
         {user.role === 'admin' && <AdminDashboard />}
       </div>
@@ -45,25 +53,22 @@ export default async function DashboardPage() {
   );
 }
 
-function JobSeekerDashboard() {
+async function JobSeekerDashboard({ userEmail }: { userEmail: string }) {
+  let cvs: Awaited<ReturnType<typeof getCVList>> = [];
+  let error: string | undefined;
+
+  try {
+    cvs = await getCVList();
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Failed to load CV data";
+  }
+
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">Job Seeker Dashboard</h2>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <DashboardCard
-          href="/cvs"
-          icon={<FileText className="h-8 w-8 text-blue-500" />}
-          title="My CVs"
-          description="View and manage your uploaded CVs"
-        />
-        <DashboardCard
-          href="/cvs/upload"
-          icon={<Upload className="h-8 w-8 text-green-500" />}
-          title="Upload CV"
-          description="Upload a new CV for analysis"
-        />
-      </div>
-    </div>
+    <JobSeekerDashboardContent
+      initialCvs={cvs}
+      initialError={error}
+      userEmail={userEmail}
+    />
   );
 }
 

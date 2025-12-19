@@ -70,6 +70,7 @@ export async function createCVAction(
 
     revalidatePath("/cvs/upload"); // Revalidate the upload page
     revalidatePath("/cvs"); // Revalidate the CV list page
+    revalidatePath("/dashboard"); // Revalidate the dashboard page
 
     return { message: "CV đã được tải lên thành công!", errors: {} };
   } catch (error: unknown) {
@@ -111,6 +112,7 @@ export async function deleteCVAction(cvId: string): Promise<{ success: boolean; 
     const accessToken = await getAccessToken();
     await cvService.deleteCV(cvId, accessToken);
     revalidatePath("/cvs");
+    revalidatePath("/dashboard");
     return { success: true, message: "CV deleted successfully." };
   } catch (error) {
     console.error("Server Action Delete Error:", error);
@@ -171,4 +173,14 @@ export async function updateCVVisibilityAction(
     
     return { success: false, error: errorMessage };
   }
+}
+
+/**
+ * Get the download URL for a CV file.
+ * This action returns the URL that can be used to download the CV.
+ * The actual download is handled client-side in the DownloadCVButton component.
+ */
+export async function getDownloadCVUrl(cvId: string): Promise<string> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+  return `${apiUrl}/cvs/${cvId}/download`;
 }
