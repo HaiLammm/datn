@@ -27,11 +27,14 @@ const mockCandidate: RankedCandidateResponse = {
   },
   cv_summary: "Senior developer with Python experience",
   filename: "john_doe_cv.pdf",
+  is_public: true,
 };
+
+const mockJdId = "jd-123-456";
 
 describe("CandidateCard", () => {
   it("renders candidate info correctly", () => {
-    render(<CandidateCard candidate={mockCandidate} rank={1} />);
+    render(<CandidateCard candidate={mockCandidate} rank={1} jdId={mockJdId} />);
     
     expect(screen.getByText("#1")).toBeInTheDocument();
     expect(screen.getByText("john_doe_cv.pdf")).toBeInTheDocument();
@@ -39,22 +42,22 @@ describe("CandidateCard", () => {
   });
 
   it("renders rank number correctly", () => {
-    render(<CandidateCard candidate={mockCandidate} rank={5} />);
+    render(<CandidateCard candidate={mockCandidate} rank={5} jdId={mockJdId} />);
     
     expect(screen.getByText("#5")).toBeInTheDocument();
   });
 
   it("shows CV summary when available", () => {
-    render(<CandidateCard candidate={mockCandidate} rank={1} />);
+    render(<CandidateCard candidate={mockCandidate} rank={1} jdId={mockJdId} />);
     
     expect(screen.getByText("Senior developer with Python experience")).toBeInTheDocument();
   });
 
-  it("links to correct CV page", () => {
-    render(<CandidateCard candidate={mockCandidate} rank={1} />);
+  it("links to correct CV page when public", () => {
+    render(<CandidateCard candidate={mockCandidate} rank={1} jdId={mockJdId} />);
     
     const link = screen.getByRole("link", { name: /xem cv/i });
-    expect(link).toHaveAttribute("href", "/cvs/123e4567-e89b-12d3-a456-426614174000");
+    expect(link).toHaveAttribute("href", `/jobs/jd/${mockJdId}/candidates/${mockCandidate.cv_id}`);
   });
 
   it("displays fallback name when filename is null", () => {
@@ -62,7 +65,7 @@ describe("CandidateCard", () => {
       ...mockCandidate,
       filename: null,
     };
-    render(<CandidateCard candidate={candidateWithoutFilename} rank={1} />);
+    render(<CandidateCard candidate={candidateWithoutFilename} rank={1} jdId={mockJdId} />);
     
     expect(screen.getByText("CV #123e4567")).toBeInTheDocument();
   });
@@ -72,20 +75,20 @@ describe("CandidateCard", () => {
       ...mockCandidate,
       cv_summary: null,
     };
-    render(<CandidateCard candidate={candidateWithoutSummary} rank={1} />);
+    render(<CandidateCard candidate={candidateWithoutSummary} rank={1} jdId={mockJdId} />);
     
     expect(screen.queryByText("Senior developer with Python experience")).not.toBeInTheDocument();
   });
 
   it("has correct accessibility label", () => {
-    render(<CandidateCard candidate={mockCandidate} rank={1} />);
+    render(<CandidateCard candidate={mockCandidate} rank={1} jdId={mockJdId} />);
     
     const article = screen.getByRole("article");
     expect(article).toHaveAttribute("aria-label", "Candidate rank 1: john_doe_cv.pdf");
   });
 
   it("displays match score with correct color for high score", () => {
-    render(<CandidateCard candidate={mockCandidate} rank={1} />);
+    render(<CandidateCard candidate={mockCandidate} rank={1} jdId={mockJdId} />);
     
     const scoreBadge = screen.getByRole("img", { name: /match score: 85%/i });
     expect(scoreBadge).toHaveClass("bg-green-500");
@@ -96,7 +99,7 @@ describe("CandidateCard", () => {
       ...mockCandidate,
       match_score: 60,
     };
-    render(<CandidateCard candidate={mediumScoreCandidate} rank={1} />);
+    render(<CandidateCard candidate={mediumScoreCandidate} rank={1} jdId={mockJdId} />);
     
     const scoreBadge = screen.getByRole("img", { name: /match score: 60%/i });
     expect(scoreBadge).toHaveClass("bg-yellow-500");
@@ -107,9 +110,20 @@ describe("CandidateCard", () => {
       ...mockCandidate,
       match_score: 30,
     };
-    render(<CandidateCard candidate={lowScoreCandidate} rank={1} />);
+    render(<CandidateCard candidate={lowScoreCandidate} rank={1} jdId={mockJdId} />);
     
     const scoreBadge = screen.getByRole("img", { name: /match score: 30%/i });
     expect(scoreBadge).toHaveClass("bg-red-500");
+  });
+
+  it("shows disabled button for private CV", () => {
+    const privateCandidate = {
+      ...mockCandidate,
+      is_public: false,
+    };
+    render(<CandidateCard candidate={privateCandidate} rank={1} jdId={mockJdId} />);
+    
+    const button = screen.getByRole("button", { name: /cv private/i });
+    expect(button).toBeDisabled();
   });
 });

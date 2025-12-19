@@ -4,6 +4,7 @@ import { CVWithStatus } from "@datn/shared-types";
 import Link from "next/link";
 import { DeleteCVDialog } from "@/features/cv/components/DeleteCVDialog";
 import { CVVisibilityToggle } from "@/features/cv/components/CVVisibilityToggle";
+import { DownloadCVButton } from "@/features/cv/components/DownloadCVButton";
 
 interface CVHistoryCardProps {
   cv: CVWithStatus;
@@ -123,6 +124,7 @@ export function CVHistoryCard({ cv }: CVHistoryCardProps) {
         >
           View Analysis
         </Link>
+        <DownloadCVButton cvId={cv.id} filename={cv.filename} variant="icon" />
         <DeleteCVDialog cvId={cv.id} filename={cv.filename} />
       </div>
     </div>

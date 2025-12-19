@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
 
@@ -55,3 +55,16 @@ class UserResponse(BaseModel):
 
 # Alias for backward compatibility
 User = UserResponse
+
+
+class UserStatsResponse(BaseModel):
+    """Schema for user statistics response."""
+
+    total_cvs: int
+    average_score: Optional[float] = None  # null if no completed analyses
+    best_score: Optional[int] = None  # null if no completed analyses
+    total_unique_skills: int
+    top_skills: List[str]  # Top 5 most common skills
+
+    class Config:
+        from_attributes = True

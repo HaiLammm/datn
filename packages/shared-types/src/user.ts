@@ -33,3 +33,14 @@ export interface SessionUser {
 export interface Session {
   user: SessionUser;
 }
+
+/**
+ * User statistics returned by /api/v1/users/me/stats endpoint
+ */
+export interface UserStats {
+  total_cvs: number;
+  average_score: number | null;
+  best_score: number | null;
+  total_unique_skills: number;
+  top_skills: string[];
+}
