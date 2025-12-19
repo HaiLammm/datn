@@ -36,6 +36,7 @@ He thong hien tai thieu cong cu monitoring va quan ly cho Admin:
 | Date | Version | Description | Author |
 |------|---------|-------------|--------|
 | 2025-12-17 | 0.1.0 | Initial PRD draft for Admin Oversight | John (PM) |
+| 2025-12-19 | 0.2.0 | Mở rộng Story 4.1: Thêm role job_seeker/recruiter với route-based access control | Bob (SM) |
 
 ---
 
@@ -55,6 +56,10 @@ He thong hien tai thieu cong cu monitoring va quan ly cho Admin:
 | **FR-AO8** | He thong phai cho phep Admin ban/suspend user accounts |
 | **FR-AO9** | He thong phai hien thi key metrics: DAU, total users, CVs analyzed |
 | **FR-AO10** | He thong phai restrict Admin features chi cho users co admin role |
+| **FR-AO11** | He thong phai phan quyen truy cap route theo role: job_seeker chi truy cap /cvs/*, recruiter chi truy cap /jobs/* |
+| **FR-AO12** | He thong phai cho phep user chon role khi dang ky (job_seeker hoac recruiter) |
+| **FR-AO13** | He thong phai hien thi navigation menu phu hop voi role cua user |
+| **FR-AO14** | He thong phai redirect user ve trang phu hop khi truy cap route khong duoc phep |
 
 ### 4.2.2. Non-Functional Requirements
 
@@ -71,6 +76,7 @@ He thong hien tai thieu cong cu monitoring va quan ly cho Admin:
 |----|-------------|
 | **CR-AO1** | Monitoring endpoints phai khong anh huong toi performance cua main API |
 | **CR-AO2** | Admin role phai integrate voi existing auth system |
+| **CR-AO4** | Role-based routing phai tuong thich voi Next.js middleware va layout guards |
 | **CR-AO3** | UI phai consistent voi existing design system |
 
 ---
@@ -144,9 +150,9 @@ He thong hien tai thieu cong cu monitoring va quan ly cho Admin:
 ### 4.4.1. Database Schema Updates
 
 ```sql
--- Add admin role to users table
-ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user' 
-    CHECK (role IN ('user', 'admin'));
+-- Add role column to users table (expanded with job_seeker and recruiter)
+ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'job_seeker' 
+    CHECK (role IN ('job_seeker', 'recruiter', 'admin'));
 
 -- Add is_banned column
 ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT FALSE;
@@ -187,6 +193,10 @@ GET    /api/v1/admin/users/{user_id}    # User details
 POST   /api/v1/admin/users/{user_id}/ban    # Ban user
 POST   /api/v1/admin/users/{user_id}/unban  # Unban user
 GET    /api/v1/admin/ollama/status      # Ollama service status
+
+# User profile endpoint (authenticated users)
+GET    /api/v1/users/me                 # Get current user info including role
+PATCH  /api/v1/users/me                 # Update user profile (role change not allowed)
 ```
 
 ### 4.4.3. New Files Structure
@@ -199,7 +209,7 @@ backend/app/modules/admin/
 +-- service.py         # Admin operations
 +-- router.py          # Admin API endpoints
 +-- metrics_collector.py  # System metrics collection
-+-- dependencies.py    # Admin role verification
++-- dependencies.py    # Admin role verification, role-based guards
 
 frontend/app/admin/
 +-- page.tsx           # Admin dashboard
@@ -228,20 +238,60 @@ frontend/features/admin/
 
 ## 4.5. User Stories
 
-### Story 4.1: Admin Role & Authorization
+### Story 4.1: Role-Based Authorization System
 
 **As a** developer,
-**I want** admin role system implemented,
-**So that** admin features are protected.
+**I want** a comprehensive role-based authorization system,
+**So that** users can only access features appropriate to their role (job_seeker, recruiter, admin).
 
 #### Acceptance Criteria
 
-1. Them `role` column vao users table (values: 'user', 'admin')
-2. Tao migration voi default role = 'user'
-3. Tao `require_admin` dependency cho FastAPI
-4. Admin endpoints return 403 cho non-admin users
-5. Seed mot admin user cho testing
-6. Frontend hien thi Admin link chi cho admin users
+##### Database & Backend
+1. Thêm `role` column vào users table với values: `'job_seeker'`, `'recruiter'`, `'admin'`
+2. Tạo Alembic migration với default role = `'job_seeker'`
+3. Cập nhật registration endpoint để accept `role` parameter (chỉ cho phép `job_seeker` hoặc `recruiter`)
+4. Tạo `require_admin` dependency cho FastAPI - trả về 403 cho non-admin users
+5. Tạo `require_role(roles: List[str])` dependency để kiểm tra role linh hoạt
+6. Tạo `require_job_seeker` dependency - chỉ cho phép job_seeker và admin
+7. Tạo `require_recruiter` dependency - chỉ cho phép recruiter và admin
+8. Seed một admin user và test users cho mỗi role
+
+##### API Route Protection
+9. Protect `/api/v1/cvs/*` endpoints - chỉ cho `job_seeker` và `admin` truy cập
+10. Protect `/api/v1/jobs/*` endpoints - chỉ cho `recruiter` và `admin` truy cập
+11. `/api/v1/admin/*` endpoints - chỉ cho `admin` truy cập
+12. `/api/v1/auth/*` và `/api/v1/users/me` - tất cả authenticated users
+
+##### Frontend Route Protection
+13. Tạo `RoleGuard` component hoặc middleware để kiểm tra role trên frontend
+14. `/cvs/*` routes - redirect recruiter về `/jobs`
+15. `/jobs/*` routes - redirect job_seeker về `/cvs`
+16. `/admin/*` routes - redirect non-admin về dashboard tương ứng
+17. Hiển thị navigation menu phù hợp với role của user
+18. Hiển thị error page khi user cố truy cập route không được phép
+
+##### User Experience
+19. Registration form có dropdown chọn role (Job Seeker / Recruiter)
+20. Dashboard hiển thị nội dung phù hợp với role
+21. Admin có thể xem tất cả các routes
+
+#### Role Permission Matrix
+
+| Route Pattern | job_seeker | recruiter | admin |
+|---------------|------------|-----------|-------|
+| `/cvs/*` | ✓ | ✗ | ✓ |
+| `/jobs/*` | ✗ | ✓ | ✓ |
+| `/admin/*` | ✗ | ✗ | ✓ |
+| `/dashboard` | ✓ | ✓ | ✓ |
+| `/login`, `/register` | Public | Public | Public |
+
+#### Error Responses
+
+| Scenario | HTTP Status | Response |
+|----------|-------------|----------|
+| Unauthenticated user | 401 | `{"detail": "Not authenticated"}` |
+| Wrong role for route | 403 | `{"detail": "Access denied. Required role: {role}"}` |
+| Admin-only endpoint | 403 | `{"detail": "Admin privileges required"}` |
 
 ---
 

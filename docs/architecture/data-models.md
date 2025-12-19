@@ -1,5 +1,56 @@
 # Data Models
 
+## **User Model**
+
+**Purpose:** To store user accounts with authentication credentials and role-based access control.
+
+**Key Attributes:**
+- `id`: UUID
+- `email`: String (unique)
+- `hashed_password`: String
+- `is_active`: Boolean (default: true)
+- `role`: **String** - _(Values: 'job_seeker', 'recruiter', 'admin'. Default: 'job_seeker')_
+- `is_banned`: Boolean (default: false)
+- `banned_at`: DateTime (nullable)
+- `banned_reason`: Text (nullable)
+- `created_at`: DateTime
+- `updated_at`: DateTime
+
+### TypeScript Interface
+```typescript
+type UserRole = 'job_seeker' | 'recruiter' | 'admin';
+
+interface User {
+  id: string;
+  email: string;
+  isActive: boolean;
+  role: UserRole;
+  isBanned: boolean;
+  bannedAt?: string;
+  bannedReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Response type for /api/v1/users/me
+interface UserMeResponse {
+  id: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+}
+```
+
+### Role Permissions
+| Role | Can Access CVs | Can Access Jobs | Can Access Admin |
+|------|----------------|-----------------|------------------|
+| `job_seeker` | Yes | No | No |
+| `recruiter` | No | Yes | No |
+| `admin` | Yes | Yes | Yes |
+
+---
+
 ## **Updated `CV` Model (Hybrid Approach)**
 
 **Purpose:** To store uploaded CVs, their full parsed content, and key indexed fields for efficient searching.

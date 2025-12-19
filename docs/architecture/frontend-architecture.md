@@ -143,34 +143,224 @@ frontend/app/
 
 ### Protected Route Pattern
 
-Protected routes ensure that only authenticated and authorized users can access certain parts of the application. This is typically implemented within `layout.tsx` files or in page components using Next.js Middleware or by performing authentication checks at the Server Component level.
+Protected routes ensure that only authenticated and authorized users can access certain parts of the application. The system implements **role-based access control** with three user roles: `job_seeker`, `recruiter`, and `admin`.
+
+#### Role-Based Route Access Matrix
+
+| Route Pattern | job_seeker | recruiter | admin | Unauthenticated |
+|---------------|------------|-----------|-------|-----------------|
+| `/login`, `/register` | Redirect to dashboard | Redirect to dashboard | Redirect to dashboard | ✓ |
+| `/dashboard` | ✓ (CV-focused) | ✓ (Jobs-focused) | ✓ (Admin dashboard) | Redirect to login |
+| `/cvs/*` | ✓ | Redirect to /jobs | ✓ | Redirect to login |
+| `/jobs/*` | Redirect to /cvs | ✓ | ✓ | Redirect to login |
+| `/admin/*` | Redirect to /cvs | Redirect to /jobs | ✓ | Redirect to login |
+
+#### Implementation with Layout Guards
 
 ```typescript
-// app/dashboard/layout.tsx (Server Component)
+// app/cvs/layout.tsx (Server Component) - Protected for job_seeker only
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth'; // A server-side function to get session from cookie
+import { getSession } from '@/lib/auth';
 
-export default async function DashboardLayout({
+export default async function CVsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getSession(); // This function would read the access_token cookie
+  const session = await getSession();
+  
+  // Not authenticated - redirect to login
   if (!session) {
-    redirect('/login'); // Redirect unauthenticated users
+    redirect('/login');
   }
 
-  // Assuming session object contains user role for authorization
-  // if (session.user.role !== 'admin') {
-  //   redirect('/unauthorized');
-  // }
+  // Role check: only job_seeker and admin can access /cvs/*
+  if (session.user.role === 'recruiter') {
+    redirect('/jobs'); // Redirect recruiter to their appropriate section
+  }
+
+  return <>{children}</>;
+}
+```
+
+```typescript
+// app/jobs/layout.tsx (Server Component) - Protected for recruiter only
+import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth';
+
+export default async function JobsLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await getSession();
+  
+  if (!session) {
+    redirect('/login');
+  }
+
+  // Role check: only recruiter and admin can access /jobs/*
+  if (session.user.role === 'job_seeker') {
+    redirect('/cvs'); // Redirect job_seeker to their appropriate section
+  }
+
+  return <>{children}</>;
+}
+```
+
+```typescript
+// app/admin/layout.tsx (Server Component) - Protected for admin only
+import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth';
+
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await getSession();
+  
+  if (!session) {
+    redirect('/login');
+  }
+
+  // Only admin can access /admin/*
+  if (session.user.role !== 'admin') {
+    // Redirect to appropriate dashboard based on role
+    if (session.user.role === 'job_seeker') {
+      redirect('/cvs');
+    } else {
+      redirect('/jobs');
+    }
+  }
 
   return (
     <div className="flex">
-      {/* Sidebar, Header, etc. */}
+      <AdminSidebar />
       <main className="flex-1 p-6">{children}</main>
     </div>
   );
+}
+```
+
+#### Role-Aware Navigation Component
+
+```typescript
+// components/common/Navigation.tsx
+'use client';
+
+import Link from 'next/link';
+import { useUser } from '@/features/auth/hooks/useUser';
+
+export function Navigation() {
+  const { user } = useUser();
+
+  if (!user) return null;
+
+  return (
+    <nav className="flex gap-4">
+      {/* Dashboard - always visible */}
+      <Link href="/dashboard">Dashboard</Link>
+      
+      {/* CVs section - visible to job_seeker and admin */}
+      {(user.role === 'job_seeker' || user.role === 'admin') && (
+        <>
+          <Link href="/cvs">My CVs</Link>
+          <Link href="/cvs/upload">Upload CV</Link>
+        </>
+      )}
+      
+      {/* Jobs section - visible to recruiter and admin */}
+      {(user.role === 'recruiter' || user.role === 'admin') && (
+        <>
+          <Link href="/jobs">Job Descriptions</Link>
+          <Link href="/jobs/upload">Upload JD</Link>
+        </>
+      )}
+      
+      {/* Admin section - visible to admin only */}
+      {user.role === 'admin' && (
+        <Link href="/admin">Admin Panel</Link>
+      )}
+    </nav>
+  );
+}
+```
+
+#### Session Type with Role
+
+```typescript
+// lib/auth.ts
+import { cookies } from 'next/headers';
+import { jwtDecode } from 'jwt-decode';
+
+type UserRole = 'job_seeker' | 'recruiter' | 'admin';
+
+interface Session {
+  user: {
+    id: string;
+    email: string;
+    role: UserRole;
+  };
+}
+
+interface JWTPayload {
+  sub: string;
+  email: string;
+  role: UserRole;
+  exp: number;
+}
+
+export async function getSession(): Promise<Session | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('access_token')?.value;
+  
+  if (!token) return null;
+  
+  try {
+    const decoded = jwtDecode<JWTPayload>(token);
+    
+    // Check if token is expired
+    if (decoded.exp * 1000 < Date.now()) {
+      return null;
+    }
+    
+    return {
+      user: {
+        id: decoded.sub,
+        email: decoded.email,
+        role: decoded.role,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Helper functions for role checking
+export function canAccessCVs(role: UserRole): boolean {
+  return role === 'job_seeker' || role === 'admin';
+}
+
+export function canAccessJobs(role: UserRole): boolean {
+  return role === 'recruiter' || role === 'admin';
+}
+
+export function canAccessAdmin(role: UserRole): boolean {
+  return role === 'admin';
+}
+
+export function getDefaultRedirect(role: UserRole): string {
+  switch (role) {
+    case 'job_seeker':
+      return '/cvs';
+    case 'recruiter':
+      return '/jobs';
+    case 'admin':
+      return '/admin';
+    default:
+      return '/dashboard';
+  }
 }
 ```
 

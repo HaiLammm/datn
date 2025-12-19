@@ -189,11 +189,11 @@ sequenceDiagram
     activate API_Gateway
     API_Gateway->>DB: Find user by email
     activate DB
-    DB-->>API_Gateway: User record (with hashed_password)
+    DB-->>API_Gateway: User record (with hashed_password, role)
     deactivate DB
     API_Gateway->>API_Gateway: Verify password against hash (using Passlib)
     alt Password is valid
-        API_Gateway->>API_Gateway: Create access_token and refresh_token (JWTs)
+        API_Gateway->>API_Gateway: Create access_token and refresh_token (JWTs with role claim)
         API_Gateway-->>Client: 200 OK (Set-Cookie: access_token, Set-Cookie: refresh_token)
     else Password is invalid
         API_Gateway-->>Client: 401 Unauthorized (Error: Invalid credentials)
@@ -201,8 +201,18 @@ sequenceDiagram
     deactivate API_Gateway
 ```
 
+### User Roles
+
+The system supports three user roles with different access levels:
+
+| Role | Description | Accessible Routes |
+|------|-------------|-------------------|
+| `job_seeker` | Default role for users who upload CVs | `/api/v1/cvs/*`, `/api/v1/users/me` |
+| `recruiter` | Users who upload JDs and search candidates | `/api/v1/jobs/*`, `/api/v1/users/me` |
+| `admin` | Full system access including admin features | All routes |
+
 ### Middleware/Guards
-FastAPI uses a dependency injection system to protect endpoints. A `get_current_user` dependency is injected into any protected route. This function is responsible for reading the `access_token` cookie, validating the JWT, and retrieving the corresponding user from the database.
+FastAPI uses a dependency injection system to protect endpoints. Multiple guard dependencies are available for different authorization needs.
 
 ```python
 # backend/app/modules/auth/dependencies.py
@@ -211,6 +221,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyCookie
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
@@ -240,8 +251,111 @@ async def get_current_user(
     user = await user_service.get_user(db=db, user_id=user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+    
+    # Check if user is banned
+    if user.is_banned:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is banned")
 
     return user
+
+
+# Role-based authorization guards
+
+def require_role(allowed_roles: List[str]):
+    """
+    Factory function to create a role-based guard.
+    Admin role always has access to all routes.
+    """
+    async def role_guard(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role == 'admin':
+            return current_user
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied. Required role: {', '.join(allowed_roles)}"
+            )
+        return current_user
+    return role_guard
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Guard for admin-only endpoints."""
+    if current_user.role != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return current_user
+
+
+async def require_job_seeker(current_user: User = Depends(get_current_user)) -> User:
+    """Guard for job_seeker endpoints. Admin also has access."""
+    if current_user.role not in ['job_seeker', 'admin']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. This feature is for Job Seekers only."
+        )
+    return current_user
+
+
+async def require_recruiter(current_user: User = Depends(get_current_user)) -> User:
+    """Guard for recruiter endpoints. Admin also has access."""
+    if current_user.role not in ['recruiter', 'admin']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. This feature is for Recruiters only."
+        )
+    return current_user
+```
+
+### Using Role Guards in Routers
+
+```python
+# backend/app/modules/cvs/router.py - Protected for job_seeker only
+
+from app.modules.auth.dependencies import require_job_seeker
+
+router = APIRouter(prefix="/cvs", tags=["CVs"])
+
+@router.post("/", response_model=schemas.CV, status_code=201)
+async def upload_cv(
+    *,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_job_seeker),  # Only job_seeker and admin
+    file: UploadFile = File(...)
+):
+    # ...
+
+
+# backend/app/modules/jobs/router.py - Protected for recruiter only
+
+from app.modules.auth.dependencies import require_recruiter
+
+router = APIRouter(prefix="/jobs", tags=["Jobs"])
+
+@router.post("/jd", response_model=schemas.JobDescription, status_code=201)
+async def create_job_description(
+    *,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_recruiter),  # Only recruiter and admin
+    jd_input: schemas.JobDescriptionCreate
+):
+    # ...
+
+
+# backend/app/modules/admin/router.py - Protected for admin only
+
+from app.modules.auth.dependencies import require_admin
+
+router = APIRouter(prefix="/admin", tags=["Admin"])
+
+@router.get("/users", response_model=List[schemas.UserInfo])
+async def list_users(
+    *,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),  # Admin only
+):
+    # ...
 ```
 
 ---

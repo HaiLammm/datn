@@ -5,15 +5,29 @@
 ```sql
 -- Assumes the 'pgvector' extension is installed: CREATE EXTENSION IF NOT EXISTS vector;
 
--- Existing 'users' table (simplified for context)
+-- Existing 'users' table (with role-based access control)
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE NOT NULL,
     hashed_password VARCHAR(255) NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    
+    -- Role-based access control (Story 4.1)
+    role VARCHAR(20) NOT NULL DEFAULT 'job_seeker' 
+        CHECK (role IN ('job_seeker', 'recruiter', 'admin')),
+    
+    -- Ban management (Story 4.5)
+    is_banned BOOLEAN NOT NULL DEFAULT FALSE,
+    banned_at TIMESTAMP WITHOUT TIME ZONE,
+    banned_reason TEXT,
+    
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Index for role-based queries
+CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
+CREATE INDEX IF NOT EXISTS idx_users_is_banned ON users (is_banned) WHERE is_banned = TRUE;
 
 --------------------------------------------------------------------------------
 
