@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCVList } from "@/features/cv/actions";
 import { CVsClientWrapper } from "@/features/cv/components/CVsClientWrapper";
+import { CVHistorySkeleton } from "@/features/cv/components/CVHistorySkeleton";
 
 export default async function CVsPage() {
   // Authentication Guard
@@ -34,33 +35,9 @@ export default async function CVsPage() {
         </Link>
       </div>
 
-      <Suspense fallback={<CVsSkeleton />}>
+      <Suspense fallback={<CVHistorySkeleton />}>
         <CVsClientWrapper cvs={cvs} />
       </Suspense>
-    </div>
-  );
-}
-
-function CVsSkeleton() {
-  return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {[...Array(6)].map((_, i) => (
-        <div key={i} className="bg-white rounded-lg shadow p-6">
-          <div className="animate-pulse">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              </div>
-              <div className="h-6 bg-gray-200 rounded-full w-16"></div>
-            </div>
-            <div className="flex space-x-3">
-              <div className="flex-1 h-9 bg-gray-200 rounded"></div>
-              <div className="h-9 bg-gray-200 rounded w-16"></div>
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

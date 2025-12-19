@@ -92,4 +92,5 @@ export interface CVWithStatus {
   is_active: boolean;
   is_public: boolean;
   analysis_status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  quality_score: number | null;
 }

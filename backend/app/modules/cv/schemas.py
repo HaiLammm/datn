@@ -27,6 +27,7 @@ class CVResponse(CVBase):
 
 class CVWithStatusResponse(CVResponse):
     analysis_status: str
+    quality_score: int | None = None
 
 
 class CVVisibilityUpdate(BaseModel):

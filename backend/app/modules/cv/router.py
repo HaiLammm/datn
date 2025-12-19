@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from app.modules.auth.dependencies import get_current_user, rate_limit_cv_upload
+from app.modules.auth.dependencies import get_current_user, rate_limit_cv_upload, require_job_seeker
 from app.modules.users.models import User
 from app.core.database import get_db
 from app.modules.cv.schemas import CVResponse, CVWithStatusResponse, CVVisibilityUpdate
@@ -21,7 +21,7 @@ router = APIRouter(tags=["CVs"])
 
 @router.get("/", response_model=List[CVWithStatusResponse])
 async def list_user_cvs(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_job_seeker),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -41,8 +41,10 @@ async def list_user_cvs(
         analysis = cv.analyses[0] if cv.analyses else None
         if analysis:
             status_str = analysis.status.value if hasattr(analysis.status, "value") else str(analysis.status)
+            quality_score = analysis.ai_score
         else:
             status_str = "PENDING"
+            quality_score = None
 
         cv_responses.append(
             CVWithStatusResponse(
@@ -54,6 +56,7 @@ async def list_user_cvs(
                 is_active=cv.is_active,
                 is_public=cv.is_public,
                 analysis_status=status_str,
+                quality_score=quality_score,
             )
         )
 
@@ -85,7 +88,7 @@ async def upload_cv(
 @router.delete("/{cv_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_cv(
     cv_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_job_seeker),
     db: AsyncSession = Depends(get_db),
 ):
     await delete_cv(db=db, cv_id=cv_id, current_user=current_user)
@@ -96,7 +99,7 @@ async def remove_cv(
 async def update_cv_visibility(
     cv_id: uuid.UUID,
     visibility_update: CVVisibilityUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_job_seeker),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -132,14 +135,16 @@ async def update_cv_visibility(
     await db.commit()
     await db.refresh(cv)
 
-    # Get analysis status
+    # Get analysis status and quality score
     analysis = cv.analyses[0] if cv.analyses else None
     if analysis:
         status_str = analysis.status.value if hasattr(analysis.status, "value") else str(analysis.status)
+        quality_score = analysis.ai_score
     else:
         status_str = "PENDING"
+        quality_score = None
 
-    logger.info(f"🔒 CV VISIBILITY UPDATED - CV ID: {cv_id}, is_public: {visibility_update.is_public}, User: {user_email}")
+    logger.info(f"CV VISIBILITY UPDATED - CV ID: {cv_id}, is_public: {visibility_update.is_public}, User: {user_email}")
 
     return CVWithStatusResponse(
         id=cv.id,
@@ -150,4 +155,5 @@ async def update_cv_visibility(
         is_active=cv.is_active,
         is_public=cv.is_public,
         analysis_status=status_str,
+        quality_score=quality_score,
     )
