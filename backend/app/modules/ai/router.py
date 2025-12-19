@@ -56,7 +56,22 @@ async def get_cv_analysis(
         exp_years = analysis.ai_feedback.get('experience_breakdown', {}).get('total_years', 'N/A')
         logger.info(f"📊 Experience Score: {exp_score}, Years: {exp_years}")
 
-    return analysis
+    # Build response with cv_filename
+    return schemas.AnalysisResult(
+        id=analysis.id,
+        cv_id=analysis.cv_id,
+        status=analysis.status.value if hasattr(analysis.status, 'value') else str(analysis.status),
+        ai_score=analysis.ai_score,
+        ai_summary=analysis.ai_summary,
+        ai_feedback=analysis.ai_feedback,
+        extracted_skills=analysis.extracted_skills,
+        cv_filename=cv.filename,
+        skill_breakdown=analysis.skill_breakdown,
+        skill_categories=analysis.skill_categories,
+        skill_recommendations=analysis.skill_recommendations,
+        created_at=analysis.created_at,
+        updated_at=analysis.updated_at
+    )
 
 
 @router.get("/cvs/{cv_id}/status", response_model=schemas.AnalysisStatus)

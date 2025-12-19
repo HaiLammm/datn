@@ -63,6 +63,7 @@ class AnalysisResult(BaseModel):
     Attributes:
         extracted_skills: DEPRECATED - Use skill_categories instead.
             Kept for backward compatibility with existing clients.
+        cv_filename: Original filename of the CV (optional for backward compatibility).
     """
     id: uuid.UUID
     cv_id: uuid.UUID
@@ -71,6 +72,7 @@ class AnalysisResult(BaseModel):
     ai_summary: Optional[str] = None
     ai_feedback: Optional[dict] = None
     extracted_skills: Optional[List[str]] = None
+    cv_filename: Optional[str] = None
     
     # New skill scoring fields (Story 5.3)
     skill_breakdown: Optional[SkillBreakdown] = None

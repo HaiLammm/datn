@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { CVAnalysisResults } from '@/features/cv/components/CVAnalysisResults';
+import { DeleteCVButton } from '@/features/cv/components/DeleteCVButton';
 import { getCVAnalysis } from '@/features/cv/actions';
 
 interface PageProps {
@@ -70,15 +71,21 @@ export default async function CVAnalysisPage({ params }: PageProps) {
     );
   }
 
+  // Extract filename for delete dialog (use cv_filename from response or fallback)
+  const filename = analysis.cv_filename || `CV-${cv_id.slice(0, 8)}`;
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <Link
-          href="/cvs"
-          className="text-blue-600 hover:text-blue-800 text-sm mb-2 inline-block"
-        >
-          &larr; Back to My CVs
-        </Link>
+        <div className="flex items-center justify-between mb-2">
+          <Link
+            href="/cvs"
+            className="text-blue-600 hover:text-blue-800 text-sm"
+          >
+            &larr; Back to My CVs
+          </Link>
+          <DeleteCVButton cvId={cv_id} filename={filename} redirectTo="/cvs" />
+        </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           CV Analysis Results
         </h1>

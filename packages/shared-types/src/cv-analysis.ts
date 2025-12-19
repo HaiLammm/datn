@@ -60,6 +60,7 @@ export interface CVAnalysis {
   ai_summary: string | null;
   ai_feedback: Record<string, any> | null;
   extracted_skills: string[] | null;
+  cv_filename?: string | null;
   created_at: string;
   updated_at: string;
   // Enhanced fields (computed from ai_feedback on backend)

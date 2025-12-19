@@ -21,9 +21,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 interface DeleteCVDialogProps {
   cvId: string;
   filename: string;
+  onDeleteSuccess?: () => void;
 }
 
-export function DeleteCVDialog({ cvId, filename }: DeleteCVDialogProps) {
+export function DeleteCVDialog({ cvId, filename, onDeleteSuccess }: DeleteCVDialogProps) {
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [dontAskAgain, setDontAskAgain] = useState(false);
@@ -34,6 +35,7 @@ export function DeleteCVDialog({ cvId, filename }: DeleteCVDialogProps) {
       const result = await deleteCVAction(cvId);
       if (result.success) {
         toast.success(`CV "${filename}" has been deleted`);
+        onDeleteSuccess?.();
       } else {
         toast.error(result.message || "Failed to delete CV");
       }

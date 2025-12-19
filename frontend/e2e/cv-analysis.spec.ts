@@ -304,4 +304,155 @@ test.describe('CV Analysis Flow', () => {
       }
     });
   });
+
+  test.describe('CV Deletion from Analysis Page', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.goto('/login');
+      await page.fill('input[name="email"], input[type="email"]', 'test@example.com');
+      await page.fill('input[name="password"], input[type="password"]', 'testpassword123');
+      await page.click('button[type="submit"]');
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+    });
+
+    test('delete button is visible on CV analysis page', async ({ page }) => {
+      await page.goto('/cvs');
+
+      const analysisLinks = page.getByTestId('view-analysis-link');
+      const linkCount = await analysisLinks.count();
+
+      if (linkCount > 0) {
+        await analysisLinks.first().click();
+        await expect(page).toHaveURL(/\/cvs\/[\w-]+\/analysis/);
+
+        // Delete button should be visible in the header
+        const deleteButton = page.getByRole('button', { name: /delete/i });
+        await expect(deleteButton).toBeVisible();
+      }
+    });
+
+    test('delete button opens confirmation dialog', async ({ page }) => {
+      await page.goto('/cvs');
+
+      const analysisLinks = page.getByTestId('view-analysis-link');
+      const linkCount = await analysisLinks.count();
+
+      if (linkCount > 0) {
+        await analysisLinks.first().click();
+        await expect(page).toHaveURL(/\/cvs\/[\w-]+\/analysis/);
+
+        // Click delete button
+        const deleteButton = page.getByRole('button', { name: /delete/i });
+        await deleteButton.click();
+
+        // Confirmation dialog should appear
+        const dialog = page.getByRole('alertdialog');
+        await expect(dialog).toBeVisible();
+        await expect(page.getByText(/Are you sure you want to delete/i)).toBeVisible();
+
+        // Dialog should have Cancel and Delete buttons
+        await expect(page.getByRole('button', { name: /cancel/i })).toBeVisible();
+      }
+    });
+
+    test('cancel button closes confirmation dialog without deleting', async ({ page }) => {
+      await page.goto('/cvs');
+
+      const analysisLinks = page.getByTestId('view-analysis-link');
+      const linkCount = await analysisLinks.count();
+
+      if (linkCount > 0) {
+        // Store the current URL to verify we stay on the same page
+        await analysisLinks.first().click();
+        await expect(page).toHaveURL(/\/cvs\/[\w-]+\/analysis/);
+        const currentUrl = page.url();
+
+        // Open delete dialog
+        const deleteButton = page.getByRole('button', { name: /delete/i });
+        await deleteButton.click();
+
+        // Click cancel
+        const cancelButton = page.getByRole('button', { name: /cancel/i });
+        await cancelButton.click();
+
+        // Dialog should close
+        await expect(page.getByRole('alertdialog')).not.toBeVisible();
+
+        // Should still be on the same page
+        expect(page.url()).toBe(currentUrl);
+      }
+    });
+
+    test('successful deletion redirects to CV history list', async ({ page }) => {
+      await page.goto('/cvs');
+
+      // Get initial CV count
+      const cvCards = page.getByTestId('cv-history-card');
+      const initialCount = await cvCards.count();
+
+      if (initialCount > 0) {
+        // Navigate to first CV analysis page
+        const analysisLinks = page.getByTestId('view-analysis-link');
+        await analysisLinks.first().click();
+        await expect(page).toHaveURL(/\/cvs\/[\w-]+\/analysis/);
+
+        // Click delete button
+        const deleteButton = page.getByRole('button', { name: /delete/i });
+        await deleteButton.click();
+
+        // Wait for dialog
+        await expect(page.getByRole('alertdialog')).toBeVisible();
+
+        // Confirm deletion - get all delete buttons and click the one in the dialog
+        const deleteButtons = page.getByRole('button', { name: /delete/i });
+        await deleteButtons.last().click();
+
+        // Should redirect to /cvs
+        await expect(page).toHaveURL('/cvs', { timeout: 10000 });
+
+        // Success toast should appear (optional - depends on toast visibility)
+        // await expect(page.getByText(/has been deleted/i)).toBeVisible();
+      }
+    });
+
+    test('deleted CV no longer appears in history list', async ({ page }) => {
+      await page.goto('/cvs');
+
+      const cvCards = page.getByTestId('cv-history-card');
+      const initialCount = await cvCards.count();
+
+      if (initialCount > 0) {
+        // Get the filename of the first CV
+        const firstCard = cvCards.first();
+        const filenameElement = firstCard.locator('h3, [data-testid="cv-filename"]').first();
+        const filename = await filenameElement.textContent();
+
+        // Navigate to its analysis page
+        const analysisLinks = page.getByTestId('view-analysis-link');
+        await analysisLinks.first().click();
+        await expect(page).toHaveURL(/\/cvs\/[\w-]+\/analysis/);
+
+        // Delete the CV
+        const deleteButton = page.getByRole('button', { name: /delete/i });
+        await deleteButton.click();
+        await expect(page.getByRole('alertdialog')).toBeVisible();
+
+        const deleteButtons = page.getByRole('button', { name: /delete/i });
+        await deleteButtons.last().click();
+
+        // Wait for redirect to /cvs
+        await expect(page).toHaveURL('/cvs', { timeout: 10000 });
+
+        // Wait for page to reload/update
+        await page.waitForLoadState('networkidle');
+
+        // Check that the CV with that filename no longer exists
+        // (Note: This assumes filename is unique, which may not always be true)
+        if (filename) {
+          const remainingCards = page.getByTestId('cv-history-card');
+          const newCount = await remainingCards.count();
+          expect(newCount).toBe(initialCount - 1);
+        }
+      }
+    });
+  });
 });
