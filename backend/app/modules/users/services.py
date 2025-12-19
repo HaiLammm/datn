@@ -29,11 +29,8 @@ class UserService:
             email=user_in.email,
             hashed_password=hashed_password,
             full_name=user_in.full_name,
-            birthday=user_in.birthday,
             role=user_in.role,
-            is_active=user_in.is_active,
-            is_scraped=user_in.is_scraped,
-            avatar=user_in.avatar,
+            is_active=False,  # Default to inactive until email verification
             activation_code=activation_code,
             activation_code_expires_at=activation_code_expires_at,
         )

@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Home, Briefcase } from "lucide-react";
-import { getSession, canAccessJobs, getDefaultRedirect } from "@/lib/auth";
+import { Home, Shield, Users, BarChart3 } from "lucide-react";
+import { getSession, canAccessAdmin, getDefaultRedirect } from "@/lib/auth";
 
-export default async function JobsLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -15,8 +15,8 @@ export default async function JobsLayout({
     redirect("/login");
   }
   
-  // Check if user can access Job features
-  if (!canAccessJobs(session.user.role)) {
+  // Check if user can access Admin features
+  if (!canAccessAdmin(session.user.role)) {
     // Redirect to appropriate section based on role
     redirect(getDefaultRedirect(session.user.role));
   }
@@ -36,11 +36,28 @@ export default async function JobsLayout({
                 <span className="hidden sm:inline">Dashboard</span>
               </Link>
               <Link
-                href="/jobs"
-                className="flex items-center gap-2 text-blue-600 font-medium"
+                href="/admin"
+                className="flex items-center gap-2 text-purple-600 font-medium"
               >
-                <Briefcase className="h-5 w-5" />
-                <span>Job Descriptions</span>
+                <Shield className="h-5 w-5" />
+                <span>Admin Panel</span>
+              </Link>
+            </div>
+            {/* Admin Sub-navigation */}
+            <div className="flex items-center gap-4">
+              <Link
+                href="/admin"
+                className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>Stats</span>
+              </Link>
+              <Link
+                href="/admin/users"
+                className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+              >
+                <Users className="h-4 w-4" />
+                <span>Users</span>
               </Link>
             </div>
           </div>

@@ -1,6 +1,10 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, EmailStr
+
+
+# Role type for type safety
+UserRole = Literal["job_seeker", "recruiter", "admin"]
 
 
 class Msg(BaseModel):
@@ -45,4 +49,5 @@ class AccessToken(BaseModel):
 
 class TokenPayload(BaseModel):
     sub: Optional[EmailStr] = None
+    role: Optional[UserRole] = None  # Include role in token payload
     type: str = "access"

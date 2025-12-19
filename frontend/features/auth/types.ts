@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// User role type matching backend
+export type UserRole = 'job_seeker' | 'recruiter' | 'admin';
+
 // Schema cho form đăng nhập
 export const LoginSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -13,10 +16,7 @@ export const RegisterSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
   confirmPassword: z.string(),
-  birthday: z.string().refine((val) => val === "" || !isNaN(Date.parse(val)), {
-    message: "Please enter a valid date",
-  }),
-  role: z.enum(["user", "recruiter"], { message: "Please select a role" }),
+  role: z.enum(["job_seeker", "recruiter"], { message: "Please select a role" }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],

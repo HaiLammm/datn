@@ -18,7 +18,7 @@ export function RegisterForm() {
     registerUser,
     { message: '', errors: {} }
   );
-  const [selectedRole, setSelectedRole] = useState<"user" | "recruiter">("user");
+  const [selectedRole, setSelectedRole] = useState<"job_seeker" | "recruiter">("job_seeker");
 
   const {
     register,
@@ -30,8 +30,7 @@ export function RegisterForm() {
       email: "",
       password: "",
       confirmPassword: "",
-      birthday: "",
-      role: "user",
+      role: "job_seeker",
     },
   });
 
@@ -50,22 +49,22 @@ export function RegisterForm() {
         <input type="hidden" name="role" value={selectedRole} />
         <RadioGroup
           value={selectedRole}
-          onValueChange={(value) => setSelectedRole(value as "user" | "recruiter")}
+          onValueChange={(value) => setSelectedRole(value as "job_seeker" | "recruiter")}
           className="grid grid-cols-2 gap-4"
           aria-label="Select your role"
         >
           <div>
             <RadioGroupItem
-              value="user"
-              id="role-user"
+              value="job_seeker"
+              id="role-job_seeker"
               className="peer sr-only"
             />
             <Label
-              htmlFor="role-user"
+              htmlFor="role-job_seeker"
               className={cn(
                 "flex flex-col items-center justify-center rounded-lg border-2 p-4 cursor-pointer transition-all",
                 "hover:bg-gray-50",
-                selectedRole === "user"
+                selectedRole === "job_seeker"
                   ? "border-blue-600 bg-blue-50 text-blue-700"
                   : "border-gray-200 text-gray-600"
               )}
@@ -148,9 +147,6 @@ export function RegisterForm() {
           {state.errors?.confirmPassword && <p className={cn("mt-2 text-sm text-red-500")}>{state.errors.confirmPassword[0]}</p>}
         </div>
       </div>
-
-      {/* Birthday (optional) */}
-      <input type="hidden" name="birthday" value="" />
 
       {/* General Server Error */}
       {state.errors?.server && state.errors.server.length > 0 && (

@@ -18,8 +18,8 @@ class User(Base):
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     birthday: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     role: Mapped[str] = mapped_column(
-        String, default="user", nullable=False
-    )  # Enum: admin, user, recruiter, student
+        String, default="job_seeker", nullable=False
+    )  # Values: job_seeker, recruiter, admin
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     is_scraped: Mapped[bool] = mapped_column(
         Boolean, default=False, comment="Đánh dấu tài khoản cào về"

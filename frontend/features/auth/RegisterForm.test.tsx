@@ -47,7 +47,8 @@ describe("RegisterForm", () => {
       expect(screen.getByText(/I am a/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Email address/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
+      // Use exact match to avoid matching "Confirm Password"
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Register/i })).toBeInTheDocument();
     });
 
@@ -72,13 +73,13 @@ describe("RegisterForm", () => {
   });
 
   describe("Role Selection", () => {
-    it("has Job Seeker (user) selected by default", () => {
+    it("has Job Seeker (job_seeker) selected by default", () => {
       render(<RegisterForm />);
 
       const hiddenRoleInput = document.querySelector(
         'input[name="role"]'
       ) as HTMLInputElement;
-      expect(hiddenRoleInput.value).toBe("user");
+      expect(hiddenRoleInput.value).toBe("job_seeker");
     });
 
     it("switches to Recruiter role when clicked", async () => {
@@ -109,7 +110,7 @@ describe("RegisterForm", () => {
         expect(hiddenRoleInput.value).toBe("recruiter");
       });
 
-      // Then switch back to user
+      // Then switch back to job_seeker
       const jobSeekerLabel = screen.getByText(/Job Seeker/i);
       fireEvent.click(jobSeekerLabel);
 
@@ -117,7 +118,7 @@ describe("RegisterForm", () => {
         const hiddenRoleInput = document.querySelector(
           'input[name="role"]'
         ) as HTMLInputElement;
-        expect(hiddenRoleInput.value).toBe("user");
+        expect(hiddenRoleInput.value).toBe("job_seeker");
       });
     });
 
@@ -262,7 +263,8 @@ describe("RegisterForm", () => {
       const emailInput = screen.getByLabelText(/Email address/i);
       fireEvent.change(emailInput, { target: { value: "john@example.com" } });
 
-      const passwordInput = screen.getByLabelText(/Password/i);
+      // Use exact match to avoid matching "Confirm Password"
+      const passwordInput = screen.getByLabelText("Password");
       fireEvent.change(passwordInput, { target: { value: "password123" } });
 
       // Select recruiter role
@@ -309,16 +311,18 @@ describe("RegisterForm", () => {
 
       expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Email address/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
+      // Use exact match to avoid matching "Confirm Password" as well
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
+      expect(screen.getByLabelText(/Confirm Password/i)).toBeInTheDocument();
     });
 
     it("uses radio inputs with proper IDs for role selection", () => {
       render(<RegisterForm />);
 
-      const userRadio = document.getElementById("role-user");
+      const jobSeekerRadio = document.getElementById("role-job_seeker");
       const recruiterRadio = document.getElementById("role-recruiter");
 
-      expect(userRadio).toBeInTheDocument();
+      expect(jobSeekerRadio).toBeInTheDocument();
       expect(recruiterRadio).toBeInTheDocument();
     });
   });

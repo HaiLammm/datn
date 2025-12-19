@@ -91,8 +91,8 @@ async def login_for_access_token(
         )
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
-    access_token = create_access_token(data={"sub": user.email})
-    refresh_token = create_refresh_token(data={"sub": user.email})
+    access_token = create_access_token(data={"sub": user.email, "role": user.role})
+    refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role})
 
     # Set cookies
     response.set_cookie(
@@ -129,7 +129,7 @@ async def refresh_token(
     """
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
-    new_access_token = create_access_token(data={"sub": current_user.email})
+    new_access_token = create_access_token(data={"sub": current_user.email, "role": current_user.role})
     
     # Set new access token cookie
     response.set_cookie(

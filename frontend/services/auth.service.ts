@@ -27,7 +27,6 @@ async function register(data: RegisterFormValues) {
     email: data.email,
     password: data.password,
     full_name: data.full_name,
-    birthday: data.birthday || undefined,
     role: data.role,
   };
   return apiClient.post('/auth/register', payload);

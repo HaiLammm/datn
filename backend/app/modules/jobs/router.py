@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 
 from app.core.database import get_db, AsyncSessionLocal
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import require_recruiter
 from app.modules.jobs import services as job_service
 from app.modules.jobs.schemas import (
     CandidateCVFromSearchResponse,
@@ -64,7 +64,7 @@ async def create_job_description(
     data: JobDescriptionCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> JobDescriptionResponse:
     """
     Create a new job description for the authenticated user.
@@ -104,7 +104,7 @@ async def create_job_description_from_file(
     salary_min: Optional[int] = Form(default=None, ge=0, description="Minimum salary"),
     salary_max: Optional[int] = Form(default=None, ge=0, description="Maximum salary"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> JobDescriptionResponse:
     """
     Create a new job description by uploading a PDF or DOCX file.
@@ -175,7 +175,7 @@ async def create_job_description_from_file(
 )
 async def list_job_descriptions(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> JobDescriptionList:
     """
     Get all job descriptions created by the authenticated user.
@@ -195,7 +195,7 @@ async def list_job_descriptions(
 async def get_job_description(
     jd_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> JobDescriptionResponse:
     """
     Get a specific job description by ID.
@@ -218,7 +218,7 @@ async def get_job_description(
 async def get_parse_status(
     jd_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> JDParseStatusResponse:
     """
     Get the parsing status and results for a specific job description.
@@ -257,7 +257,7 @@ async def update_parsed_requirements(
     jd_id: UUID,
     data: ParsedRequirementsUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> JDParseStatusResponse:
     """
     Update the parsed requirements for a job description.
@@ -315,7 +315,7 @@ async def reparse_job_description(
     jd_id: UUID,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> JDParseStatusResponse:
     """
     Trigger re-parsing of an existing job description.
@@ -351,7 +351,7 @@ async def reparse_job_description(
 async def delete_job_description(
     jd_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> None:
     """
     Delete a specific job description by ID.
@@ -376,7 +376,7 @@ async def get_candidates_for_jd(
     offset: int = 0,
     min_score: int = 0,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> RankedCandidateListResponse:
     """
     Get candidates ranked by match score for a specific job description.
@@ -476,7 +476,7 @@ async def get_candidates_for_jd(
 async def search_candidates(
     request: SemanticSearchRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> SearchResultListResponse:
     """
     Search for candidates using a natural language query.
@@ -568,7 +568,7 @@ async def search_candidates(
 async def get_candidate_cv_from_search(
     cv_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> CandidateCVFromSearchResponse:
     """
     Get CV analysis details for a candidate from search results.
@@ -648,7 +648,7 @@ async def get_candidate_cv_file_from_search(
     cv_id: UUID,
     download: bool = Query(False, description="If true, return as attachment for download"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> StreamingResponse:
     """
     Get the original CV file for a candidate from search results.
@@ -749,7 +749,7 @@ async def get_candidate_cv_for_recruiter(
     jd_id: UUID,
     cv_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> RecruiterCVAccessResponse:
     """
     Get full CV analysis details for a specific candidate.
@@ -866,7 +866,7 @@ async def get_candidate_cv_file_for_recruiter(
     cv_id: UUID,
     download: bool = Query(False, description="If true, return as attachment for download"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_recruiter),
 ) -> StreamingResponse:
     """
     Get the original CV file for a specific candidate.

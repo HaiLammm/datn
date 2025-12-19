@@ -4,6 +4,7 @@ from jose import jwt, JWTError
 from pydantic import ValidationError
 from datetime import datetime, timedelta
 from collections import defaultdict
+from typing import List, Callable
 
 from app.core import security
 from app.core.config import settings
@@ -117,18 +118,62 @@ async def get_current_active_user(
     return current_user
 
 
+# ============================================================================
+# Role-Based Access Control (RBAC) Dependencies
+# ============================================================================
+
+def require_role(allowed_roles: List[str]):
+    """
+    Factory function to create role-based guard dependencies.
+    
+    Admin users bypass all role checks and can access any endpoint.
+    
+    Args:
+        allowed_roles: List of roles that are allowed to access the endpoint.
+        
+    Returns:
+        A FastAPI dependency that validates user role.
+        
+    Example:
+        @router.get("/admin-only")
+        async def admin_endpoint(user: User = Depends(require_role(['admin']))):
+            ...
+    """
+    async def role_guard(current_user: User = Depends(get_current_active_user)) -> User:
+        # Admin bypasses all role checks
+        if current_user.role == 'admin':
+            return current_user
+        
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied. Required role: {', '.join(allowed_roles)}"
+            )
+        return current_user
+    
+    return role_guard
+
+
+# Pre-built role guard dependencies for common use cases
+require_admin = require_role(['admin'])
+require_job_seeker = require_role(['job_seeker', 'admin'])
+require_recruiter = require_role(['recruiter', 'admin'])
+
+
 # Simple in-memory rate limiter for CV uploads
 # In production, this should be replaced with Redis or similar
 _cv_upload_requests = defaultdict(list)
 
 
 async def rate_limit_cv_upload(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_job_seeker),
 ) -> User:
     """
     Rate limit CV uploads to 5 per minute per user.
     This is a simple in-memory implementation for demonstration.
     In production, use Redis or a distributed cache.
+    
+    Note: This dependency also enforces job_seeker or admin role.
     """
     now = datetime.utcnow()
     user_requests = _cv_upload_requests[current_user.id]
