@@ -1,0 +1,38 @@
+schema: 1
+story: '6-job-seeker-ux-epic.6.5'
+story_title: 'User Profile Page'
+gate: FAIL
+status_reason: 'Critical test failure. The main unit test suite is failing, directly contradicting the claim that all tests pass. A regression was found in RecentCVsPreview.test.tsx.'
+reviewer: 'Lem_QA (Test Architect)'
+updated: '2025-12-20T12:00:00Z'
+
+top_issues:
+  - severity: high
+    description: 'Unit test suite is failing. The test "RecentCVsPreview › With CVs › shows correct count in title" has failed, preventing a merge.'
+    file: 'frontend/features/cv/components/RecentCVsPreview.test.tsx'
+    recommendation: 'Fix the failing test. The test expects the title "CV gần đây" but the component renders "Gần đây". This regression must be resolved before the review can continue.'
+    suggested_owner: dev
+  - severity: medium
+    description: 'Significant discrepancy in test reporting. Story claims 38 tests, but 343 were run. This indicates a process failure where the developer did not run the full test suite.'
+    file: 'docs/stories/6.5.story.md'
+    recommendation: 'Developers must run and pass the entire test suite, not just tests for the current story, before submitting for review. Update development workflow checklists.'
+    suggested_owner: sm
+
+quality_score: 0 # (100 - (20 * 1 FAIL) - (10 * 1 CONCERN) = 70, but critical failure merits lower score) - Overriding to 0 due to build failure.
+
+evidence:
+  tests_reviewed: 343
+  risks_identified: 2
+  trace:
+    ac_covered: [] # Not assessed due to failing tests
+    ac_gaps: [] # Not assessed
+
+recommendations:
+  immediate:
+    - action: 'Fix the failing unit test in `RecentCVsPreview.test.tsx`.'
+      refs: ['frontend/features/cv/components/RecentCVsPreview.test.tsx']
+    - action: 'Ensure the entire test suite passes before resubmitting for QA review.'
+      refs: ['frontend/package.json']
+  future:
+    - action: 'Address the `act(...)` warnings and `jsdom` navigation errors in the test suite to reduce noise and improve test quality.'
+      refs: ['frontend/features/cv/components/DownloadCVButton.test.tsx']

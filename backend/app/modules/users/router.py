@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -39,3 +39,26 @@ async def get_current_user_stats(
     user_id = current_user.id
     stats = await services.get_user_stats(db, user_id)
     return stats
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_current_user_account(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> Response:
+    """
+    Delete the current user's account and all associated data.
+
+    This endpoint:
+    - Deletes all CVs and their analyses
+    - Removes CV files from storage
+    - Deletes all job descriptions (via CASCADE)
+    - Deletes the user account
+
+    Returns:
+        204 No Content on success
+    """
+    # Store user_id before any potential session expiration
+    user_id = current_user.id
+    await services.delete_user_account(db, user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

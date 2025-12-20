@@ -223,12 +223,18 @@ export async function resetPassword(prevState: ResetPasswordState, formData: For
 
 // 6. LOGOUT ACTION
 export async function logoutUser(): Promise<void> {
+  const cookieStore = await cookies();
+
   try {
     await authService.logout();
   } catch (error) {
     // Even if the API call fails, we should still redirect to login
     console.error('Logout error:', error);
   }
-  
+
+  // Luôn xóa cookies ở frontend, bất kể backend thành công hay không
+  cookieStore.delete('access_token');
+  cookieStore.delete('refresh_token');
+
   redirect('/login');
 }

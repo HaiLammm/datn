@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function QuickActions() {
@@ -22,6 +22,17 @@ export function QuickActions() {
           <Link href="/cvs">
             <FileText className="h-4 w-4 mr-2" />
             View CV History
+          </Link>
+        </Button>
+        <Button
+          asChild
+          variant="outline"
+          className="flex-1"
+          data-testid="view-profile-button"
+        >
+          <Link href="/profile">
+            <User className="h-4 w-4 mr-2" />
+            My Profile
           </Link>
         </Button>
       </div>

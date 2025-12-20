@@ -7,6 +7,7 @@
 -   **API Calls:** All frontend API interactions **must** be channeled through the centralized `API Service Layer` (`/services`). Never make direct `fetch` or `axios` calls from UI components.
 -   **Backend Modularity:** All new backend logic **must** be encapsulated within a feature module in `apps/backend/app/modules/`. Each module must follow the `router.py`, `service.py`, `schemas.py`, `models.py` pattern.
 -   **Cookie Security:** Do not attempt to read or write authentication tokens from client-side JavaScript. Rely on `HttpOnly` cookies and the backend to manage the session. The frontend must use `withCredentials: true` (or the equivalent) for all API calls.
+-   **Authentication Actions:** All authentication operations (login, register, logout, password reset) **must** be implemented as Next.js Server Actions (`'use server'`). Never call authentication APIs directly from client-side JavaScript. This ensures HttpOnly cookies are properly handled server-side and tokens are never exposed to the browser.
 -   **Environment Variables:** Access environment variables only through a dedicated configuration module (e.g., `app/core/config.py` in the backend). Never access `process.env` directly within frontend components or backend business logic.
 -   **State Updates:** In React components, never mutate state directly. Always use the setter function from `useState` or dispatch actions for reducers.
 

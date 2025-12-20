@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import ValidationError
@@ -19,45 +19,6 @@ reusable_oauth2 = OAuth2PasswordBearer(
 refresh_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/auth/refresh-token"
 )
-
-
-async def get_current_user_from_cookie(
-    request: Request,
-    user_service: UserService = Depends(UserService),
-) -> User:
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
-        )
-        token_data = TokenPayload(**payload)
-        if token_data.type != "access":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type",
-            )
-    except (JWTError, ValidationError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        )
-    user = await user_service.get_user_by_email(email=token_data.sub)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
-
-
-async def get_current_active_user_from_cookie(
-    current_user: User = Depends(get_current_user_from_cookie),
-) -> User:
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user
 
 
 async def get_current_user(

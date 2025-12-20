@@ -47,7 +47,7 @@ export function RecentCVsPreview({ cvs, limit = 3 }: RecentCVsPreviewProps) {
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
-                    Gần đây
+          CV gần đây
         </CardTitle>
         <Link
           href="/cvs"

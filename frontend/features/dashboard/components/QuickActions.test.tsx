@@ -21,6 +21,14 @@ describe("QuickActions", () => {
       expect(historyButton).toHaveAttribute("href", "/cvs");
     });
 
+    it("renders profile button with correct link", () => {
+      render(<QuickActions />);
+
+      const profileButton = screen.getByTestId("view-profile-button");
+      expect(profileButton).toBeInTheDocument();
+      expect(profileButton).toHaveAttribute("href", "/profile");
+    });
+
     it("displays correct text on upload button", () => {
       render(<QuickActions />);
 
@@ -31,6 +39,12 @@ describe("QuickActions", () => {
       render(<QuickActions />);
 
       expect(screen.getByText("View CV History")).toBeInTheDocument();
+    });
+
+    it("displays correct text on profile button", () => {
+      render(<QuickActions />);
+
+      expect(screen.getByText("My Profile")).toBeInTheDocument();
     });
 
     it("renders Quick Actions title", () => {
@@ -57,14 +71,24 @@ describe("QuickActions", () => {
       expect(historyButton).toHaveFocus();
     });
 
+    it("profile button is focusable (accessible via keyboard)", () => {
+      render(<QuickActions />);
+
+      const profileButton = screen.getByTestId("view-profile-button");
+      profileButton.focus();
+      expect(profileButton).toHaveFocus();
+    });
+
     it("buttons are links and accessible", () => {
       render(<QuickActions />);
 
       const uploadLink = screen.getByRole("link", { name: /Upload New CV/i });
       const historyLink = screen.getByRole("link", { name: /View CV History/i });
+      const profileLink = screen.getByRole("link", { name: /My Profile/i });
 
       expect(uploadLink).toBeInTheDocument();
       expect(historyLink).toBeInTheDocument();
+      expect(profileLink).toBeInTheDocument();
     });
   });
 
@@ -74,10 +98,12 @@ describe("QuickActions", () => {
 
       const uploadButton = screen.getByTestId("upload-cv-button");
       const historyButton = screen.getByTestId("view-history-button");
+      const profileButton = screen.getByTestId("view-profile-button");
 
       // Check that SVG icons are present (lucide-react icons render as SVG)
       expect(uploadButton.querySelector("svg")).toBeInTheDocument();
       expect(historyButton.querySelector("svg")).toBeInTheDocument();
+      expect(profileButton.querySelector("svg")).toBeInTheDocument();
     });
   });
 });
