@@ -90,7 +90,7 @@ describe("CVHistoryList", () => {
     it("shows empty state when cvs.length === 0", () => {
       render(<CVHistoryList cvs={[]} />);
 
-      expect(screen.getByTestId("cv-empty-state")).toBeInTheDocument();
+      expect(screen.getByTestId("no-cvs-empty-state")).toBeInTheDocument();
       expect(screen.getByText("No CVs uploaded yet")).toBeInTheDocument();
     });
 

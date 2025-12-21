@@ -1,6 +1,7 @@
 /**
- * Skeleton loading component for CV History list.
+ * Skeleton loading component for CV History/List.
  * Displays 6 placeholder cards while CVs are being fetched.
+ * Also exported as CVListSkeleton for semantic naming.
  */
 export function CVHistorySkeleton() {
   return (
@@ -36,3 +37,6 @@ export function CVHistorySkeleton() {
     </div>
   );
 }
+
+// Alias for semantic naming per story requirements
+export { CVHistorySkeleton as CVListSkeleton };

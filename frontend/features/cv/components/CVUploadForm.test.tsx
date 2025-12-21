@@ -2,14 +2,45 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { CVUploadForm } from "./CVUploadForm";
-import * as actions from "../actions";
 
-// Mock the server action
-jest.mock("../actions", () => ({
-  createCVAction: jest.fn(),
+// Mock next/navigation
+const mockPush = jest.fn();
+const mockRefresh = jest.fn();
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: mockPush,
+    refresh: mockRefresh,
+  }),
+}));
+
+// Mock sonner toast
+jest.mock("sonner", () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+// Mock useFileUpload hook
+const mockUpload = jest.fn();
+const mockReset = jest.fn();
+
+jest.mock("@/lib/hooks/useFileUpload", () => ({
+  useFileUpload: () => ({
+    isUploading: false,
+    progress: 0,
+    error: null,
+    isSuccess: false,
+    upload: mockUpload,
+    reset: mockReset,
+  }),
 }));
 
 describe("CVUploadForm", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it("renders the upload form correctly", () => {
     render(<CVUploadForm />);
     expect(screen.getByText(/Tải lên CV của bạn/i)).toBeInTheDocument();
@@ -25,8 +56,22 @@ describe("CVUploadForm", () => {
     fireEvent.change(fileInput, { target: { files: [invalidFile] } });
 
     await waitFor(() => {
-      expect(fileInput.files?.[0]).toBe(invalidFile);
       expect(screen.getByText(/Chỉ chấp nhận file PDF hoặc DOCX\./i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Tải lên CV/i })).toBeDisabled();
+    });
+  });
+
+  it("displays an error for file exceeding size limit", async () => {
+    render(<CVUploadForm />);
+    const fileInput = screen.getByLabelText(/Chọn file CV \(PDF hoặc DOCX\)/i) as HTMLInputElement;
+
+    // Create a file larger than 5MB
+    const largeContent = new Array(6 * 1024 * 1024).fill("a").join("");
+    const largeFile = new File([largeContent], "large.pdf", { type: "application/pdf" });
+    fireEvent.change(fileInput, { target: { files: [largeFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Kích thước file tối đa là 5MB\./i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Tải lên CV/i })).toBeDisabled();
     });
   });
@@ -39,57 +84,122 @@ describe("CVUploadForm", () => {
     fireEvent.change(fileInput, { target: { files: [validPdf] } });
 
     await waitFor(() => {
-      expect(fileInput.files?.[0]).toBe(validPdf);
       expect(screen.getByRole("button", { name: /Tải lên CV/i })).toBeEnabled();
+      expect(screen.getByText(/Đã chọn: resume.pdf/i)).toBeInTheDocument();
     });
   });
 
-  it("submits the form with a valid file and displays success message", async () => {
-    jest.clearAllMocks(); // Clear mocks before this test
-    (actions.createCVAction as jest.Mock).mockResolvedValueOnce({
-      message: "CV đã được tải lên thành công!",
-      errors: {},
+  it("allows selecting a valid DOCX file", async () => {
+    render(<CVUploadForm />);
+    const fileInput = screen.getByLabelText(/Chọn file CV \(PDF hoặc DOCX\)/i) as HTMLInputElement;
+
+    const validDocx = new File(["docx content"], "resume.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
+    fireEvent.change(fileInput, { target: { files: [validDocx] } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Tải lên CV/i })).toBeEnabled();
+      expect(screen.getByText(/Đã chọn: resume.docx/i)).toBeInTheDocument();
+    });
+  });
+
+  it("calls upload when form is submitted with valid file", async () => {
     render(<CVUploadForm />);
     const fileInput = screen.getByLabelText(/Chọn file CV \(PDF hoặc DOCX\)/i) as HTMLInputElement;
     const submitButton = screen.getByRole("button", { name: /Tải lên CV/i });
 
     const validPdf = new File(["pdf content"], "resume.pdf", { type: "application/pdf" });
-    Object.defineProperty(fileInput, "files", {
-      value: [validPdf],
+    fireEvent.change(fileInput, { target: { files: [validPdf] } });
+
+    await waitFor(() => {
+      expect(submitButton).toBeEnabled();
     });
-    fireEvent.change(fileInput); // Trigger change event after setting files
 
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(actions.createCVAction).toHaveBeenCalledTimes(1);
-      expect(screen.getByText(/CV đã được tải lên thành công!/i)).toBeInTheDocument();
+      expect(mockUpload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          file: validPdf,
+          url: "/api/cvs/upload",
+          fieldName: "file",
+        })
+      );
     });
   });
 
-  it("displays error message from server action", async () => {
-    jest.clearAllMocks(); // Clear mocks before this test
-    (actions.createCVAction as jest.Mock).mockResolvedValueOnce({
-      message: "Đã xảy ra lỗi khi tải lên CV.",
-      errors: {},
+  it("resets upload state when file changes", async () => {
+    render(<CVUploadForm />);
+    const fileInput = screen.getByLabelText(/Chọn file CV \(PDF hoặc DOCX\)/i) as HTMLInputElement;
+
+    const validPdf = new File(["pdf content"], "resume.pdf", { type: "application/pdf" });
+    fireEvent.change(fileInput, { target: { files: [validPdf] } });
+
+    await waitFor(() => {
+      expect(mockReset).toHaveBeenCalled();
+    });
+  });
+});
+
+describe("CVUploadForm - Upload States", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("shows progress indicator during upload", () => {
+    // Mock uploading state
+    const useFileUploadModule = jest.requireMock("@/lib/hooks/useFileUpload");
+    jest.spyOn(useFileUploadModule, "useFileUpload").mockReturnValue({
+      isUploading: true,
+      progress: 45,
+      error: null,
+      isSuccess: false,
+      upload: mockUpload,
+      reset: mockReset,
     });
 
     render(<CVUploadForm />);
-    const fileInput = screen.getByLabelText(/Chọn file CV \(PDF hoặc DOCX\)/i) as HTMLInputElement;
-    const submitButton = screen.getByRole("button", { name: /Tải lên CV/i });
 
-    const validPdf = new File(["pdf content"], "error_cv.pdf", { type: "application/pdf" });
-    Object.defineProperty(fileInput, "files", {
-      value: [validPdf],
+    expect(screen.getByTestId("upload-progress")).toBeInTheDocument();
+    expect(screen.getByText("45%")).toBeInTheDocument();
+    // Check upload progress area specifically
+    const progressArea = screen.getByTestId("upload-progress");
+    expect(progressArea).toHaveTextContent(/Đang tải lên/i);
+  });
+
+  it("shows success state after upload", () => {
+    const useFileUploadModule = jest.requireMock("@/lib/hooks/useFileUpload");
+    jest.spyOn(useFileUploadModule, "useFileUpload").mockReturnValue({
+      isUploading: false,
+      progress: 100,
+      error: null,
+      isSuccess: true,
+      upload: mockUpload,
+      reset: mockReset,
     });
-    fireEvent.change(fileInput); // Trigger change event after setting files
 
-    fireEvent.click(submitButton);
+    render(<CVUploadForm />);
 
-    await waitFor(() => {
-      expect(actions.createCVAction).toHaveBeenCalledTimes(1);
-      expect(screen.getByText(/Đã xảy ra lỗi khi tải lên CV./i)).toBeInTheDocument();
+    expect(screen.getByTestId("upload-success")).toBeInTheDocument();
+    expect(screen.getByText(/CV đã được tải lên thành công/i)).toBeInTheDocument();
+  });
+
+  it("shows error state with retry button", () => {
+    const useFileUploadModule = jest.requireMock("@/lib/hooks/useFileUpload");
+    jest.spyOn(useFileUploadModule, "useFileUpload").mockReturnValue({
+      isUploading: false,
+      progress: 0,
+      error: "Upload failed",
+      isSuccess: false,
+      upload: mockUpload,
+      reset: mockReset,
     });
+
+    render(<CVUploadForm />);
+
+    expect(screen.getByTestId("error-display")).toBeInTheDocument();
+    expect(screen.getByText("Upload failed")).toBeInTheDocument();
+    expect(screen.getByTestId("error-retry-button")).toBeInTheDocument();
   });
 });
