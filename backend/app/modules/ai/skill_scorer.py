@@ -16,7 +16,7 @@ import logging
 from typing import Any, Dict, List, Optional, TypedDict
 
 from .skill_extractor import SkillExtractor
-from .skill_taxonomy import HOT_SKILLS_2024, is_hot_skill
+from .skill_taxonomy import HOT_SKILLS_2024, HOT_SKILLS_VERSIONS, is_hot_skill, is_hot_skill_versioned
 
 
 logger = logging.getLogger(__name__)
@@ -295,16 +295,22 @@ class SkillScorer:
 
     def _calculate_market_relevance(
         self,
-        extracted_skills: Dict[str, List[str]]
+        extracted_skills: Dict[str, List[str]],
+        years: List[int] | None = None
     ) -> int:
         """
         Calculate market relevance score based on presence of hot/in-demand skills.
+
+        Uses additive logic: a skill is considered "hot" if it appears in ANY
+        of the checked years' lists.
 
         Scoring logic (0-6 points):
         - 1 point per hot skill found (max 6)
 
         Args:
             extracted_skills: Dict mapping categories to lists of skill names.
+            years: List of years to check hot skills against. If None, checks
+                   all available years in HOT_SKILLS_VERSIONS.
 
         Returns:
             Integer score from 0 to 6.
@@ -314,21 +320,22 @@ class SkillScorer:
         for skills in extracted_skills.values():
             all_skills.extend(skills)
 
-        # Count hot skills
+        # Count hot skills using versioned check
         hot_skills_found = 0
         found_hot_skills: List[str] = []
 
         for skill in all_skills:
-            if is_hot_skill(skill):
+            if is_hot_skill_versioned(skill, years):
                 hot_skills_found += 1
                 found_hot_skills.append(skill)
 
         # Cap at 6
         score = min(6, hot_skills_found)
 
+        years_checked = years if years else list(HOT_SKILLS_VERSIONS.keys())
         logger.debug(
             f"Market relevance calc: hot_skills_found={hot_skills_found}, "
-            f"found={found_hot_skills}, score={score}"
+            f"found={found_hot_skills}, years={years_checked}, score={score}"
         )
 
         return score

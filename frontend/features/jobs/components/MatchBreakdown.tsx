@@ -4,9 +4,56 @@ import { useState } from "react";
 import { MatchBreakdownResponse } from "@datn/shared-types";
 import { SkillBadges } from "./SkillBadges";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface MatchBreakdownProps {
   breakdown: MatchBreakdownResponse;
+}
+
+/**
+ * Get experience comparison color based on ratio of actual to required years.
+ * - Green: meets or exceeds requirement (ratio >= 1.0)
+ * - Yellow: close to requirement (ratio >= 0.7)
+ * - Red: significantly below requirement (ratio < 0.7)
+ */
+function getExperienceColorClass(
+  experienceYears: number | null,
+  requiredYears: number | null
+): string {
+  // No color if no experience data or no requirement
+  if (experienceYears === null || requiredYears === null || requiredYears === 0) {
+    return "text-gray-600";
+  }
+
+  const ratio = experienceYears / requiredYears;
+
+  if (ratio >= 1.0) {
+    return "text-green-600"; // Meets or exceeds
+  } else if (ratio >= 0.7) {
+    return "text-yellow-600"; // Close to requirement
+  } else {
+    return "text-red-600"; // Significantly below
+  }
+}
+
+/**
+ * Format experience display string with comparison to JD requirement.
+ */
+function formatExperienceDisplay(
+  experienceYears: number | null,
+  requiredYears: number | null
+): string {
+  if (experienceYears === null) {
+    return "Không xác định";
+  }
+
+  if (requiredYears !== null && requiredYears > 0) {
+    // Show comparison format: "X/Y năm (yêu cầu Y năm)"
+    return `${experienceYears}/${requiredYears} năm (yêu cầu ${requiredYears} năm)`;
+  }
+
+  // No requirement, just show years
+  return `${experienceYears} năm`;
 }
 
 export function MatchBreakdown({ breakdown }: MatchBreakdownProps) {
@@ -15,6 +62,16 @@ export function MatchBreakdown({ breakdown }: MatchBreakdownProps) {
   const hasMatchedSkills = breakdown.matched_skills.length > 0;
   const hasMissingSkills = breakdown.missing_skills.length > 0;
   const hasExtraSkills = breakdown.extra_skills.length > 0;
+
+  const experienceColorClass = getExperienceColorClass(
+    breakdown.experience_years,
+    breakdown.required_experience_years
+  );
+
+  const experienceDisplay = formatExperienceDisplay(
+    breakdown.experience_years,
+    breakdown.required_experience_years
+  );
 
   return (
     <div className="mt-3">
@@ -65,18 +122,16 @@ export function MatchBreakdown({ breakdown }: MatchBreakdownProps) {
           )}
 
           {/* Scores */}
-          <div className="flex flex-wrap gap-4 text-sm text-gray-600 pt-2 border-t">
-            <span>
-              <strong>Kinh nghiệm:</strong>{" "}
-              {breakdown.experience_years !== null
-                ? `${breakdown.experience_years} năm`
-                : "Không xác định"}
+          <div className="flex flex-wrap gap-4 text-sm pt-2 border-t">
+            <span className={cn("font-medium", experienceColorClass)}>
+              <strong className="text-gray-700">Kinh nghiệm:</strong>{" "}
+              {experienceDisplay}
             </span>
-            <span>
-              <strong>Điểm kỹ năng:</strong> {breakdown.skill_score}/70
+            <span className="text-gray-600">
+              <strong>Điểm kỹ năng:</strong> {breakdown.skill_score.toFixed(1)}%
             </span>
-            <span>
-              <strong>Điểm kinh nghiệm:</strong> {breakdown.experience_score}/30
+            <span className="text-gray-600">
+              <strong>Điểm kinh nghiệm:</strong> {breakdown.experience_score.toFixed(1)}%
             </span>
           </div>
         </div>

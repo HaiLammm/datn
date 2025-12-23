@@ -37,14 +37,15 @@ NICE_TO_HAVE_WEIGHT = 10  # Within skill score, nice-to-have worth 10%
 @dataclass
 class MatchBreakdown:
     """Detailed breakdown of match between CV and JD."""
-    
+
     matched_skills: List[str] = field(default_factory=list)
     missing_skills: List[str] = field(default_factory=list)
     extra_skills: List[str] = field(default_factory=list)
     skill_score: float = 0.0
     experience_score: float = 0.0
     experience_years: Optional[int] = None
-    
+    required_experience_years: Optional[int] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -54,6 +55,7 @@ class MatchBreakdown:
             "skill_score": round(self.skill_score, 1),
             "experience_score": round(self.experience_score, 1),
             "experience_years": self.experience_years,
+            "required_experience_years": self.required_experience_years,
         }
 
 
@@ -264,6 +266,7 @@ class CandidateRanker:
             skill_score=skill_result["skill_score"],
             experience_score=experience_score,
             experience_years=cv_years,
+            required_experience_years=required_years,
         )
         
         return RankedCandidate(
@@ -319,12 +322,14 @@ class CandidateRanker:
         else:
             # No required skills means full required score
             required_score = REQUIRED_SKILL_WEIGHT
-        
+
         if nice_set:
             nice_score = (len(matched_nice) / len(nice_set)) * NICE_TO_HAVE_WEIGHT
         else:
-            nice_score = 0
-        
+            # No nice-to-have skills defined in JD means full nice-to-have score
+            # Don't penalize candidates when JD doesn't specify nice-to-have skills
+            nice_score = NICE_TO_HAVE_WEIGHT
+
         total_skill_score = required_score + nice_score
         
         return {
@@ -368,31 +373,24 @@ class CandidateRanker:
     def _extract_experience_years(self, cv_analysis: CVAnalysis) -> Optional[int]:
         """
         Extract years of experience from CV analysis.
-        
-        Tries to find experience info from:
-        1. skill_breakdown field
-        2. ai_feedback field
-        
+
+        Extracts from ai_feedback["experience_breakdown"]["total_years"]
+        which is where the Ollama LLM stores the calculated experience.
+
         Returns None if not available.
         """
-        # Try skill_breakdown
-        if cv_analysis.skill_breakdown:
-            years = cv_analysis.skill_breakdown.get("experience_years")
-            if years is not None:
-                try:
-                    return int(years)
-                except (ValueError, TypeError):
-                    pass
-        
-        # Try ai_feedback
+        # Primary location: ai_feedback.experience_breakdown.total_years
+        # This is where Ollama stores the experience years after analysis
         if cv_analysis.ai_feedback:
-            years = cv_analysis.ai_feedback.get("experience_years")
-            if years is not None:
-                try:
-                    return int(years)
-                except (ValueError, TypeError):
-                    pass
-        
+            experience_breakdown = cv_analysis.ai_feedback.get("experience_breakdown", {})
+            if isinstance(experience_breakdown, dict):
+                total_years = experience_breakdown.get("total_years")
+                if total_years is not None:
+                    try:
+                        return int(float(total_years))  # Handle both int and float
+                    except (ValueError, TypeError):
+                        pass
+
         return None
 
 

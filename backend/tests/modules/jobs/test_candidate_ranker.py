@@ -27,7 +27,7 @@ def ranker():
 
 class TestMatchBreakdown:
     """Tests for MatchBreakdown dataclass."""
-    
+
     def test_default_values(self):
         """Test default values are empty/zero."""
         breakdown = MatchBreakdown()
@@ -37,7 +37,8 @@ class TestMatchBreakdown:
         assert breakdown.skill_score == 0.0
         assert breakdown.experience_score == 0.0
         assert breakdown.experience_years is None
-    
+        assert breakdown.required_experience_years is None
+
     def test_to_dict(self):
         """Test conversion to dictionary."""
         breakdown = MatchBreakdown(
@@ -47,15 +48,29 @@ class TestMatchBreakdown:
             skill_score=45.5,
             experience_score=25.0,
             experience_years=5,
+            required_experience_years=3,
         )
         result = breakdown.to_dict()
-        
+
         assert result["matched_skills"] == ["python", "fastapi"]
         assert result["missing_skills"] == ["kubernetes"]
         assert result["extra_skills"] == ["docker"]
         assert result["skill_score"] == 45.5
         assert result["experience_score"] == 25.0
         assert result["experience_years"] == 5
+        assert result["required_experience_years"] == 3
+
+    def test_to_dict_with_none_required_years(self):
+        """Test to_dict when required_experience_years is None."""
+        breakdown = MatchBreakdown(
+            matched_skills=["python"],
+            experience_years=5,
+            required_experience_years=None,
+        )
+        result = breakdown.to_dict()
+
+        assert result["experience_years"] == 5
+        assert result["required_experience_years"] is None
 
 
 class TestRankedCandidate:
@@ -88,16 +103,17 @@ class TestCalculateSkillScore:
     """Tests for _calculate_skill_score method."""
     
     def test_all_required_skills_matched(self, ranker):
-        """Test 100% match on required skills."""
+        """Test 100% match on required skills (no nice-to-have defined)."""
         required = ["python", "fastapi", "postgresql"]
         nice_to_have = []
         cv_skills = ["python", "fastapi", "postgresql"]
-        
+
         result = ranker._calculate_skill_score(required, nice_to_have, cv_skills)
-        
+
         assert set(result["matched_skills"]) == {"python", "fastapi", "postgresql"}
         assert result["missing_skills"] == []
-        assert result["skill_score"] == REQUIRED_SKILL_WEIGHT  # 60
+        # Full score: 60 (required) + 10 (bonus for no nice-to-have defined)
+        assert result["skill_score"] == REQUIRED_SKILL_WEIGHT + NICE_TO_HAVE_WEIGHT
     
     def test_all_required_plus_nice_to_have(self, ranker):
         """Test full match on both required and nice-to-have."""
@@ -113,16 +129,17 @@ class TestCalculateSkillScore:
         assert result["skill_score"] == expected_score
     
     def test_partial_required_match(self, ranker):
-        """Test partial match on required skills."""
+        """Test partial match on required skills (no nice-to-have defined)."""
         required = ["python", "fastapi", "postgresql", "redis"]
         nice_to_have = []
         cv_skills = ["python", "fastapi"]  # 2 out of 4
-        
+
         result = ranker._calculate_skill_score(required, nice_to_have, cv_skills)
-        
+
         assert set(result["matched_skills"]) == {"python", "fastapi"}
         assert set(result["missing_skills"]) == {"postgresql", "redis"}
-        expected_score = (2 / 4) * REQUIRED_SKILL_WEIGHT  # 0.5 * 60 = 30
+        # 0.5 * 60 = 30 (required) + 10 (bonus for no nice-to-have defined)
+        expected_score = (2 / 4) * REQUIRED_SKILL_WEIGHT + NICE_TO_HAVE_WEIGHT
         assert result["skill_score"] == expected_score
     
     def test_no_skills_matched(self, ranker):
@@ -154,11 +171,35 @@ class TestCalculateSkillScore:
         required = []
         nice_to_have = ["docker"]
         cv_skills = ["python", "docker"]
-        
+
         result = ranker._calculate_skill_score(required, nice_to_have, cv_skills)
-        
+
         # Should get full required score when no requirements
         assert result["skill_score"] == REQUIRED_SKILL_WEIGHT + NICE_TO_HAVE_WEIGHT
+
+    def test_empty_nice_to_have_skills(self, ranker):
+        """Test with no nice-to-have skills gives full nice-to-have score."""
+        required = ["python", "fastapi"]
+        nice_to_have = []  # No nice-to-have defined
+        cv_skills = ["python", "fastapi"]
+
+        result = ranker._calculate_skill_score(required, nice_to_have, cv_skills)
+
+        # Should get full score (60 required + 10 nice-to-have bonus)
+        # Don't penalize candidates when JD doesn't specify nice-to-have
+        assert result["skill_score"] == REQUIRED_SKILL_WEIGHT + NICE_TO_HAVE_WEIGHT
+
+    def test_both_empty_skills(self, ranker):
+        """Test with no required and no nice-to-have skills."""
+        required = []
+        nice_to_have = []
+        cv_skills = ["python", "docker"]
+
+        result = ranker._calculate_skill_score(required, nice_to_have, cv_skills)
+
+        # Should get full skill score when JD has no skill requirements
+        assert result["skill_score"] == REQUIRED_SKILL_WEIGHT + NICE_TO_HAVE_WEIGHT
+        assert set(result["extra_skills"]) == {"python", "docker"}
     
     def test_case_insensitive_matching(self, ranker):
         """Test that matching is case-insensitive (all lowercased by caller)."""
@@ -216,57 +257,102 @@ class TestCalculateExperienceScore:
 
 
 class TestExtractExperienceYears:
-    """Tests for _extract_experience_years method."""
-    
-    def test_from_skill_breakdown(self, ranker):
-        """Test extracting years from skill_breakdown."""
+    """Tests for _extract_experience_years method.
+
+    Story 5.8: Experience years are extracted from ai_feedback["experience_breakdown"]["total_years"]
+    which is where Ollama LLM stores the calculated experience.
+    """
+
+    def test_from_experience_breakdown(self, ranker):
+        """Test extracting years from ai_feedback.experience_breakdown.total_years."""
         cv_analysis = MagicMock()
-        cv_analysis.skill_breakdown = {"experience_years": 5}
-        cv_analysis.ai_feedback = None
-        
+        cv_analysis.ai_feedback = {
+            "experience_breakdown": {
+                "total_years": 5,
+                "key_roles": ["Senior Engineer"],
+                "industries": ["Tech"],
+            }
+        }
+
         result = ranker._extract_experience_years(cv_analysis)
         assert result == 5
-    
-    def test_from_ai_feedback(self, ranker):
-        """Test extracting years from ai_feedback."""
+
+    def test_from_experience_breakdown_float(self, ranker):
+        """Test extracting float years (should be converted to int)."""
         cv_analysis = MagicMock()
-        cv_analysis.skill_breakdown = None
-        cv_analysis.ai_feedback = {"experience_years": 3}
-        
+        cv_analysis.ai_feedback = {
+            "experience_breakdown": {
+                "total_years": 3.5,
+            }
+        }
+
         result = ranker._extract_experience_years(cv_analysis)
-        assert result == 3
-    
-    def test_skill_breakdown_priority(self, ranker):
-        """Test skill_breakdown takes priority over ai_feedback."""
+        assert result == 3  # Converted to int
+
+    def test_not_available_empty_ai_feedback(self, ranker):
+        """Test when ai_feedback is empty."""
         cv_analysis = MagicMock()
-        cv_analysis.skill_breakdown = {"experience_years": 5}
-        cv_analysis.ai_feedback = {"experience_years": 3}
-        
-        result = ranker._extract_experience_years(cv_analysis)
-        assert result == 5
-    
-    def test_not_available(self, ranker):
-        """Test when experience years not available."""
-        cv_analysis = MagicMock()
-        cv_analysis.skill_breakdown = None
-        cv_analysis.ai_feedback = None
-        
+        cv_analysis.ai_feedback = {}
+
         result = ranker._extract_experience_years(cv_analysis)
         assert result is None
-    
+
+    def test_not_available_no_experience_breakdown(self, ranker):
+        """Test when experience_breakdown is missing."""
+        cv_analysis = MagicMock()
+        cv_analysis.ai_feedback = {
+            "some_other_field": "value"
+        }
+
+        result = ranker._extract_experience_years(cv_analysis)
+        assert result is None
+
+    def test_not_available_none_ai_feedback(self, ranker):
+        """Test when ai_feedback is None."""
+        cv_analysis = MagicMock()
+        cv_analysis.ai_feedback = None
+
+        result = ranker._extract_experience_years(cv_analysis)
+        assert result is None
+
     def test_invalid_value(self, ranker):
         """Test with invalid experience value."""
         cv_analysis = MagicMock()
-        cv_analysis.skill_breakdown = {"experience_years": "not a number"}
-        cv_analysis.ai_feedback = None
-        
+        cv_analysis.ai_feedback = {
+            "experience_breakdown": {
+                "total_years": "not a number"
+            }
+        }
+
         result = ranker._extract_experience_years(cv_analysis)
         assert result is None
+
+    def test_experience_breakdown_not_dict(self, ranker):
+        """Test when experience_breakdown is not a dict."""
+        cv_analysis = MagicMock()
+        cv_analysis.ai_feedback = {
+            "experience_breakdown": "invalid"
+        }
+
+        result = ranker._extract_experience_years(cv_analysis)
+        assert result is None
+
+    def test_zero_years(self, ranker):
+        """Test with zero years experience."""
+        cv_analysis = MagicMock()
+        cv_analysis.ai_feedback = {
+            "experience_breakdown": {
+                "total_years": 0
+            }
+        }
+
+        result = ranker._extract_experience_years(cv_analysis)
+        assert result == 0
 
 
 class TestCalculateMatch:
     """Tests for _calculate_match method."""
-    
+
     def test_full_match(self, ranker):
         """Test a full match scenario."""
         jd_requirements = {
@@ -274,24 +360,27 @@ class TestCalculateMatch:
             "nice_to_have_skills": ["docker"],
             "min_experience_years": 3,
         }
-        
+
         cv_analysis = MagicMock()
         cv_analysis.cv_id = uuid4()
         cv_analysis.cv = MagicMock()
         cv_analysis.cv.user_id = 123
         cv_analysis.cv.filename = "resume.pdf"
+        cv_analysis.cv.is_public = True
         cv_analysis.extracted_skills = ["python", "fastapi", "docker"]
         cv_analysis.skill_categories = None
-        cv_analysis.skill_breakdown = {"experience_years": 5}
-        cv_analysis.ai_feedback = None
+        cv_analysis.ai_feedback = {
+            "experience_breakdown": {"total_years": 5}
+        }
         cv_analysis.ai_summary = "Senior Python developer"
-        
+
         result = ranker._calculate_match(jd_requirements, cv_analysis)
-        
+
         assert result.match_score == 100  # Full match
         assert result.cv_summary == "Senior Python developer"
         assert result.breakdown.experience_years == 5
-    
+        assert result.breakdown.required_experience_years == 3
+
     def test_partial_match(self, ranker):
         """Test a partial match scenario."""
         jd_requirements = {
@@ -299,25 +388,31 @@ class TestCalculateMatch:
             "nice_to_have_skills": [],
             "min_experience_years": 5,
         }
-        
+
         cv_analysis = MagicMock()
         cv_analysis.cv_id = uuid4()
         cv_analysis.cv = MagicMock()
         cv_analysis.cv.user_id = 456
         cv_analysis.cv.filename = "cv.pdf"
+        cv_analysis.cv.is_public = True
         cv_analysis.extracted_skills = ["python", "fastapi"]  # 2/4 required
         cv_analysis.skill_categories = None
-        cv_analysis.skill_breakdown = {"experience_years": 3}  # 3/5 years
-        cv_analysis.ai_feedback = None
+        cv_analysis.ai_feedback = {
+            "experience_breakdown": {"total_years": 3}  # 3/5 years
+        }
         cv_analysis.ai_summary = None
-        
+
         result = ranker._calculate_match(jd_requirements, cv_analysis)
-        
-        # Skill: 2/4 * 60 = 30, Experience: 3/5 * 30 = 18, Total = 48
-        assert result.match_score == 48
+
+        # Skill: 2/4 * 60 + 10 (no nice-to-have bonus) = 40
+        # Experience: 3/5 * 30 = 18
+        # Total = 58
+        assert result.match_score == 58
         assert set(result.breakdown.matched_skills) == {"python", "fastapi"}
         assert set(result.breakdown.missing_skills) == {"postgresql", "redis"}
-    
+        assert result.breakdown.experience_years == 3
+        assert result.breakdown.required_experience_years == 5
+
     def test_skills_from_categories(self, ranker):
         """Test extracting skills from skill_categories when extracted_skills is empty."""
         jd_requirements = {
@@ -325,26 +420,58 @@ class TestCalculateMatch:
             "nice_to_have_skills": [],
             "min_experience_years": None,
         }
-        
+
         cv_analysis = MagicMock()
         cv_analysis.cv_id = uuid4()
         cv_analysis.cv = MagicMock()
         cv_analysis.cv.user_id = 789
         cv_analysis.cv.filename = None
+        cv_analysis.cv.is_public = True
         cv_analysis.extracted_skills = []  # Empty
         cv_analysis.skill_categories = {
             "programming_languages": ["python", "javascript"],
             "frameworks": ["react", "fastapi"],
         }
-        cv_analysis.skill_breakdown = None
         cv_analysis.ai_feedback = None
         cv_analysis.ai_summary = None
-        
+
         result = ranker._calculate_match(jd_requirements, cv_analysis)
-        
+
         # Both python and react should be matched from categories
         assert "python" in result.breakdown.matched_skills
         assert "react" in result.breakdown.matched_skills
+        assert result.breakdown.required_experience_years is None
+
+    def test_no_experience_requirement(self, ranker):
+        """Test when JD has no experience requirement - should get full experience score."""
+        jd_requirements = {
+            "required_skills": ["python"],
+            "nice_to_have_skills": [],
+            "min_experience_years": None,
+        }
+
+        cv_analysis = MagicMock()
+        cv_analysis.cv_id = uuid4()
+        cv_analysis.cv = MagicMock()
+        cv_analysis.cv.user_id = 1
+        cv_analysis.cv.filename = "cv.pdf"
+        cv_analysis.cv.is_public = True
+        cv_analysis.extracted_skills = ["python"]
+        cv_analysis.skill_categories = None
+        cv_analysis.ai_feedback = {
+            "experience_breakdown": {"total_years": 2}
+        }
+        cv_analysis.ai_summary = None
+
+        result = ranker._calculate_match(jd_requirements, cv_analysis)
+
+        # Skill: 1/1 * 60 + 10 (no nice-to-have bonus) = 70
+        # Experience: Full 30 (no requirement)
+        # Total = 100
+        assert result.match_score == 100
+        assert result.breakdown.experience_score == EXPERIENCE_WEIGHT  # 30
+        assert result.breakdown.experience_years == 2
+        assert result.breakdown.required_experience_years is None
 
 
 class TestRankCandidates:

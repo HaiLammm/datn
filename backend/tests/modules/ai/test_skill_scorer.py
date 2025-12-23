@@ -9,12 +9,19 @@ Tests cover:
 - Main calculate_skill_score method
 - Recommendations generation
 - Deterministic behavior verification
+- Story 5.7: Versioned hot skills and multi-year market relevance
 """
 
 import pytest
 from typing import Dict, List
 
 from app.modules.ai.skill_scorer import SkillScorer, SkillScoreResult
+from app.modules.ai.skill_taxonomy import (
+    HOT_SKILLS_2023,
+    HOT_SKILLS_2024,
+    HOT_SKILLS_VERSIONS,
+    is_hot_skill_versioned,
+)
 
 
 @pytest.fixture
@@ -198,21 +205,21 @@ class TestCalculateCategorization:
 
 class TestCalculateMarketRelevance:
     """Tests for _calculate_market_relevance method."""
-    
+
     def test_market_relevance_no_hot_skills(self, scorer):
         """No hot skills should return 0."""
         result = scorer._calculate_market_relevance({
             "programming_languages": ["perl", "cobol"],
         })
         assert result == 0
-    
+
     def test_market_relevance_one_hot_skill(self, scorer):
         """One hot skill should return 1 point."""
         result = scorer._calculate_market_relevance({
             "programming_languages": ["python"],
         })
         assert result == 1
-    
+
     def test_market_relevance_some_hot_skills(self, scorer):
         """Multiple hot skills should return corresponding points."""
         result = scorer._calculate_market_relevance({
@@ -221,7 +228,7 @@ class TestCalculateMarketRelevance:
         })
         # python, typescript, react are all hot skills
         assert result == 3
-    
+
     def test_market_relevance_max_score(self, scorer):
         """Should cap at 6 points even with more hot skills."""
         result = scorer._calculate_market_relevance({
@@ -231,7 +238,7 @@ class TestCalculateMarketRelevance:
         })
         # Many hot skills, but capped at 6
         assert result == 6
-    
+
     def test_market_relevance_mixed_skills(self, scorer):
         """Mix of hot and non-hot skills should only count hot ones."""
         result = scorer._calculate_market_relevance({
@@ -239,6 +246,172 @@ class TestCalculateMarketRelevance:
             "frameworks": ["react", "jquery"],  # react is hot
         })
         assert result == 2
+
+
+# =============================================================================
+# Story 5.7: Versioned Market Relevance Tests
+# =============================================================================
+
+class TestCalculateMarketRelevanceVersioned:
+    """Tests for versioned _calculate_market_relevance with multi-year support."""
+
+    def test_market_relevance_multi_year_skill_in_both_years(self, scorer):
+        """Skill in both 2023 and 2024 should be counted (python is in both)."""
+        result = scorer._calculate_market_relevance({
+            "programming_languages": ["python"],  # python is in both 2023 and 2024
+        }, years=[2023, 2024])
+        assert result == 1
+
+    def test_market_relevance_multi_year_skill_only_in_2023(self, scorer):
+        """Skill only in 2023 should be counted when checking both years."""
+        # java is in 2023 but not in 2024
+        result = scorer._calculate_market_relevance({
+            "programming_languages": ["java"],
+        }, years=[2023, 2024])
+        assert result == 1
+
+    def test_market_relevance_multi_year_skill_only_in_2024(self, scorer):
+        """Skill only in 2024 should be counted when checking both years."""
+        # rust is in 2024 but not in 2023
+        result = scorer._calculate_market_relevance({
+            "programming_languages": ["rust"],
+        }, years=[2023, 2024])
+        assert result == 1
+
+    def test_market_relevance_single_year_2024_only(self, scorer):
+        """Skill only in 2024 should NOT be found when checking only 2023."""
+        # rust is in 2024 but not in 2023
+        result = scorer._calculate_market_relevance({
+            "programming_languages": ["rust"],
+        }, years=[2023])
+        assert result == 0
+
+    def test_market_relevance_single_year_2023_only(self, scorer):
+        """Skill only in 2023 should NOT be found when checking only 2024."""
+        # java is in 2023 but not in 2024
+        result = scorer._calculate_market_relevance({
+            "programming_languages": ["java"],
+        }, years=[2024])
+        assert result == 0
+
+    def test_market_relevance_default_checks_all_years(self, scorer):
+        """When years=None, should check all available years."""
+        # java is only in 2023, should be found with default (all years)
+        result = scorer._calculate_market_relevance({
+            "programming_languages": ["java"],
+        })  # years=None by default
+        assert result == 1
+
+    def test_market_relevance_additive_across_years(self, scorer):
+        """Skills from different years should all contribute."""
+        # java (2023 only), rust (2024 only), python (both)
+        result = scorer._calculate_market_relevance({
+            "programming_languages": ["java", "rust", "python"],
+        }, years=[2023, 2024])
+        assert result == 3
+
+    def test_market_relevance_invalid_year_ignored(self, scorer):
+        """Invalid year should be gracefully ignored."""
+        result = scorer._calculate_market_relevance({
+            "programming_languages": ["python"],
+        }, years=[2023, 2024, 2025])  # 2025 doesn't exist
+        assert result == 1  # python is still found in 2023 and 2024
+
+    def test_market_relevance_empty_years_list(self, scorer):
+        """Empty years list should return 0."""
+        result = scorer._calculate_market_relevance({
+            "programming_languages": ["python"],
+        }, years=[])
+        assert result == 0
+
+
+# =============================================================================
+# Story 5.7: HOT_SKILLS_VERSIONS Structure Tests
+# =============================================================================
+
+class TestHotSkillsVersionsStructure:
+    """Tests for HOT_SKILLS_VERSIONS dictionary structure."""
+
+    def test_hot_skills_versions_contains_2023(self):
+        """HOT_SKILLS_VERSIONS should contain 2023."""
+        assert 2023 in HOT_SKILLS_VERSIONS
+
+    def test_hot_skills_versions_contains_2024(self):
+        """HOT_SKILLS_VERSIONS should contain 2024."""
+        assert 2024 in HOT_SKILLS_VERSIONS
+
+    def test_hot_skills_versions_maps_to_correct_dicts(self):
+        """HOT_SKILLS_VERSIONS values should match the individual dicts."""
+        assert HOT_SKILLS_VERSIONS[2023] is HOT_SKILLS_2023
+        assert HOT_SKILLS_VERSIONS[2024] is HOT_SKILLS_2024
+
+    def test_hot_skills_2023_has_expected_categories(self):
+        """HOT_SKILLS_2023 should have standard categories."""
+        expected_categories = [
+            "programming_languages",
+            "frameworks",
+            "databases",
+            "devops",
+            "ai_ml",
+        ]
+        for cat in expected_categories:
+            assert cat in HOT_SKILLS_2023
+
+    def test_hot_skills_2024_has_expected_categories(self):
+        """HOT_SKILLS_2024 should have standard categories."""
+        expected_categories = [
+            "programming_languages",
+            "frameworks",
+            "databases",
+            "devops",
+            "ai_ml",
+        ]
+        for cat in expected_categories:
+            assert cat in HOT_SKILLS_2024
+
+
+# =============================================================================
+# Story 5.7: is_hot_skill_versioned Function Tests
+# =============================================================================
+
+class TestIsHotSkillVersioned:
+    """Tests for is_hot_skill_versioned function."""
+
+    def test_skill_in_both_years_returns_true(self):
+        """Python is in both years, should return True."""
+        assert is_hot_skill_versioned("python", [2023, 2024]) is True
+
+    def test_skill_only_in_2023_found_when_checking_2023(self):
+        """Java is only in 2023, should return True when checking 2023."""
+        assert is_hot_skill_versioned("java", [2023]) is True
+
+    def test_skill_only_in_2024_not_found_when_checking_2023(self):
+        """Rust is only in 2024, should return False when checking only 2023."""
+        assert is_hot_skill_versioned("rust", [2023]) is False
+
+    def test_skill_only_in_2024_found_when_checking_both(self):
+        """Rust is in 2024, should return True when checking both years."""
+        assert is_hot_skill_versioned("rust", [2023, 2024]) is True
+
+    def test_skill_not_in_any_year_returns_false(self):
+        """Perl is not a hot skill, should return False."""
+        assert is_hot_skill_versioned("perl", [2023, 2024]) is False
+
+    def test_none_years_checks_all_available(self):
+        """None years should check all available years."""
+        # java is only in 2023, should be found with years=None
+        assert is_hot_skill_versioned("java", None) is True
+        # rust is only in 2024, should be found with years=None
+        assert is_hot_skill_versioned("rust", None) is True
+
+    def test_case_insensitive(self):
+        """Should be case-insensitive."""
+        assert is_hot_skill_versioned("PYTHON", [2024]) is True
+        assert is_hot_skill_versioned("Python", [2024]) is True
+
+    def test_empty_years_list_returns_false(self):
+        """Empty years list should return False for any skill."""
+        assert is_hot_skill_versioned("python", []) is False
 
 
 # =============================================================================

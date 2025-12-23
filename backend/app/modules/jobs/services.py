@@ -1,17 +1,21 @@
 import logging
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import UploadFile
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.modules.jobs.models import JobDescription
 from app.modules.jobs.schemas import JobDescriptionCreate, JDParseStatus, LocationType, ParsedRequirementsUpdate
 from app.modules.jobs.jd_parser import jd_parser
 from app.modules.users.models import User
+from app.modules.cv.models import CV
+from app.modules.ai.models import CVAnalysis
+from app.modules.ai.skill_scorer import SkillMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -300,3 +304,131 @@ async def update_parsed_requirements(
     
     logger.info(f"Updated parsed requirements for JD {jd_id}")
     return jd
+
+
+async def calculate_job_match_score(
+    db: AsyncSession,
+    job_id: UUID,
+    cv_id: UUID,
+    user_id: int
+) -> Tuple[int, Optional[str]]:
+    """
+    Calculate job match score for a CV against a JD.
+
+    Story 5.7: This endpoint calculates a job match score prioritizing
+    JD skill requirements over the general CV quality score.
+
+    Args:
+        db: Database session.
+        job_id: Job description ID.
+        cv_id: CV ID to calculate match for.
+        user_id: User ID for ownership check of JD.
+
+    Returns:
+        Tuple of (match_score: int 0-100, error: Optional[str])
+        If error is not None, match_score will be 0.
+
+    Scoring Algorithm:
+        - Skill Match (70%): Percentage of JD required skills found in CV
+        - Experience Match (30%): Based on years of experience vs JD requirements
+    """
+    logger.info(f"Calculating job match score for CV {cv_id} against JD {job_id}")
+
+    # 1. Verify JD exists and belongs to user
+    jd = await get_job_description(db, job_id, user_id)
+    if jd is None:
+        return 0, "Job description not found"
+
+    # 2. Check if JD parsing is complete
+    if jd.parse_status != JDParseStatus.COMPLETED.value:
+        return 0, f"JD parsing not complete. Current status: {jd.parse_status}"
+
+    # 3. Fetch CV with analysis
+    result = await db.execute(
+        select(CV)
+        .options(selectinload(CV.analyses))
+        .where(CV.id == cv_id)
+    )
+    cv = result.scalar_one_or_none()
+
+    if cv is None:
+        return 0, "CV not found"
+
+    if not cv.is_active:
+        return 0, "CV not found"
+
+    if not cv.is_public:
+        return 0, "CV is private"
+
+    # 4. Get CV analysis
+    analysis = cv.analyses[0] if cv.analyses else None
+    if analysis is None:
+        return 0, "CV has not been analyzed"
+
+    # 5. Get CV skills from analysis
+    cv_skill_categories = analysis.skill_categories or {}
+
+    # 6. Get JD requirements
+    parsed_req = jd.parsed_requirements or {}
+    jd_required_skills = parsed_req.get("required_skills", [])
+    jd_nice_to_have = parsed_req.get("nice_to_have_skills", [])
+    jd_min_experience = parsed_req.get("min_experience_years")
+
+    # 7. Calculate skill match using SkillMatcher
+    matcher = SkillMatcher()
+
+    # Build JD text from requirements for skill extraction
+    jd_skills_text = " ".join(jd_required_skills + jd_nice_to_have)
+
+    # If no skills in parsed requirements, use the full JD description
+    if not jd_skills_text.strip():
+        jd_skills_text = jd.description
+
+    match_result = matcher.match_skills(cv_skill_categories, jd_skills_text)
+
+    # 8. Calculate skill score (0-70 points)
+    skill_match_rate = match_result["skill_match_rate"]
+    skill_score = int(skill_match_rate * 70)
+
+    # 9. Calculate experience score (0-30 points)
+    experience_score = 0
+
+    # Get CV experience years from ai_feedback.experience_breakdown.total_years
+    # This is where Ollama stores the experience years after analysis
+    cv_experience_years = None
+    ai_feedback = analysis.ai_feedback or {}
+    experience_breakdown = ai_feedback.get("experience_breakdown", {})
+    if isinstance(experience_breakdown, dict) and "total_years" in experience_breakdown:
+        try:
+            cv_experience_years = float(experience_breakdown.get("total_years"))
+        except (ValueError, TypeError):
+            pass
+
+    if jd_min_experience is not None and jd_min_experience > 0:
+        if cv_experience_years is not None:
+            if cv_experience_years >= jd_min_experience:
+                # Full points if meets or exceeds requirement
+                experience_score = 30
+            elif cv_experience_years > 0:
+                # Partial score based on ratio
+                ratio = cv_experience_years / jd_min_experience
+                experience_score = int(ratio * 30)
+            # else: 0 points if no experience
+        else:
+            # No experience data available - give middle score
+            experience_score = 15
+    else:
+        # No experience requirement in JD - give full points
+        experience_score = 30
+
+    # 10. Calculate total score
+    total_score = skill_score + experience_score
+    total_score = min(100, max(0, total_score))  # Clamp to 0-100
+
+    logger.info(
+        f"Job match score for CV {cv_id} against JD {job_id}: "
+        f"total={total_score}, skill={skill_score} (rate={skill_match_rate:.2%}), "
+        f"experience={experience_score}"
+    )
+
+    return total_score, None

@@ -77,6 +77,7 @@ export interface MatchBreakdownResponse {
   skill_score: number;
   experience_score: number;
   experience_years: number | null;
+  required_experience_years: number | null;
 }
 
 /**
@@ -188,4 +189,24 @@ export interface CandidateCVFromSearchResponse {
   skill_breakdown: Record<string, number> | null;
   skill_categories: Record<string, string[]> | null;
   is_public: boolean;
+}
+
+// ============================================================
+// Job Match Score Types (Story 5.7)
+// ============================================================
+
+/**
+ * Request payload for calculating job match score
+ */
+export interface JobMatchRequest {
+  cv_id: string;
+}
+
+/**
+ * Response for job match score calculation
+ */
+export interface JobMatchResponse {
+  cv_id: string;
+  job_id: string;
+  job_match_score: number; // 0-100
 }

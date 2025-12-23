@@ -205,7 +205,7 @@ class JobDescriptionList(BaseModel):
 
 class MatchBreakdownResponse(BaseModel):
     """Detailed breakdown of match between CV and JD."""
-    
+
     matched_skills: List[str] = Field(
         default_factory=list,
         description="Skills from JD that candidate has"
@@ -234,7 +234,11 @@ class MatchBreakdownResponse(BaseModel):
         default=None,
         description="Candidate's years of experience (if available)"
     )
-    
+    required_experience_years: Optional[int] = Field(
+        default=None,
+        description="JD's required years of experience (if specified)"
+    )
+
     model_config = {"from_attributes": True}
 
 
@@ -484,5 +488,34 @@ class CandidateCVFromSearchResponse(BaseModel):
         default=False,
         description="Whether the CV is public"
     )
-    
+
+    model_config = {"from_attributes": True}
+
+
+# ============================================================================
+# Story 5.7: Job Match Score Schemas
+# ============================================================================
+
+
+class JobMatchRequest(BaseModel):
+    """Request schema for job match score calculation."""
+
+    cv_id: UUID = Field(
+        description="CV unique identifier to calculate match score for"
+    )
+
+    model_config = {"from_attributes": True}
+
+
+class JobMatchResponse(BaseModel):
+    """Response schema for job match score calculation."""
+
+    cv_id: UUID = Field(description="CV unique identifier")
+    job_id: UUID = Field(description="Job description unique identifier")
+    job_match_score: int = Field(
+        ge=0,
+        le=100,
+        description="Job match score (0-100) prioritizing JD skill requirements"
+    )
+
     model_config = {"from_attributes": True}

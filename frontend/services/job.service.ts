@@ -10,6 +10,7 @@ import {
   SemanticSearchRequest,
   SearchResultListResponse,
   CandidateCVFromSearchResponse,
+  JobMatchResponse,
 } from "@datn/shared-types";
 
 export const jobService = {
@@ -390,5 +391,36 @@ export const jobService = {
   getCandidateCVFromSearchFileUrl: (cvId: string): string => {
     // Use Next.js API route proxy for same-origin cookie handling
     return `/api/jobs/candidates/${cvId}/file`;
+  },
+
+  /**
+   * Calculate job match score for a CV against a JD (Story 5.7)
+   * @param jdId - Job Description ID
+   * @param cvId - CV ID
+   * @param accessToken - Optional access token
+   * @returns Job match score response
+   */
+  calculateJobMatch: async (
+    jdId: string,
+    cvId: string,
+    accessToken?: string
+  ): Promise<JobMatchResponse> => {
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.post<JobMatchResponse>(
+        `/jobs/jd/${jdId}/match`,
+        { cv_id: cvId },
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error calculating job match:", error);
+      throw error;
+    }
   },
 };

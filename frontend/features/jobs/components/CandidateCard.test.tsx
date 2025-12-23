@@ -24,6 +24,7 @@ const mockCandidate: RankedCandidateResponse = {
     skill_score: 55,
     experience_score: 30,
     experience_years: 4,
+    required_experience_years: 3,
   },
   cv_summary: "Senior developer with Python experience",
   filename: "john_doe_cv.pdf",
@@ -122,8 +123,178 @@ describe("CandidateCard", () => {
       is_public: false,
     };
     render(<CandidateCard candidate={privateCandidate} rank={1} jdId={mockJdId} />);
-    
+
     const button = screen.getByRole("button", { name: /cv private/i });
     expect(button).toBeDisabled();
+  });
+
+  // ============================================================
+  // Story 5.7: Job Match Score Tests
+  // ============================================================
+
+  describe("Job Match Score (Story 5.7)", () => {
+    it("displays job match score when provided", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          jobMatchScore={75}
+        />
+      );
+
+      expect(screen.getByText("JD Match: 75%")).toBeInTheDocument();
+    });
+
+    it("displays loading state when isLoadingJobMatchScore is true", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          isLoadingJobMatchScore={true}
+        />
+      );
+
+      // Check for loading indicator (spinner or "...")
+      expect(screen.getByText("...")).toBeInTheDocument();
+    });
+
+    it("displays placeholder when jobMatchScore is null", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          jobMatchScore={null}
+        />
+      );
+
+      expect(screen.getByText("JD Match: --")).toBeInTheDocument();
+    });
+
+    it("displays placeholder when jobMatchScore is undefined", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+        />
+      );
+
+      expect(screen.getByText("JD Match: --")).toBeInTheDocument();
+    });
+
+    it("displays green color for high job match score (>= 70)", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          jobMatchScore={85}
+        />
+      );
+
+      const badge = screen.getByText("JD Match: 85%").closest("div");
+      expect(badge).toHaveClass("bg-green-100", "text-green-800");
+    });
+
+    it("displays yellow color for medium job match score (40-69)", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          jobMatchScore={55}
+        />
+      );
+
+      const badge = screen.getByText("JD Match: 55%").closest("div");
+      expect(badge).toHaveClass("bg-yellow-100", "text-yellow-800");
+    });
+
+    it("displays red color for low job match score (< 40)", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          jobMatchScore={25}
+        />
+      );
+
+      const badge = screen.getByText("JD Match: 25%").closest("div");
+      expect(badge).toHaveClass("bg-red-100", "text-red-800");
+    });
+
+    it("displays green color for score exactly 70", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          jobMatchScore={70}
+        />
+      );
+
+      const badge = screen.getByText("JD Match: 70%").closest("div");
+      expect(badge).toHaveClass("bg-green-100", "text-green-800");
+    });
+
+    it("displays yellow color for score exactly 40", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          jobMatchScore={40}
+        />
+      );
+
+      const badge = screen.getByText("JD Match: 40%").closest("div");
+      expect(badge).toHaveClass("bg-yellow-100", "text-yellow-800");
+    });
+
+    it("displays red color for score exactly 39", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          jobMatchScore={39}
+        />
+      );
+
+      const badge = screen.getByText("JD Match: 39%").closest("div");
+      expect(badge).toHaveClass("bg-red-100", "text-red-800");
+    });
+
+    it("has correct aria-label for job match score", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          jobMatchScore={80}
+        />
+      );
+
+      const badge = screen.getByLabelText("Job Match Score: 80");
+      expect(badge).toBeInTheDocument();
+    });
+
+    it("has correct aria-label when loading", () => {
+      render(
+        <CandidateCard
+          candidate={mockCandidate}
+          rank={1}
+          jdId={mockJdId}
+          isLoadingJobMatchScore={true}
+        />
+      );
+
+      const badge = screen.getByLabelText("Job Match Score: Loading");
+      expect(badge).toBeInTheDocument();
+    });
   });
 });

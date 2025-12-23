@@ -4,7 +4,7 @@ import { z } from "zod";
 import { cvService } from "@/services/cv.service";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { CVWithStatus, CVAnalysis, AnalysisStatus } from "@datn/shared-types";
+import { CVWithStatus, CVAnalysis, AnalysisStatus, SkillSuggestionsResponse } from "@datn/shared-types";
 
 interface ActionState {
   message: string;
@@ -184,3 +184,18 @@ export async function getDownloadCVUrl(cvId: string): Promise<string> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
   return `${apiUrl}/cvs/${cvId}/download`;
 }
+
+/**
+ * Server Action to fetch skill suggestions for a given CV.
+ */
+export async function getSkillSuggestions(cvId: string): Promise<SkillSuggestionsResponse> {
+  try {
+    const accessToken = await getAccessToken();
+    return await cvService.getSkillSuggestions(cvId, accessToken);
+  } catch (error) {
+    console.error("Error fetching skill suggestions:", error);
+    // Return an empty suggestions object in case of error
+    return { suggestions: [] };
+  }
+}
+

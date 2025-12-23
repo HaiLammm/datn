@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { CVAnalysisResults } from '@/features/cv/components/CVAnalysisResults';
 import { DeleteCVButton } from '@/features/cv/components/DeleteCVButton';
 import { DownloadCVButton } from '@/features/cv/components/DownloadCVButton';
-import { getCVAnalysis } from '@/features/cv/actions';
+import { getCVAnalysis, getSkillSuggestions } from '@/features/cv/actions'; // Updated import
 
 interface PageProps {
   params: Promise<{ cv_id: string }>;
@@ -32,6 +32,17 @@ export default async function CVAnalysisPage({ params }: PageProps) {
     error = e;
     console.error('Failed to fetch CV analysis:', e);
   }
+  
+  // Fetch skill suggestions
+  let skillSuggestions;
+  let suggestionsError = null;
+  try {
+    skillSuggestions = await getSkillSuggestions(cv_id);
+  } catch (e) {
+    suggestionsError = e;
+    console.error('Failed to fetch skill suggestions:', e);
+  }
+
 
   // If analysis doesn't exist, show helpful message
   if (!analysis || error) {
@@ -99,7 +110,11 @@ export default async function CVAnalysisPage({ params }: PageProps) {
       </div>
 
       <Suspense fallback={<AnalysisSkeleton />}>
-        <CVAnalysisResults cvId={cv_id} initialAnalysis={analysis} />
+        <CVAnalysisResults 
+          cvId={cv_id} 
+          initialAnalysis={analysis} 
+          skillSuggestions={skillSuggestions?.suggestions || []} // Pass suggestions
+        />
       </Suspense>
     </div>
   );

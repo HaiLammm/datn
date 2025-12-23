@@ -1331,3 +1331,245 @@ class TestSearchCandidatesEndpoint:
         assert "aws" in parsed_query["extracted_skills"]
         assert "docker" in parsed_query["extracted_skills"]
         assert parsed_query["raw_query"] == "Senior Python developer with AWS Docker 5 years"
+
+
+class TestJobMatchEndpoint:
+    """Tests for POST /api/v1/jobs/jd/{jd_id}/match endpoint (Story 5.7)."""
+
+    @pytest.mark.asyncio
+    async def test_job_match_success(self, async_client: AsyncClient):
+        """Test successful job match score calculation."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        with patch(
+            "app.modules.jobs.router.job_service.calculate_job_match_score",
+            new_callable=AsyncMock,
+            return_value=(85, None),
+        ):
+            response = await async_client.post(
+                f"/api/v1/jobs/jd/{jd_id}/match",
+                json={"cv_id": str(cv_id)},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["cv_id"] == str(cv_id)
+        assert data["job_id"] == str(jd_id)
+        assert data["job_match_score"] == 85
+
+    @pytest.mark.asyncio
+    async def test_job_match_perfect_score(self, async_client: AsyncClient):
+        """Test job match with perfect score (100)."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        with patch(
+            "app.modules.jobs.router.job_service.calculate_job_match_score",
+            new_callable=AsyncMock,
+            return_value=(100, None),
+        ):
+            response = await async_client.post(
+                f"/api/v1/jobs/jd/{jd_id}/match",
+                json={"cv_id": str(cv_id)},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["job_match_score"] == 100
+
+    @pytest.mark.asyncio
+    async def test_job_match_zero_score(self, async_client: AsyncClient):
+        """Test job match with zero score (no skills match)."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        with patch(
+            "app.modules.jobs.router.job_service.calculate_job_match_score",
+            new_callable=AsyncMock,
+            return_value=(0, None),
+        ):
+            response = await async_client.post(
+                f"/api/v1/jobs/jd/{jd_id}/match",
+                json={"cv_id": str(cv_id)},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["job_match_score"] == 0
+
+    @pytest.mark.asyncio
+    async def test_job_match_jd_not_found(self, async_client: AsyncClient):
+        """Test job match when JD is not found returns 404."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        with patch(
+            "app.modules.jobs.router.job_service.calculate_job_match_score",
+            new_callable=AsyncMock,
+            return_value=(0, "Job description not found"),
+        ):
+            response = await async_client.post(
+                f"/api/v1/jobs/jd/{jd_id}/match",
+                json={"cv_id": str(cv_id)},
+            )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Job description not found"
+
+    @pytest.mark.asyncio
+    async def test_job_match_cv_not_found(self, async_client: AsyncClient):
+        """Test job match when CV is not found returns 404."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        with patch(
+            "app.modules.jobs.router.job_service.calculate_job_match_score",
+            new_callable=AsyncMock,
+            return_value=(0, "CV not found"),
+        ):
+            response = await async_client.post(
+                f"/api/v1/jobs/jd/{jd_id}/match",
+                json={"cv_id": str(cv_id)},
+            )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "CV not found"
+
+    @pytest.mark.asyncio
+    async def test_job_match_cv_not_analyzed(self, async_client: AsyncClient):
+        """Test job match when CV has not been analyzed returns 404."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        with patch(
+            "app.modules.jobs.router.job_service.calculate_job_match_score",
+            new_callable=AsyncMock,
+            return_value=(0, "CV has not been analyzed"),
+        ):
+            response = await async_client.post(
+                f"/api/v1/jobs/jd/{jd_id}/match",
+                json={"cv_id": str(cv_id)},
+            )
+
+        assert response.status_code == 404
+        assert "not been analyzed" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_job_match_cv_private(self, async_client: AsyncClient):
+        """Test job match when CV is private returns 403."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        with patch(
+            "app.modules.jobs.router.job_service.calculate_job_match_score",
+            new_callable=AsyncMock,
+            return_value=(0, "CV is private"),
+        ):
+            response = await async_client.post(
+                f"/api/v1/jobs/jd/{jd_id}/match",
+                json={"cv_id": str(cv_id)},
+            )
+
+        assert response.status_code == 403
+        assert "private" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_job_match_jd_parsing_not_complete(self, async_client: AsyncClient):
+        """Test job match when JD parsing is not complete returns 409."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        with patch(
+            "app.modules.jobs.router.job_service.calculate_job_match_score",
+            new_callable=AsyncMock,
+            return_value=(0, "JD parsing not complete. Current status: pending"),
+        ):
+            response = await async_client.post(
+                f"/api/v1/jobs/jd/{jd_id}/match",
+                json={"cv_id": str(cv_id)},
+            )
+
+        assert response.status_code == 409
+        assert "parsing not complete" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_job_match_invalid_jd_uuid(self, async_client: AsyncClient):
+        """Test job match with invalid JD UUID returns 422."""
+        cv_id = uuid.uuid4()
+
+        response = await async_client.post(
+            "/api/v1/jobs/jd/invalid-uuid/match",
+            json={"cv_id": str(cv_id)},
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_job_match_invalid_cv_uuid(self, async_client: AsyncClient):
+        """Test job match with invalid CV UUID returns 422."""
+        jd_id = uuid.uuid4()
+
+        response = await async_client.post(
+            f"/api/v1/jobs/jd/{jd_id}/match",
+            json={"cv_id": "invalid-uuid"},
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_job_match_missing_cv_id(self, async_client: AsyncClient):
+        """Test job match without cv_id returns 422."""
+        jd_id = uuid.uuid4()
+
+        response = await async_client.post(
+            f"/api/v1/jobs/jd/{jd_id}/match",
+            json={},
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_job_match_unauthenticated(
+        self, unauthenticated_async_client: AsyncClient
+    ):
+        """Test that unauthenticated request returns 401."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        response = await unauthenticated_async_client.post(
+            f"/api/v1/jobs/jd/{jd_id}/match",
+            json={"cv_id": str(cv_id)},
+        )
+
+        assert response.status_code in [401, 403]
+
+    @pytest.mark.asyncio
+    async def test_job_match_returns_correct_response_schema(self, async_client: AsyncClient):
+        """Test that response matches JobMatchResponse schema."""
+        jd_id = uuid.uuid4()
+        cv_id = uuid.uuid4()
+
+        with patch(
+            "app.modules.jobs.router.job_service.calculate_job_match_score",
+            new_callable=AsyncMock,
+            return_value=(75, None),
+        ):
+            response = await async_client.post(
+                f"/api/v1/jobs/jd/{jd_id}/match",
+                json={"cv_id": str(cv_id)},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify all required fields are present
+        assert "cv_id" in data
+        assert "job_id" in data
+        assert "job_match_score" in data
+
+        # Verify types
+        assert isinstance(data["cv_id"], str)
+        assert isinstance(data["job_id"], str)
+        assert isinstance(data["job_match_score"], int)
+
+        # Verify values
+        assert 0 <= data["job_match_score"] <= 100

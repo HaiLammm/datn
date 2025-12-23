@@ -7,3 +7,7 @@ export interface CV {
   is_active: boolean;
   is_public: boolean;
 }
+
+export interface SkillSuggestionsResponse {
+  suggestions: string[];
+}

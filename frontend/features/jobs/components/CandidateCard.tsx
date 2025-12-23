@@ -6,7 +6,7 @@ import { MatchBreakdown } from "./MatchBreakdown";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Link from "next/link";
-import { FileText, Eye, Lock } from "lucide-react";
+import { FileText, Eye, Lock, Loader2 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -18,9 +18,29 @@ interface CandidateCardProps {
   candidate: RankedCandidateResponse;
   rank: number;
   jdId: string;
+  /** Story 5.7: Job match score (0-100), undefined if not yet calculated */
+  jobMatchScore?: number | null;
+  /** Story 5.7: Whether job match score is being loaded */
+  isLoadingJobMatchScore?: boolean;
 }
 
-export function CandidateCard({ candidate, rank, jdId }: CandidateCardProps) {
+/**
+ * Get color class for job match score badge
+ * Story 5.7: Green >= 70, Yellow 40-69, Red < 40
+ */
+function getJobMatchScoreColor(score: number): string {
+  if (score >= 70) return "bg-green-100 text-green-800 border-green-200";
+  if (score >= 40) return "bg-yellow-100 text-yellow-800 border-yellow-200";
+  return "bg-red-100 text-red-800 border-red-200";
+}
+
+export function CandidateCard({
+  candidate,
+  rank,
+  jdId,
+  jobMatchScore,
+  isLoadingJobMatchScore,
+}: CandidateCardProps) {
   const displayName =
     candidate.filename || `CV #${candidate.cv_id.slice(0, 8)}`;
 
@@ -85,9 +105,10 @@ export function CandidateCard({ candidate, rank, jdId }: CandidateCardProps) {
           </div>
         </div>
 
-        {/* Right: Score Badge */}
-        <div className="shrink-0 self-start sm:self-center">
-          <MatchScoreBadge score={candidate.match_score} size="md" />
+        {/* Right: Score Badges */}
+        <div className="shrink-0 self-start sm:self-center flex flex-col items-end gap-2">
+          {/* Original Match Score Badge - Secondary */}
+          <MatchScoreBadge score={candidate.match_score} size="sm" />
         </div>
       </div>
 

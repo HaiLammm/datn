@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import List
 
 from pydantic import BaseModel
 
@@ -32,4 +33,8 @@ class CVWithStatusResponse(CVResponse):
 
 class CVVisibilityUpdate(BaseModel):
     is_public: bool
+
+
+class SkillSuggestionsResponse(BaseModel):
+    suggestions: List[str]
 

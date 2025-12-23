@@ -1,3 +1,5 @@
+import { SkillBadges } from '@/features/jobs/components/SkillBadges'; // Import SkillBadges
+
 interface FeedbackSectionProps {
   feedback: {
     formatting_feedback?: string[];
@@ -10,6 +12,7 @@ interface FeedbackSectionProps {
       key_roles?: string[];
       industries?: string[];
     };
+    skill_suggestions?: string[]; // New prop for skill suggestions
   };
 }
 
@@ -18,7 +21,8 @@ export function FeedbackSection({ feedback }: FeedbackSectionProps) {
     (feedback.formatting_feedback && feedback.formatting_feedback.length > 0) ||
     (feedback.ats_hints && feedback.ats_hints.length > 0) ||
     (feedback.strengths && feedback.strengths.length > 0) ||
-    (feedback.improvements && feedback.improvements.length > 0);
+    (feedback.improvements && feedback.improvements.length > 0) ||
+    (feedback.skill_suggestions && feedback.skill_suggestions.length > 0); // Check for skill suggestions too
 
   if (!hasContent) {
     return (
@@ -61,6 +65,20 @@ export function FeedbackSection({ feedback }: FeedbackSectionProps) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Skill Suggestions */}
+      {feedback.skill_suggestions && feedback.skill_suggestions.length > 0 && (
+        <div>
+          <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+            Recommended Skills to Add
+          </h4>
+          <p className="text-gray-600 text-sm mb-2">
+            Consider adding these related skills to your CV if you have them, to improve your visibility:
+          </p>
+          <SkillBadges skills={feedback.skill_suggestions} type="extra" />
         </div>
       )}
 

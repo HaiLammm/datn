@@ -5,7 +5,7 @@ import {
   RankedCandidateResponse,
   RankedCandidateListResponse,
 } from "@datn/shared-types";
-import { getCandidatesAction } from "@/features/jobs/actions";
+import { getCandidatesAction, calculateJobMatchAction } from "@/features/jobs/actions";
 import { CandidateCard } from "./CandidateCard";
 import { CandidatePagination } from "./CandidatePagination";
 import { MinScoreFilter } from "./MinScoreFilter";
@@ -28,6 +28,37 @@ export function CandidateList({ jdId, initialData }: CandidateListProps) {
   const [offset, setOffset] = useState(initialData?.offset || 0);
   const [limit, setLimit] = useState(initialData?.limit || 20);
   const [minScore, setMinScore] = useState(0);
+  // Story 5.7: Job match scores state
+  const [jobMatchScores, setJobMatchScores] = useState<Map<string, number | null>>(
+    new Map()
+  );
+  const [loadingJobMatchScores, setLoadingJobMatchScores] = useState(false);
+
+  // Story 5.7: Fetch job match scores for current candidates
+  const fetchJobMatchScores = useCallback(async (candidateList: RankedCandidateResponse[]) => {
+    if (candidateList.length === 0) return;
+
+    setLoadingJobMatchScores(true);
+    const newScores = new Map<string, number | null>();
+
+    // Fetch scores in parallel
+    const promises = candidateList.map(async (candidate) => {
+      try {
+        const result = await calculateJobMatchAction(jdId, candidate.cv_id);
+        return { cvId: candidate.cv_id, score: result?.job_match_score ?? null };
+      } catch {
+        return { cvId: candidate.cv_id, score: null };
+      }
+    });
+
+    const results = await Promise.all(promises);
+    for (const { cvId, score } of results) {
+      newScores.set(cvId, score);
+    }
+
+    setJobMatchScores(newScores);
+    setLoadingJobMatchScores(false);
+  }, [jdId]);
 
   const fetchCandidates = useCallback(async () => {
     setLoading(true);
@@ -41,6 +72,8 @@ export function CandidateList({ jdId, initialData }: CandidateListProps) {
       if (result) {
         setCandidates(result.items);
         setTotal(result.total);
+        // Story 5.7: Fetch job match scores for the new candidates
+        fetchJobMatchScores(result.items);
       } else {
         setError("Không thể tải danh sách ứng viên. Vui lòng thử lại.");
       }
@@ -50,7 +83,14 @@ export function CandidateList({ jdId, initialData }: CandidateListProps) {
     } finally {
       setLoading(false);
     }
-  }, [jdId, limit, offset, minScore]);
+  }, [jdId, limit, offset, minScore, fetchJobMatchScores]);
+
+  // Story 5.7: Fetch job match scores for initial data
+  useEffect(() => {
+    if (initialData?.items && initialData.items.length > 0) {
+      fetchJobMatchScores(initialData.items);
+    }
+  }, [initialData, fetchJobMatchScores]);
 
   // Fetch when params change (except initial load)
   useEffect(() => {
@@ -149,6 +189,8 @@ export function CandidateList({ jdId, initialData }: CandidateListProps) {
                 candidate={candidate}
                 rank={offset + index + 1}
                 jdId={jdId}
+                jobMatchScore={jobMatchScores.get(candidate.cv_id)}
+                isLoadingJobMatchScore={loadingJobMatchScores && !jobMatchScores.has(candidate.cv_id)}
               />
             ))}
           </div>

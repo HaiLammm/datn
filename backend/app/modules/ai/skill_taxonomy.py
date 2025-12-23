@@ -558,6 +558,16 @@ SKILL_TAXONOMY: Dict[str, List[SkillEntry]] = {
 }
 
 
+# Hot/in-demand skills for 2023 IT industry
+HOT_SKILLS_2023: Dict[str, List[str]] = {
+    "programming_languages": ["python", "typescript", "go", "java"],
+    "frameworks": ["react", "nextjs", "django", "spring"],
+    "databases": ["postgresql", "mongodb", "redis", "elasticsearch"],
+    "devops": ["docker", "kubernetes", "aws", "terraform", "jenkins"],
+    "ai_ml": ["tensorflow", "pytorch", "scikit-learn", "pandas", "jupyter"],
+    "it_management": ["engineering management", "technical leadership", "agile", "scrum"],
+}
+
 # Hot/in-demand skills for 2024 IT industry
 HOT_SKILLS_2024: Dict[str, List[str]] = {
     "programming_languages": ["python", "typescript", "go", "rust"],
@@ -566,6 +576,12 @@ HOT_SKILLS_2024: Dict[str, List[str]] = {
     "devops": ["docker", "kubernetes", "aws", "terraform", "github actions"],
     "ai_ml": ["pytorch", "langchain", "huggingface", "openai", "rag"],
     "it_management": ["engineering management", "technical leadership", "devops culture", "remote team management"],
+}
+
+# Versioned hot skills dictionary for multi-year checking
+HOT_SKILLS_VERSIONS: Dict[int, Dict[str, List[str]]] = {
+    2023: HOT_SKILLS_2023,
+    2024: HOT_SKILLS_2024,
 }
 
 
@@ -641,13 +657,13 @@ def get_skill_to_category() -> Dict[str, str]:
 def is_hot_skill(skill: str) -> bool:
     """
     Check if a skill is in the hot skills list for 2024.
-    
+
     Args:
         skill: Canonical skill name to check.
-        
+
     Returns:
         True if the skill is a hot/in-demand skill.
-        
+
     Example:
         >>> is_hot_skill("python")
         True
@@ -657,4 +673,41 @@ def is_hot_skill(skill: str) -> bool:
     for category_skills in HOT_SKILLS_2024.values():
         if skill.lower() in [s.lower() for s in category_skills]:
             return True
+    return False
+
+
+def is_hot_skill_versioned(skill: str, years: List[int] | None = None) -> bool:
+    """
+    Check if a skill is in the hot skills list for any of the specified years.
+
+    Uses additive logic: a skill is considered "hot" if it appears in ANY
+    of the checked years' lists.
+
+    Args:
+        skill: Canonical skill name to check.
+        years: List of years to check. If None, checks all available years.
+
+    Returns:
+        True if the skill is a hot/in-demand skill in any of the specified years.
+
+    Example:
+        >>> is_hot_skill_versioned("python", [2023, 2024])
+        True
+        >>> is_hot_skill_versioned("java", [2024])  # java only in 2023
+        False
+        >>> is_hot_skill_versioned("java", [2023, 2024])
+        True
+    """
+    if years is None:
+        years = list(HOT_SKILLS_VERSIONS.keys())
+
+    skill_lower = skill.lower()
+
+    for year in years:
+        if year not in HOT_SKILLS_VERSIONS:
+            continue
+        hot_skills_for_year = HOT_SKILLS_VERSIONS[year]
+        for category_skills in hot_skills_for_year.values():
+            if skill_lower in [s.lower() for s in category_skills]:
+                return True
     return False

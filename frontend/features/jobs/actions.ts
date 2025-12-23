@@ -15,6 +15,7 @@ import {
   SemanticSearchRequest,
   SearchResultListResponse,
   CandidateCVFromSearchResponse,
+  JobMatchResponse,
 } from "@datn/shared-types";
 
 export interface ActionState {
@@ -489,13 +490,13 @@ export async function getCandidateCVFromSearchAction(
     return { success: true, data };
   } catch (error) {
     console.error("Error fetching candidate CV from search:", error);
-    
+
     // Check for specific error codes
     if (error && typeof error === "object" && "response" in error) {
       const axiosError = error as {
         response?: { status?: number; data?: { detail?: string } };
       };
-      
+
       if (axiosError.response?.status === 403) {
         return {
           success: false,
@@ -503,7 +504,7 @@ export async function getCandidateCVFromSearchAction(
           errorCode: "PRIVATE",
         };
       }
-      
+
       if (axiosError.response?.status === 404) {
         return {
           success: false,
@@ -512,11 +513,67 @@ export async function getCandidateCVFromSearchAction(
         };
       }
     }
-    
+
     return {
       success: false,
       error: "Failed to load candidate CV",
       errorCode: "UNKNOWN",
     };
   }
+}
+
+// ============================================================
+// Job Match Score Actions (Story 5.7)
+// ============================================================
+
+/**
+ * Calculate job match score for a CV against a JD
+ * @param jdId - Job Description ID
+ * @param cvId - CV ID
+ * @returns Job match score response or null on error
+ */
+export async function calculateJobMatchAction(
+  jdId: string,
+  cvId: string
+): Promise<JobMatchResponse | null> {
+  try {
+    const accessToken = await getAccessToken();
+    return await jobService.calculateJobMatch(jdId, cvId, accessToken);
+  } catch (error) {
+    console.error("Error calculating job match:", error);
+    return null;
+  }
+}
+
+/**
+ * Calculate job match scores for multiple CVs in parallel
+ * @param jdId - Job Description ID
+ * @param cvIds - Array of CV IDs
+ * @returns Map of cv_id to job_match_score (null if failed)
+ */
+export async function calculateJobMatchBatchAction(
+  jdId: string,
+  cvIds: string[]
+): Promise<Map<string, number | null>> {
+  const accessToken = await getAccessToken();
+  const results = new Map<string, number | null>();
+
+  // Make parallel calls for all CVs
+  const promises = cvIds.map(async (cvId) => {
+    try {
+      const response = await jobService.calculateJobMatch(jdId, cvId, accessToken);
+      return { cvId, score: response.job_match_score };
+    } catch (error) {
+      console.error(`Error calculating job match for CV ${cvId}:`, error);
+      return { cvId, score: null };
+    }
+  });
+
+  const responses = await Promise.all(promises);
+
+  for (const { cvId, score } of responses) {
+    results.set(cvId, score);
+  }
+
+  return results;
 }

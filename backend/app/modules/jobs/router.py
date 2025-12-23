@@ -20,6 +20,8 @@ from app.modules.jobs.schemas import (
     JobDescriptionCreate,
     JobDescriptionList,
     JobDescriptionResponse,
+    JobMatchRequest,
+    JobMatchResponse,
     LocationType,
     MatchBreakdownResponse,
     ParsedJDRequirements,
@@ -340,6 +342,83 @@ async def reparse_job_description(
         jd_id=jd.id,
         parse_status=JDParseStatus.PENDING.value,
         parsed_requirements=None,
+    )
+
+
+@router.post(
+    "/jd/{jd_id}/match",
+    response_model=JobMatchResponse,
+    summary="Calculate job match score for a CV",
+)
+async def calculate_job_match(
+    jd_id: UUID,
+    request: JobMatchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_recruiter),
+) -> JobMatchResponse:
+    """
+    Calculate job match score for a CV against this job description.
+
+    Story 5.7: This endpoint calculates a match score that prioritizes
+    JD skill requirements over general CV quality.
+
+    **Request Body:**
+    - **cv_id**: UUID of the CV to calculate match score for
+
+    **Scoring Algorithm:**
+    - Skill Match (70%): Percentage of JD required skills found in CV
+    - Experience Match (30%): Based on years of experience vs JD requirements
+
+    **Requirements:**
+    - JD must exist and belong to authenticated user
+    - JD parsing must be completed
+    - CV must be public (is_public = true)
+    - CV must have been analyzed
+
+    **Returns:**
+    - **cv_id**: CV identifier
+    - **job_id**: Job description identifier
+    - **job_match_score**: Match score from 0-100
+
+    **Errors:**
+    - 404: JD not found, CV not found, or CV not analyzed
+    - 403: CV is private
+    - 409: JD parsing not complete
+    """
+    score, error = await job_service.calculate_job_match_score(
+        db=db,
+        job_id=jd_id,
+        cv_id=request.cv_id,
+        user_id=current_user.id,
+    )
+
+    if error:
+        # Determine appropriate status code based on error message
+        if "not found" in error.lower() or "not been analyzed" in error.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error,
+            )
+        elif "private" in error.lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error,
+            )
+        elif "parsing not complete" in error.lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=error,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error,
+            )
+
+    return JobMatchResponse(
+        cv_id=request.cv_id,
+        job_id=jd_id,
+        job_match_score=score,
     )
 
 

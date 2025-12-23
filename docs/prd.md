@@ -52,6 +52,8 @@ This enhancement is crucial for realizing the core vision of the AI-Powered Recr
 | Change | Date | Version | Description | Author |
 | :--- | :--- | :--- | :--- | :--- |
 | Initial PRD Draft | 2025-12-10 | 0.1.0 | First draft of the PRD for Core AI and UI/UX enhancements. | John (PM) |
+| Skill Scoring & Match Refinement | 2025-12-21 | 0.2.0 | Refined skill scoring logic to include versioned hot skills, improved LLM prompt guidance for experience, and introduced explicit Job Match Scoring. | Lem_PM |
+| Experience Scoring Bug Fix | 2025-12-22 | 0.2.1 | Added Story 5.8 to fix experience years extraction bug and enhance UI display with JD comparison. | Lem_Dev |
 
 ## 2. Requirements
 
@@ -59,7 +61,8 @@ This enhancement is crucial for realizing the core vision of the AI-Powered Recr
 
 *   **FR1:** The system shall allow job seekers to upload CVs in PDF and DOCX formats for parsing.
 *   **FR2:** The system shall automatically parse uploaded CVs to extract relevant professional information.
-*   **FR3:** The system shall generate a quality score (0-100) for an uploaded CV based on predefined criteria.
+*   **FR3:** The system shall generate a **general quality score** (0-100) for an uploaded CV based on predefined criteria, including skill completeness, categorization, market relevance (versioned), and LLM-evaluated experience.
+*   **FR3.1:** The system shall generate a **job-specific match score** (0-100) for an uploaded CV when evaluated against a specific Job Description (JD).
 *   **FR4:** The system shall provide a summarized overview of the parsed CV content.
 *   **FR5:** The system shall perform ATS-compatibility checks and offer formatting recommendations for uploaded CVs.
 *   **FR6:** The system shall allow talent seekers to upload a Job Description (JD) for candidate matching.
@@ -172,24 +175,29 @@ The project currently utilizes the following technologies:
 
 ### 5.1. Overview
 
-Epic này cải thiện hệ thống chấm điểm kỹ năng (skill scoring) trong CV bằng cách triển khai phương pháp hybrid kết hợp rule-based extraction với LLM analysis.
+Epic này cải thiện hệ thống chấm điểm kỹ năng (skill scoring) trong CV bằng cách triển khai phương pháp hybrid kết hợp rule-based extraction với LLM analysis, đồng thời giới thiệu khả năng so khớp CV với JD cụ thể.
 
 **Goals:**
-- Cải thiện độ chính xác và nhất quán của skill scoring
-- Cung cấp skill breakdown chi tiết
-- Chuẩn hóa skill extraction với IT taxonomy
-- Hỗ trợ skill-JD matching
+- Cải thiện độ chính xác và nhất quán của skill scoring tổng thể.
+- Cho phép đánh giá linh hoạt các kỹ năng "hot" dựa trên ngữ cảnh thời gian và yêu cầu công việc.
+- Cải thiện chất lượng đánh giá kinh nghiệm bởi LLM, đặc biệt với vai trò lãnh đạo và thâm niên.
+- Cung cấp một "Điểm Phù hợp Công việc" rõ ràng khi so sánh CV với một JD cụ thể.
+- Cung cấp skill breakdown chi tiết.
+- Chuẩn hóa skill extraction với IT taxonomy.
+- Hỗ trợ skill-JD matching.
 
 ### 5.2. Key Stories
 
 | Story | Description | Priority |
 |-------|-------------|----------|
 | 5.1 | Skill Taxonomy & Extractor Foundation | P0 |
-| 5.2 | Hybrid Skill Scorer Implementation | P0 |
+| 5.2 | Hybrid Skill Scorer Implementation (including versioned hot skills & enhanced LLM guidance) | P0 |
 | 5.3 | Database Schema & API Response Update | P1 |
 | 5.4 | AI Service Integration | P1 |
-| 5.5 | Skill-JD Matching Foundation | P2 |
+| 5.5 | Skill-JD Matching Foundation & API Endpoint | P0 |
 | 5.6 | Frontend Skill Breakdown UI | P2 |
+| 5.7 | Frontend Display of Job Match Score | P1 |
+| 5.8 | Fix Experience Years Extraction & Enhance Display | P0 |
 
 ### 5.3. New Requirements Added
 

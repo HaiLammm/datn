@@ -319,6 +319,114 @@ backend/app/modules/ai/
 
 ---
 
+### Story 5.7: Enhanced Scoring and Job Match Score
+
+**As a** Recruiter,
+**I want** to see a specific "Job Match Score" for each candidate that prioritizes relevance to my Job Description,
+**So that** I can quickly identify the most relevant applicants, independent of their "general" CV quality.
+
+**As a** System,
+**I want** the general skill scoring to be more nuanced,
+**So that** I can account for the changing value of technologies over time and better evaluate senior candidates.
+
+#### Acceptance Criteria
+
+##### Backend
+1. The `skill_taxonomy.py` file is updated to include a versioned dictionary for "hot skills" (e.g., `HOT_SKILLS_2023`, `HOT_SKILLS_2024`) with a `HOT_SKILLS_VERSIONS` mapping.
+2. The `_calculate_market_relevance` method in `skill_scorer.py` is updated to check a skill against multiple years of hot skill lists (additive - skill is "hot" if in any checked year).
+3. The LLM prompt for CV analysis is enhanced to give more weight to leadership roles and years of experience.
+4. A new endpoint `POST /api/v1/jobs/{job_id}/match` is created that takes a CV ID and returns a specific job match score.
+5. The "Job Match Score" calculation prioritizes skills listed in the JD over general "hot skills".
+
+##### Frontend
+6. The "Candidate Results" page (`/jobs/jd/[jdId]/candidates`) displays the new "Job Match Score" for each candidate.
+7. The "Job Match Score" is displayed prominently on the `CandidateCard` component with clear color-coding (Green >= 70, Yellow >= 40, Red < 40).
+8. The UI gracefully handles cases where the match score has not yet been calculated (loading/null state).
+
+##### Testing
+9. Unit and integration tests are created for the new backend logic (versioned hot skills, job match endpoint).
+10. Frontend component tests are updated to verify the display of the new "Job Match Score".
+11. E2E tests validate the end-to-end flow of viewing matched candidates with their job-specific scores.
+
+#### Technical Notes
+
+**New Data Structures:**
+```python
+# In skill_taxonomy.py
+HOT_SKILLS_2023: Dict[str, List[str]] = {
+    "programming_languages": ["python", "typescript", "go"],
+    "frameworks": ["react", "nextjs", "fastapi"],
+    # ... other categories
+}
+
+HOT_SKILLS_VERSIONS: Dict[int, Dict[str, List[str]]] = {
+    2023: HOT_SKILLS_2023,
+    2024: HOT_SKILLS_2024,
+}
+```
+
+**New API Endpoint:**
+```
+POST /api/v1/jobs/{job_id}/match
+Request Body: { "cv_id": "uuid-string" }
+Response: {
+    "cv_id": "string",
+    "job_id": "string",
+    "job_match_score": 88  // 0-100
+}
+```
+
+**Rationale:** This endpoint differs from the existing `/api/v1/ai/cvs/{cv_id}/match` (Story 5.5) by:
+- Being job-centric (job_id in path) rather than CV-centric
+- Returning a single numeric score optimized for ranking display
+- Using JD's parsed requirements rather than raw JD text
+
+---
+
+### Story 5.8: Fix Experience Years Extraction and Enhance Display
+
+**As a** Recruiter,
+**I want** to see clear experience comparison between candidate's years of experience and job requirements,
+**So that** I can quickly assess if candidates meet experience requirements.
+
+**As a** System,
+**I want** to correctly extract experience years from CV analysis data,
+**So that** experience scoring is accurate and not always zero/undefined.
+
+#### Acceptance Criteria
+
+##### Backend - Bug Fix
+1. The `_extract_experience_years()` method in `candidate_ranker.py` correctly extracts from `ai_feedback["experience_breakdown"]["total_years"]`.
+2. The `calculate_job_match_score()` function in `services.py` uses the same correct extraction path.
+3. Experience score calculation handles all edge cases (has requirement, no requirement, no CV data).
+
+##### Backend - API Enhancement
+4. The `MatchBreakdownResponse` schema includes `required_experience_years` field.
+5. API functions return the JD's required experience years in the breakdown response.
+
+##### Frontend - Enhanced Display
+6. Experience display shows comparison format: "X/Y năm (yêu cầu Y năm)" when JD has requirement.
+7. Color-coding applied to experience display (green/yellow/red based on ratio).
+
+##### Testing
+8. Unit tests verify correct experience extraction from nested path.
+9. Integration tests verify experience score calculation scenarios.
+10. Frontend component tests verify experience comparison display.
+
+#### Technical Notes
+
+**Root Cause:** Experience extraction looks in wrong locations:
+- **Bug:** `skill_breakdown["experience_years"]` and `ai_feedback["experience_years"]`
+- **Fix:** `ai_feedback["experience_breakdown"]["total_years"]`
+
+**UI Enhancement:**
+```
+BEFORE: "Kinh nghiệm: Không xác định" (always due to bug)
+AFTER:  "Kinh nghiệm: 3/5 năm (yêu cầu 5 năm)" with color-coding
+```
+
+---
+
 ## 5.6. Implementation Priority
 
 | Priority | Story | Rationale |
@@ -327,8 +435,10 @@ backend/app/modules/ai/
 | **P0 - Must Have** | 5.2 Hybrid Skill Scorer | Core business logic |
 | **P1 - Should Have** | 5.3 Database & API Update | Persistence và API contract |
 | **P1 - Should Have** | 5.4 AI Service Integration | End-to-end integration |
-| **P2 - Nice to Have** | 5.5 Skill-JD Matching | Advanced feature |
+| **P0 - Must Have** | 5.5 Skill-JD Matching | Advanced feature |
 | **P2 - Nice to Have** | 5.6 Frontend UI | User-facing feature |
+| **P1 - Should Have** | 5.7 Enhanced Scoring & Job Match Score | Recruiter-facing job match feature |
+| **P0 - Must Have** | 5.8 Fix Experience Extraction & Display | Critical bug fix - experience scoring broken |
 
 > **Demo Phase Note:** Focus vào P0 và P1 stories trước. P2 có thể defer nếu cần.
 
@@ -364,3 +474,5 @@ backend/app/modules/ai/
 | 5.4 AI Service Integration | 5.2, 5.3 |
 | 5.5 Skill-JD Matching | 5.1, 5.2 |
 | 5.6 Frontend UI | 5.3, 5.4 |
+| 5.7 Enhanced Scoring & Job Match | 5.1, 5.2, 5.5 |
+| 5.8 Fix Experience Extraction | 5.7 (fixes bug in 5.7 implementation) |

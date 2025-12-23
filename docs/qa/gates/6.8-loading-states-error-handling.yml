@@ -1,0 +1,51 @@
+schema: 1
+story: "6.8"
+story_title: "Loading States & Error Handling"
+gate: CONCERNS
+status_reason: "The new functionality is high quality, but the gate is marked as CONCERNS due to a pre-existing, unrelated test failure and numerous `act(...)` warnings in the test suite."
+reviewer: "Lem_QA (Test Architect)"
+updated: "2025-12-21T12:00:00Z" # Using a placeholder timestamp as I don't have the current time
+
+waiver: { active: false }
+
+top_issues:
+  - id: "TEST-001"
+    severity: medium
+    finding: "One test suite (AccountActions.test.tsx) is failing due to a pre-existing issue unrelated to this story."
+    suggested_action: "Create a technical debt story to fix the failing test."
+    owner: dev
+  - id: "TEST-002"
+    severity: medium
+    finding: "Numerous `act(...)` warnings are present in the test suite, indicating improper handling of async state updates in tests."
+    suggested_action: "Create a technical debt story to refactor tests to correctly use `act` and remove all warnings."
+    owner: dev
+  - id: "TEST-003"
+    severity: low
+    finding: "Toast notifications (AC 5) are not verified in an end-to-end test, as the 'sonner' library is mocked in unit tests."
+    suggested_action: "Add an E2E test scenario using Playwright to visually confirm toasts appear."
+    owner: qa
+
+quality_score: 70 # 100 - (10 * 2 medium concerns) - (10 * 1 low concern) -> approximation
+
+evidence:
+  tests_reviewed: 42 # 387 total - 345 existing + 42 new approx.
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 6, 7]
+    ac_gaps: [5] # Toast notifications not covered by E2E test
+
+nfr_validation:
+  security: { status: PASS, notes: "No security implications." }
+  performance: { status: PASS, notes: "No performance implications." }
+  reliability: { status: PASS, notes: "Story improves UI reliability." }
+  maintainability: { status: PASS, notes: "Code quality is high due to reusable components and hooks." }
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Address the failing test in `AccountActions.test.tsx`."
+      refs: ["frontend/features/profile/components/AccountActions.test.tsx"]
+    - action: "Refactor tests to eliminate `act(...)` warnings."
+      refs: ["frontend/*.test.tsx"]
+    - action: "Implement E2E test for toast notifications."
+      refs: []

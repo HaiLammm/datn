@@ -15,13 +15,15 @@ from app.modules.users.models import User as DBUser
 from app.modules.cv.models import CV
 
 
-# Fixture to provide a test user
+# Fixture to provide a test user (recruiter role for jobs tests)
 @pytest.fixture(scope="session")
 def test_user() -> DBUser:
     return DBUser(
         id=1,  # User.id is Integer, not UUID
         email="test@example.com",
         hashed_password="hashedpassword",
+        role="recruiter",  # Required for jobs endpoints
+        is_active=True,  # Required for get_current_active_user
     )
 
 
@@ -55,16 +57,26 @@ def client(test_user: DBUser, mock_db_session: AsyncMock) -> TestClient:
 # Fixture for async HTTP client (authenticated)
 @pytest_asyncio.fixture
 async def async_client(test_user: DBUser, mock_db_session: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
-    from app.modules.auth.dependencies import rate_limit_cv_upload
+    from app.modules.auth.dependencies import (
+        rate_limit_cv_upload,
+        get_current_active_user,
+        require_recruiter,
+        require_job_seeker,
+        require_admin,
+    )
 
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[get_current_active_user] = lambda: test_user
+    app.dependency_overrides[require_recruiter] = lambda: test_user
+    app.dependency_overrides[require_job_seeker] = lambda: test_user
+    app.dependency_overrides[require_admin] = lambda: test_user
     app.dependency_overrides[rate_limit_cv_upload] = lambda: test_user
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-    
+
     app.dependency_overrides.clear()
 
 

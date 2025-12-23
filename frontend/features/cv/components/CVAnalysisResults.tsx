@@ -15,9 +15,10 @@ import { LoadingState } from './LoadingState';
 interface CVAnalysisResultsProps {
   cvId: string;
   initialAnalysis: CVAnalysis;
+  skillSuggestions: string[]; // New prop for skill suggestions
 }
 
-export function CVAnalysisResults({ cvId, initialAnalysis }: CVAnalysisResultsProps) {
+export function CVAnalysisResults({ cvId, initialAnalysis, skillSuggestions }: CVAnalysisResultsProps) {
   const [analysis, setAnalysis] = useState<CVAnalysis>(initialAnalysis);
   const [isPolling, setIsPolling] = useState(analysis.status === 'PROCESSING' || analysis.status === 'PENDING');
 
@@ -71,7 +72,9 @@ export function CVAnalysisResults({ cvId, initialAnalysis }: CVAnalysisResultsPr
     ats_hints: analysis.ats_hints || analysis.ai_feedback?.ats_hints || [],
     strengths: analysis.strengths || analysis.ai_feedback?.strengths || [],
     improvements: analysis.improvements || analysis.ai_feedback?.improvements || [],
+    skill_suggestions: skillSuggestions, // Pass skill suggestions here
   };
+
 
   const experienceBreakdown = analysis.experience_breakdown || analysis.ai_feedback?.experience_breakdown;
   const criteriaExplanation = analysis.criteria_explanation || analysis.ai_feedback?.criteria;

@@ -13,9 +13,11 @@ from sqlalchemy.orm import selectinload
 from app.modules.auth.dependencies import get_current_user, rate_limit_cv_upload, require_job_seeker
 from app.modules.users.models import User
 from app.core.database import get_db
-from app.modules.cv.schemas import CVResponse, CVWithStatusResponse, CVVisibilityUpdate
+from app.modules.cv.schemas import CVResponse, CVWithStatusResponse, CVVisibilityUpdate, SkillSuggestionsResponse
 from app.modules.cv.service import create_cv, delete_cv, get_cv_for_download
 from app.modules.cv.models import CV
+from app.modules.ai.models import CVAnalysis, AnalysisStatus # New import
+from app.modules.ai.skill_suggestions import skill_suggester # New import
 
 logger = logging.getLogger(__name__)
 
@@ -200,3 +202,68 @@ async def update_cv_visibility(
         analysis_status=status_str,
         quality_score=quality_score,
     )
+
+
+@router.get(
+    "/{cv_id}/suggestions",
+    response_model=SkillSuggestionsResponse,
+    summary="Get skill suggestions for a CV",
+)
+async def get_cv_skill_suggestions(
+    cv_id: uuid.UUID,
+    current_user: User = Depends(require_job_seeker),
+    db: AsyncSession = Depends(get_db),
+    max_suggestions: int = 10,
+) -> SkillSuggestionsResponse:
+    """
+    Provides skill suggestions for a given CV based on its extracted skills.
+    These suggestions can help job seekers improve their CV by adding related skills.
+    
+    Args:
+        cv_id: The ID of the CV to get suggestions for.
+        current_user: The authenticated job seeker.
+        db: The database session.
+        max_suggestions: Maximum number of suggestions to return.
+        
+    Returns:
+        A list of suggested skill strings.
+        
+    Raises:
+        HTTPException: 404 if CV or its analysis is not found.
+        HTTPException: 403 if the CV does not belong to the current user.
+    """
+    # 1. Fetch CV and its analysis
+    result = await db.execute(
+        select(CV)
+        .options(selectinload(CV.analyses))
+        .where(CV.id == cv_id)
+    )
+    cv = result.scalar_one_or_none()
+
+    if not cv:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CV not found."
+        )
+    
+    # Check ownership
+    if cv.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this CV."
+        )
+
+    analysis = cv.analyses[0] if cv.analyses else None
+    if not analysis or not analysis.extracted_skills:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CV analysis or extracted skills not found for this CV."
+        )
+
+    # 2. Get suggestions using the skill_suggester
+    suggestions = skill_suggester.get_suggestions(
+        cv_skills=analysis.extracted_skills,
+        max_suggestions=max_suggestions
+    )
+
+    return SkillSuggestionsResponse(suggestions=suggestions)

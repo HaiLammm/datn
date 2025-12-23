@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
-import { getCVAnalysis } from "@/features/cv/actions";
+import { getCVAnalysis, getSkillSuggestions } from "@/features/cv/actions"; // Updated import
 import { CVAnalysisResults } from "@/features/cv/components/CVAnalysisResults";
 
 interface CVAnalysisPageProps {
@@ -20,6 +20,15 @@ export default async function CVAnalysisPage({ params }: CVAnalysisPageProps) {
 
   try {
     const analysis = await getCVAnalysis(cv_id);
+    // Fetch skill suggestions
+    let skillSuggestions;
+    let suggestionsError = null;
+    try {
+      skillSuggestions = await getSkillSuggestions(cv_id);
+    } catch (e) {
+      suggestionsError = e;
+      console.error('Failed to fetch skill suggestions:', e);
+    }
 
     return (
       <div className="container mx-auto px-4 py-8">
@@ -35,7 +44,11 @@ export default async function CVAnalysisPage({ params }: CVAnalysisPageProps) {
           </h1>
         </div>
 
-        <CVAnalysisResults cvId={cv_id} initialAnalysis={analysis} />
+        <CVAnalysisResults 
+          cvId={cv_id} 
+          initialAnalysis={analysis} 
+          skillSuggestions={skillSuggestions?.suggestions || []} // Pass suggestions
+        />
       </div>
     );
   } catch (error) {

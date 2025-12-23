@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api-client";
-import { CV, CVWithStatus, CVAnalysis, AnalysisStatus } from "@datn/shared-types";
+import { CV, CVWithStatus, CVAnalysis, AnalysisStatus, SkillSuggestionsResponse } from "@datn/shared-types";
 
 export const cvService = {
   uploadCV: async (formData: FormData, accessToken?: string): Promise<CV> => {
@@ -92,4 +92,19 @@ export const cvService = {
       throw error;
     }
   },
+
+  getSkillSuggestions: async (cvId: string, accessToken?: string): Promise<SkillSuggestionsResponse> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.get<SkillSuggestionsResponse>(`/cvs/${cvId}/suggestions`, { headers });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching skill suggestions:", error);
+      throw error;
+    }
+  },
 };
+

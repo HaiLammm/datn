@@ -297,6 +297,9 @@ JSON only:"""
             result = await self._call_ollama(analysis_prompt)
             llm_analysis = self._parse_analysis_response(result)
 
+            # Story 5.7: Apply bonus scoring for leadership and experience
+            llm_analysis = self._apply_leadership_experience_bonus(llm_analysis)
+
             # Story 5.4: Integrate hybrid skill scoring
             try:
                 skill_score_result = self.skill_scorer.calculate_skill_score(
@@ -334,6 +337,84 @@ JSON only:"""
             logger.error(f"AI analysis failed: {str(e)}")
             # Return fallback values
             return self._get_fallback_analysis()
+
+    def _apply_leadership_experience_bonus(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Story 5.7: Apply bonus scoring for leadership roles and years of experience.
+
+        This is a deterministic post-processing step applied after LLM analysis
+        to give more weight to senior candidates.
+
+        Bonus rules:
+        - has_leadership = true: +10 to experience score (cap at 100)
+        - total_years >= 5: +5 to experience score
+        - total_years >= 10: +10 to experience score (replaces +5)
+        - Senior titles (Director, VP, CTO, Principal): +5 to professionalism score
+
+        Args:
+            analysis: Parsed LLM analysis result.
+
+        Returns:
+            Updated analysis with adjusted scores.
+        """
+        try:
+            criteria = analysis.get("criteria", {})
+            experience_breakdown = analysis.get("experience_breakdown", {})
+
+            experience_score = criteria.get("experience", 50)
+            professionalism_score = criteria.get("professionalism", 50)
+
+            # Track bonuses applied
+            bonuses_applied = []
+
+            # Leadership bonus
+            has_leadership = experience_breakdown.get("has_leadership", False)
+            if has_leadership:
+                experience_score = min(100, experience_score + 10)
+                bonuses_applied.append("leadership:+10")
+
+            # Years of experience bonus
+            total_years = experience_breakdown.get("total_years", 0)
+            if isinstance(total_years, (int, float)):
+                if total_years >= 10:
+                    experience_score = min(100, experience_score + 10)
+                    bonuses_applied.append("10+years:+10")
+                elif total_years >= 5:
+                    experience_score = min(100, experience_score + 5)
+                    bonuses_applied.append("5+years:+5")
+
+            # Senior title bonus for professionalism
+            key_roles = experience_breakdown.get("key_roles", [])
+            senior_titles = ["director", "vp", "vice president", "cto", "ceo",
+                            "cfo", "cio", "principal", "chief", "head of"]
+            has_senior_title = any(
+                any(title in role.lower() for title in senior_titles)
+                for role in key_roles
+            )
+            if has_senior_title:
+                professionalism_score = min(100, professionalism_score + 5)
+                bonuses_applied.append("senior_title:+5_prof")
+
+            # Update criteria
+            criteria["experience"] = experience_score
+            criteria["professionalism"] = professionalism_score
+            analysis["criteria"] = criteria
+
+            # Recalculate overall score
+            criteria_average = sum(criteria.values()) / len(criteria)
+            analysis["score"] = int(round(criteria_average))
+
+            if bonuses_applied:
+                logger.info(f"Story 5.7 bonuses applied: {bonuses_applied}, "
+                           f"new experience={experience_score}, "
+                           f"new professionalism={professionalism_score}, "
+                           f"new overall={analysis['score']}")
+
+            return analysis
+
+        except Exception as e:
+            logger.warning(f"Failed to apply leadership/experience bonus: {e}")
+            return analysis
 
     def _parse_analysis_response(self, response: str) -> Dict[str, Any]:
         """

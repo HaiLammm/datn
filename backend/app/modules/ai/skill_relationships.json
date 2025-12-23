@@ -1,0 +1,29 @@
+{
+  "python": [
+    "django",
+    "flask",
+    "fastapi",
+    "pandas",
+    "numpy",
+    "scipy",
+    "tensorflow",
+    "pytorch"
+  ],
+  "javascript": [
+    "react",
+    "angular",
+    "vue.js",
+    "nodejs",
+    "express.js",
+    "typescript"
+  ],
+  "devops": [
+    "docker",
+    "kubernetes",
+    "aws",
+    "azure",
+    "gcp",
+    "jenkins",
+    "terraform"
+  ]
+}
