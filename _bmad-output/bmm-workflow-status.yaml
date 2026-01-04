@@ -1,0 +1,7 @@
+project_type: brownfield
+planning_track: BMad Method
+discovery_workflow: Deep Dive Analysis
+prd:
+  status: completed
+  file: /home/luonghailam/Projects/datn/_bmad-output/planning-artifacts/prd.md
+  completed_at: 2025-12-30T12:00:00Z # Placeholder - replace with actual timestamp

@@ -86,14 +86,26 @@ export function canAccessJobs(role: UserRole): boolean {
 
 /**
  * Check if a role can access Admin features.
- * 
+ *
  * Admin features are only accessible to admin users.
- * 
+ *
  * @param role - The user's role
  * @returns true if the role can access Admin
  */
 export function canAccessAdmin(role: UserRole): boolean {
   return role === 'admin';
+}
+
+/**
+ * Check if a role can access Messages features.
+ *
+ * Messages are accessible to both recruiters and job seekers.
+ *
+ * @param role - The user's role
+ * @returns true if the role can access Messages
+ */
+export function canAccessMessages(role: UserRole): boolean {
+  return role === 'recruiter' || role === 'job_seeker' || role === 'admin';
 }
 
 /**

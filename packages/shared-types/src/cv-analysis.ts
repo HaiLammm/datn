@@ -13,8 +13,7 @@ export interface CriteriaExplanation {
 
 /**
  * Skill breakdown scores from hybrid skill scoring system.
- * Total score is sum of all sub-scores (0-25 max).
- * @see docs/prd/5-hybrid-skill-scoring-epic.md
+ * @see _bmad-output/planning-artifacts/docs/prd/5-hybrid-skill-scoring-epic.md
  */
 export interface SkillBreakdown {
   /** Skill completeness score (0-7): Based on quantity and diversity of skills */
@@ -32,7 +31,7 @@ export interface SkillBreakdown {
 /**
  * Categorized skills extracted from CV.
  * Skills are normalized to canonical names and grouped by category.
- * @see docs/prd/5-hybrid-skill-scoring-epic.md
+ * @see _bmad-output/planning-artifacts/docs/prd/5-hybrid-skill-scoring-epic.md
  */
 export interface SkillCategories {
   programming_languages: string[];

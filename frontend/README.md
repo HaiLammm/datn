@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend - AI Recruitment Platform
 
-## Getting Started
+This is the frontend for the AI Recruitment Platform, built with Next.js 14+ (App Router).
 
-First, run the development server:
+## Architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+The frontend follows a "feature-first" (or "vertical slice") architecture. Code is organized by business features, not by file type.
+
+### Directory Structure
+
+```
+├── app/         # Routing (page.tsx, layout.tsx)
+├── components/
+│   └── ui/      # Shared UI components (from shadcn/ui)
+├── features/    # Business logic modules (auth, jobs, etc.)
+├── lib/         # Global utilities
+├── services/    # API clients for the backend
+└── types/       # Global type definitions
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Server vs. Client Components
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+*   `page.tsx` and `layout.tsx` files are always Server Components.
+*   Interactive UI is built in "use client" components, which are then imported into server components.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Design System
 
-## Learn More
+The UI is built with `shadcn/ui` and styled with Tailwind CSS.
 
-To learn more about Next.js, take a look at the following resources:
+*   **Color Palette:** A strict color palette is enforced (see `frontend/GEMINI.md` for details).
+*   **Typography:** The font is "Be Vietnam Pro".
+*   **Styling:** Utility classes are preferred. The `cn()` utility is used to merge classes.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+*   **Framework:** Next.js (App Router)
+*   **UI Library:** `shadcn/ui`
+*   **Icons:** Lucide React
+*   **Forms:** `react-hook-form` with `zod` for validation.
+*   **Styling:** Tailwind CSS
 
-## Deploy on Vercel
+## Data Fetching
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+*   **Communication with Backend:** All backend communication happens through Server Actions.
+*   **No Direct DB Access:** The frontend does not connect directly to the database.
+*   **Service Layer:** API calls are abstracted into a service layer (`src/services`).
+*   **Authentication:** The frontend relies on HttpOnly cookies set by the backend. API requests are made with `credentials: 'include'`.

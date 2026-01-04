@@ -1069,7 +1069,7 @@ async def get_candidate_cv_file_for_recruiter(
         with open(full_path, "rb") as f:
             while chunk := f.read(8192):
                 yield chunk
-    
+
     return StreamingResponse(
         file_iterator(),
         media_type=content_type,
@@ -1077,3 +1077,83 @@ async def get_candidate_cv_file_for_recruiter(
             "Content-Disposition": content_disposition,
         },
     )
+
+
+# ============ Applicants Endpoint for Messaging ============
+
+from pydantic import BaseModel
+
+
+class ApplicantResponse(BaseModel):
+    """Schema for applicant information."""
+
+    id: int
+    full_name: str | None
+    email: str
+    avatar: str | None
+    role: str
+    applied_at: str
+
+
+class ApplicantListResponse(BaseModel):
+    """Response schema for applicants list."""
+
+    applicants: list[ApplicantResponse]
+    total: int
+
+
+@router.get(
+    "/jd/{jd_id}/applicants",
+    response_model=ApplicantListResponse,
+    summary="Get list of applicants for a job",
+)
+async def get_job_applicants(
+    jd_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_recruiter),
+) -> ApplicantListResponse:
+    """
+    Get list of candidates who have applied to a job description.
+
+    This endpoint returns the user profiles of candidates who applied
+    to the specified job, allowing recruiters to start conversations.
+
+    **Requirements:**
+    - User must be authenticated recruiter
+    - Job must belong to the authenticated user
+
+    **Returns:**
+    - List of applicants with their basic profile information
+    """
+    # Verify JD exists and belongs to user
+    jd = await job_service.get_job_description(db, jd_id, current_user.id)
+    if jd is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job description not found",
+        )
+
+    # For now, return mock data - in a real app, this would query
+    # an applications/jobs table
+    # This is a placeholder that returns users who have uploaded CVs
+    result = await db.execute(
+        select(User)
+        .where(User.role == "job_seeker")
+        .order_by(User.created_at.desc())
+        .limit(20)
+    )
+    users = result.scalars().all()
+
+    applicants = [
+        ApplicantResponse(
+            id=user.id,
+            full_name=user.full_name,
+            email=user.email,
+            avatar=user.avatar,
+            role=user.role,
+            applied_at=user.created_at.isoformat(),
+        )
+        for user in users
+    ]
+
+    return ApplicantListResponse(applicants=applicants, total=len(applicants))

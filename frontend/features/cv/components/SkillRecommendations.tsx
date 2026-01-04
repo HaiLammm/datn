@@ -32,7 +32,7 @@ function LightbulbIcon({ className }: { className?: string }) {
  * Each recommendation is shown as a card with a lightbulb icon.
  * Shows empty state message when no recommendations are available.
  * 
- * @see docs/prd/5-hybrid-skill-scoring-epic.md
+ * @see _bmad-output/planning-artifacts/docs/prd/5-hybrid-skill-scoring-epic.md
  */
 export function SkillRecommendations({ recommendations }: SkillRecommendationsProps) {
   if (!recommendations || recommendations.length === 0) {

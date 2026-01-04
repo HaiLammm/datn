@@ -70,7 +70,7 @@ const CATEGORY_CONFIG: Record<string, {
  * Each category has its own color scheme for easy visual distinction.
  * Empty categories are hidden to avoid visual clutter.
  * 
- * @see docs/prd/5-hybrid-skill-scoring-epic.md
+ * @see _bmad-output/planning-artifacts/docs/prd/5-hybrid-skill-scoring-epic.md
  */
 export function SkillCategoriesDisplay({ categories }: SkillCategoriesDisplayProps) {
   // Build list of non-empty categories with their config

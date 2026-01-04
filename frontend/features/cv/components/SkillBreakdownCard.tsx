@@ -9,7 +9,7 @@ interface SkillBreakdownCardProps {
  * Displays skill score breakdown with progress bars for each sub-score.
  * Total score (0-25) is shown prominently with color coding based on level.
  * 
- * @see docs/prd/5-hybrid-skill-scoring-epic.md
+ * @see _bmad-output/planning-artifacts/docs/prd/5-hybrid-skill-scoring-epic.md
  */
 export function SkillBreakdownCard({ breakdown }: SkillBreakdownCardProps) {
   const { 
