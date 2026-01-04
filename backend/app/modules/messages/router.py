@@ -13,6 +13,7 @@ from app.modules.messages.schemas import (
     MessageResponse,
     MessageListResponse,
     AuthVerifyResponse,
+    ConversationListItemSchema,
 )
 from app.modules.messages.service import MessageService
 from app.modules.users.models import User
@@ -46,18 +47,22 @@ async def create_conversation(
     return conversation
 
 
-@router.get("/conversations", response_model=list[ConversationResponse])
+@router.get("/conversations", response_model=list[ConversationListItemSchema])
 async def get_conversations(
     limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get all conversations for the current user.
-    - For recruiters: returns conversations where user is the recruiter
-    - For candidates: returns conversations where user is the candidate
+    Get conversation list for current user with enhanced information (Story 7.3).
+    
+    Returns conversations with:
+    - Other participant info (name, avatar, role)  
+    - Last message preview
+    - Unread count (messages not sent by current user)
+    - Sorted by updated_at DESC (newest first)
     """
-    conversations = await MessageService.get_user_conversations(
+    conversations = await MessageService.get_conversation_list_for_user(
         db=db,
         user_id=current_user.id,
         role=current_user.role,
@@ -192,6 +197,78 @@ async def mark_conversation_read(
     return {"marked_count": marked_count}
 
 
+@router.patch("/conversations/{conversation_id}/mark-read")
+async def mark_conversation_read_patch(
+    conversation_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mark all messages in a conversation as read (Story 7.3 PATCH endpoint).
+    
+    Returns the updated unread count for the conversation.
+    """
+    # Verify conversation exists and user has access
+    conversation = await MessageService.get_conversation_by_id(
+        db=db,
+        conversation_id=conversation_id,
+    )
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+
+    if (
+        current_user.id != conversation.recruiter_id
+        and current_user.id != conversation.candidate_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this conversation",
+        )
+
+    marked_count = await MessageService.mark_messages_as_read(
+        db=db,
+        conversation_id=conversation_id,
+        user_id=current_user.id,
+    )
+
+    # Return updated unread count (should be 0 after marking as read)
+    return {"unread_count": 0, "marked_count": marked_count}
+
+
+@router.get("/conversations/{conversation_id}/participants")
+async def get_conversation_participants(
+    conversation_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get conversation participants (for Socket.io server use).
+    
+    Returns recruiter_id and candidate_id for the conversation.
+    """
+    try:
+        recruiter_id, candidate_id = await MessageService.get_conversation_participants(
+            db=db,
+            conversation_id=conversation_id,
+        )
+        
+        return {
+            "conversation_id": str(conversation_id),
+            "recruiter_id": recruiter_id,
+            "candidate_id": candidate_id,
+            "participants": [recruiter_id, candidate_id]
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+
 @router.get("/auth/verify", response_model=AuthVerifyResponse)
 async def verify_auth(
     current_user: User = Depends(get_current_user),
@@ -207,3 +284,28 @@ async def verify_auth(
         full_name=current_user.full_name,
         is_active=current_user.is_active,
     )
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+
+    if (
+        current_user.id != conversation.recruiter_id
+        and current_user.id != conversation.candidate_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this conversation",
+        )
+
+    marked_count = await MessageService.mark_messages_as_read(
+        db=db,
+        conversation_id=conversation_id,
+        user_id=current_user.id,
+    )
+
+    # Return updated unread count (should be 0 after marking as read)
+    return {"unread_count": 0, "marked_count": marked_count}
+

@@ -122,6 +122,36 @@ class AuthVerifyResponse(BaseModel):
     is_active: bool
 
 
+# ============ Story 7.3: Conversation List Schemas ============
+
+
+class UserBasicInfo(BaseModel):
+    """Basic user information for conversation participants."""
+    
+    id: int
+    name: str
+    avatar: Optional[str] = None
+    role: str
+
+
+class MessagePreview(BaseModel):
+    """Preview of message for conversation list."""
+    
+    content: str
+    timestamp: datetime
+    sender_id: int
+
+
+class ConversationListItemSchema(BaseModel):
+    """Schema for conversation list item (Story 7.3)."""
+    
+    conversation_id: str  # UUID as string for JSON serialization
+    other_participant: UserBasicInfo
+    last_message: Optional[MessagePreview] = None
+    unread_count: int = 0
+    updated_at: datetime
+
+
 # ============ Update forward references ============
 
 

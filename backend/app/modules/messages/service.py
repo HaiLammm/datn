@@ -14,6 +14,9 @@ from app.modules.messages.schemas import (
     MessageCreateRequest,
     MessageResponse,
     MessageCreateResponse,
+    ConversationListItemSchema,
+    UserBasicInfo,
+    MessagePreview,
 )
 from app.modules.users.models import User
 
@@ -394,3 +397,151 @@ class MessageService:
         )
 
         return result.scalar() or 0
+
+    @staticmethod
+    async def get_conversation_list_for_user(
+        db: AsyncSession,
+        user_id: int,
+        role: str,
+        limit: int = 20,
+    ) -> list[ConversationListItemSchema]:
+        """
+        Get conversation list for user with enhanced information (Story 7.3).
+        
+        Returns conversations with:
+        - Other participant info (name, avatar, role)
+        - Last message preview
+        - Unread count (messages where is_read=FALSE AND sender_id != user_id)
+        - Updated timestamp
+        
+        Optimized with LATERAL JOIN for performance.
+        
+        Args:
+            db: Database session
+            user_id: ID of the user
+            role: 'recruiter' or 'candidate'
+            limit: Maximum number of conversations to return
+            
+        Returns:
+            List of ConversationListItemSchema ordered by updated_at descending
+        """
+        from sqlalchemy import text, case, func
+        
+        # Build the optimized query with LATERAL JOIN
+        query = text("""
+            SELECT
+                c.id::text as conversation_id,
+                c.updated_at,
+                -- Other participant info
+                u.id as other_user_id,
+                u.full_name as other_user_name,
+                u.avatar as other_user_avatar,
+                u.role as other_user_role,
+                -- Last message
+                last_msg.content as last_message_content,
+                last_msg.created_at as last_message_time,
+                last_msg.sender_id as last_message_sender_id,
+                -- Unread count
+                (
+                    SELECT COUNT(*)
+                    FROM messages m
+                    WHERE m.conversation_id = c.id
+                        AND m.is_read = FALSE
+                        AND m.sender_id != :current_user_id
+                ) as unread_count
+            FROM conversations c
+            -- Join with other participant (not current user)
+            JOIN users u ON (
+                CASE
+                    WHEN c.recruiter_id = :current_user_id THEN u.id = c.candidate_id
+                    ELSE u.id = c.recruiter_id
+                END
+            )
+            -- Get last message using LATERAL JOIN (efficient)
+            LEFT JOIN LATERAL (
+                SELECT content, created_at, sender_id
+                FROM messages
+                WHERE conversation_id = c.id
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) last_msg ON true
+            WHERE
+                c.recruiter_id = :current_user_id OR c.candidate_id = :current_user_id
+            ORDER BY
+                c.updated_at DESC
+            LIMIT :limit
+        """)
+        
+        result = await db.execute(
+            query, 
+            {
+                "current_user_id": user_id,
+                "limit": limit
+            }
+        )
+        
+        rows = result.fetchall()
+        
+        conversations = []
+        for row in rows:
+            # Build last message preview if exists
+            last_message = None
+            if row.last_message_content:
+                last_message = MessagePreview(
+                    content=row.last_message_content,
+                    timestamp=row.last_message_time,
+                    sender_id=row.last_message_sender_id
+                )
+            
+            # Build conversation list item
+            conversation = ConversationListItemSchema(
+                conversation_id=row.conversation_id,
+                other_participant=UserBasicInfo(
+                    id=row.other_user_id,
+                    name=row.other_user_name or f"User {row.other_user_id}",
+                    avatar=row.other_user_avatar,
+                    role=row.other_user_role
+                ),
+                last_message=last_message,
+                unread_count=row.unread_count,
+                updated_at=row.updated_at
+            )
+            
+            conversations.append(conversation)
+        
+        logger.info(
+            "Retrieved %d conversations for user %d (role: %s)",
+            len(conversations),
+            user_id,
+            role,
+        )
+        
+        return conversations
+
+    @staticmethod
+    async def get_conversation_participants(
+        db: AsyncSession,
+        conversation_id: uuid.UUID,
+    ) -> tuple[int, int]:
+        """
+        Get conversation participant IDs (recruiter_id, candidate_id).
+        
+        Used by Socket.io server to emit conversation-updated events.
+        
+        Args:
+            db: Database session
+            conversation_id: ID of the conversation
+            
+        Returns:
+            Tuple of (recruiter_id, candidate_id)
+        """
+        result = await db.execute(
+            select(Conversation.recruiter_id, Conversation.candidate_id)
+            .where(Conversation.id == conversation_id)
+        )
+        
+        row = result.first()
+        if not row:
+            raise ValueError(f"Conversation {conversation_id} not found")
+            
+        return row.recruiter_id, row.candidate_id

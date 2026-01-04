@@ -4,26 +4,8 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConversationList } from "@/features/messages/components/ConversationList";
 import { getClientSession } from "@/lib/auth-client";
-
-interface Conversation {
-  id: string;
-  recruiter_id: string;
-  candidate_id: string;
-  created_at: string;
-  updated_at: string;
-  unread_count?: number;
-  last_message?: {
-    id: string;
-    content: string;
-    created_at: string;
-    sender_id: number;
-  };
-  other_user?: {
-    id: string;
-    full_name: string;
-    avatar?: string;
-  };
-}
+import { useGlobalSocket } from "@/hooks/useGlobalSocket";
+import { ConversationListItem, ConversationUpdatedEvent } from "@/types/messages";
 
 interface User {
   id: string;
@@ -34,8 +16,9 @@ interface User {
 
 export default function MessagesPage(): React.ReactElement {
   const router = useRouter();
+  const socket = useGlobalSocket();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +44,7 @@ export default function MessagesPage(): React.ReactElement {
           return;
         }
 
-        // Fetch conversations
+        // Fetch conversations using new API
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations`,
           {
@@ -73,11 +56,7 @@ export default function MessagesPage(): React.ReactElement {
           throw new Error("Failed to fetch conversations");
         }
 
-        const data: Conversation[] = await response.json();
-
-        // For each conversation, we need to get the other user's info
-        // This would typically be done via a joined query, but for now
-        // we'll fetch user details separately or use the existing data
+        const data: ConversationListItem[] = await response.json();
         setConversations(data);
       } catch (err) {
         console.error("Error fetching conversations:", err);
@@ -89,6 +68,71 @@ export default function MessagesPage(): React.ReactElement {
 
     fetchConversations();
   }, [router]);
+
+  // Story 7.3: Real-time conversation list updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleConversationUpdated = (data: ConversationUpdatedEvent) => {
+      console.log('Conversation updated:', data);
+      
+      setConversations(prev => {
+        // Find and update conversation
+        const updated = prev.map(conv =>
+          conv.conversation_id === data.conversation_id
+            ? {
+                ...conv,
+                last_message: data.last_message,
+                unread_count: data.unread_count,
+                updated_at: data.updated_at
+              }
+            : conv
+        );
+
+        // Re-sort by updated_at (newest first)
+        return updated.sort((a, b) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
+      });
+    };
+
+    socket.on('conversation-updated', handleConversationUpdated);
+
+    return () => {
+      socket.off('conversation-updated', handleConversationUpdated);
+    };
+  }, [socket]);
+
+  // Story 7.3: Mark conversation as read when clicked
+  const markConversationAsRead = async (conversationId: string) => {
+    try {
+      const token = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("access_token="))
+        ?.split("=")[1];
+
+      if (!token) return;
+
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations/${conversationId}/mark-read`,
+        {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      // Update local state to mark as read
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.conversation_id === conversationId
+            ? { ...conv, unread_count: 0 }
+            : conv
+        )
+      );
+    } catch (error) {
+      console.error('Failed to mark conversation as read:', error);
+    }
+  };
 
   // Loading state
   if (isLoading) {
@@ -135,6 +179,43 @@ export default function MessagesPage(): React.ReactElement {
     );
   }
 
+  // Empty state with Vietnamese message as per AC #6
+  if (conversations.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+              <svg
+                className="w-16 h-16 mx-auto mb-4 text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                />
+              </svg>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Bạn chưa có cuộc trò chuyện nào
+              </h3>
+              <p className="text-gray-500">
+                Khi có tin nhắn mới, chúng sẽ xuất hiện ở đây.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -143,7 +224,10 @@ export default function MessagesPage(): React.ReactElement {
             <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
           </div>
 
-          <ConversationList conversations={conversations} />
+          <ConversationList 
+            conversations={conversations} 
+            onConversationClick={markConversationAsRead}
+          />
         </div>
       </div>
     </div>

@@ -62,20 +62,27 @@ io.use(async (socket, next) => {
 
 io.on('connection', (socket) => {
   // User connected - store in active connections
-
+  const userId = socket.userId;
+  
   // Store active connection
-  if (!activeConnections.has(socket.userId)) {
-    activeConnections.set(socket.userId, new Map());
+  if (!activeConnections.has(userId)) {
+    activeConnections.set(userId, new Map());
   }
-  activeConnections.get(socket.userId).set(socket.id, {
+  activeConnections.get(userId).set(socket.id, {
     id: socket.id,
     userRole: socket.userRole,
     userName: socket.userName,
     joinedConversations: new Set(),
   });
 
+  // ============ Story 7.3: User Room Subscription ============
+  // Automatically join user-specific room for global notifications
+  const userRoomName = `user:${userId}`;
+  socket.join(userRoomName);
+  console.log(`User ${userId} joined user room: ${userRoomName}`);
+
   // Emit online status to relevant parties
-  broadcastOnlineStatus(socket.userId, true);
+  broadcastOnlineStatus(userId, true);
 
   // ============ Join Conversation Handler ============
 
@@ -141,7 +148,9 @@ io.on('connection', (socket) => {
       // Broadcast to all participants in the conversation room
       io.to(`conversation:${conversationId}`).emit('new-message', message);
 
-      // Message sent successfully and broadcasted
+      // ============ Story 7.3: conversation-updated Event ============
+      // Emit conversation-updated to user rooms for conversation list updates
+      await emitConversationUpdated(conversationId, message);
 
       // Send confirmation to sender
       socket.emit('message-sent', {
@@ -196,6 +205,57 @@ io.on('connection', (socket) => {
 });
 
 // ============ Helper Functions ============
+
+async function emitConversationUpdated(conversationId, message) {
+  try {
+    // Get conversation participants from backend API
+    const participantsResponse = await axios.get(
+      `${process.env.BACKEND_API_URL}/api/v1/messages/conversations/${conversationId}/participants`,
+      {
+        headers: { Authorization: `Bearer ${process.env.API_SYSTEM_TOKEN || ''}` },
+      }
+    );
+
+    const { participants } = participantsResponse.data;
+
+    // Emit conversation-updated to each participant's user room
+    for (const participantId of participants) {
+      try {
+        // Get unread count for this specific participant
+        const unreadResponse = await axios.get(
+          `${process.env.BACKEND_API_URL}/api/v1/messages/conversations/unread-count`,
+          {
+            headers: { Authorization: `Bearer ${process.env.API_SYSTEM_TOKEN || ''}` },
+          }
+        );
+
+        // For simplicity, set unread_count based on whether user is sender
+        const unreadCount = participantId === message.sender_id ? 0 : 1;
+
+        const conversationUpdateData = {
+          conversation_id: conversationId,
+          last_message: {
+            content: message.content,
+            timestamp: message.created_at,
+            sender_id: message.sender_id
+          },
+          unread_count: unreadCount,
+          updated_at: new Date().toISOString()
+        };
+
+        // Emit to participant's user room
+        io.to(`user:${participantId}`).emit('conversation-updated', conversationUpdateData);
+        console.log(`Emitted conversation-updated to user:${participantId}`);
+      } catch (error) {
+        console.error(`Error emitting to user ${participantId}:`, error.message);
+      }
+    }
+
+    console.log(`Emitted conversation-updated for conversation ${conversationId} to ${participants.length} participants`);
+  } catch (error) {
+    console.error('Error emitting conversation-updated:', error.message);
+  }
+}
 
 function broadcastOnlineStatus(userId, isOnline) {
   // In a real app, this would broadcast to all conversations the user is part of
