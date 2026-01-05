@@ -395,6 +395,7 @@ export const jobService = {
 
   /**
    * Calculate job match score for a CV against a JD (Story 5.7)
+   * Server-side version for use in server actions
    * @param jdId - Job Description ID
    * @param cvId - CV ID
    * @param accessToken - Optional access token
@@ -420,6 +421,41 @@ export const jobService = {
       return response.data;
     } catch (error) {
       console.error("Error calculating job match:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Calculate job match score for a CV against a JD (Story 5.7)
+   * Client-side version that uses Next.js API route proxy
+   * @param jdId - Job Description ID
+   * @param cvId - CV ID
+   * @returns Job match score response
+   * @note Uses Next.js API route proxy for same-origin cookie handling
+   */
+  calculateJobMatchClient: async (
+    jdId: string,
+    cvId: string
+  ): Promise<JobMatchResponse> => {
+    try {
+      // Use Next.js proxy route (same-origin) - cookies sent automatically
+      const response = await fetch(`/api/jobs/jd/${jdId}/match`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ cv_id: cvId }),
+        credentials: "include", // Ensure cookies are sent
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error calculating job match (client):", error);
       throw error;
     }
   },

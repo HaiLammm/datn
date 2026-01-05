@@ -5,7 +5,8 @@ import {
   RankedCandidateResponse,
   RankedCandidateListResponse,
 } from "@datn/shared-types";
-import { getCandidatesAction, calculateJobMatchAction } from "@/features/jobs/actions";
+import { getCandidatesAction } from "@/features/jobs/actions";
+import { jobService } from "@/services/job.service";
 import { CandidateCard } from "./CandidateCard";
 import { CandidatePagination } from "./CandidatePagination";
 import { MinScoreFilter } from "./MinScoreFilter";
@@ -44,7 +45,7 @@ export function CandidateList({ jdId, initialData }: CandidateListProps) {
     // Fetch scores in parallel
     const promises = candidateList.map(async (candidate) => {
       try {
-        const result = await calculateJobMatchAction(jdId, candidate.cv_id);
+        const result = await jobService.calculateJobMatchClient(jdId, candidate.cv_id);
         return { cvId: candidate.cv_id, score: result?.job_match_score ?? null };
       } catch {
         return { cvId: candidate.cv_id, score: null };
