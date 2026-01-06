@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class LocationType(str, Enum):
@@ -110,6 +110,9 @@ class JobDescriptionBase(BaseModel):
     salary_max: Optional[int] = Field(
         default=None, ge=0, description="Maximum salary"
     )
+    benefits: Optional[List[str]] = Field(
+        default=None, description="List of benefits (e.g., Insurance, Training)"
+    )
 
     @field_validator("salary_max")
     @classmethod
@@ -188,6 +191,33 @@ class JDParseStatusResponse(BaseModel):
     parsed_requirements: Optional[ParsedJDRequirements] = None
     parse_error: Optional[str] = None
     
+    model_config = {"from_attributes": True}
+
+
+class BasicJobSearchRequest(BaseModel):
+    """Request schema for basic job search."""
+    query: str = Field(..., min_length=1, description="Search query for job titles or keywords")
+    location: Optional[str] = Field(default=None, description="Location for job search")
+    location_type: Optional[LocationType] = Field(default=None, description="Work location type")
+    min_salary: Optional[int] = Field(default=None, ge=0, description="Minimum salary")
+    max_salary: Optional[int] = Field(default=None, ge=0, description="Maximum salary")
+    min_experience_years: Optional[int] = Field(default=None, ge=0, description="Minimum years of experience")
+    required_skills: Optional[List[str]] = Field(default=None, description="List of required skills")
+    benefits: Optional[List[str]] = Field(default=None, description="List of benefits to filter by")
+    limit: int = Field(default=20, ge=1, le=100, description="Maximum number of results to return")
+    offset: int = Field(default=0, ge=0, description="Number of results to skip for pagination")
+
+
+class BasicJobSearchItemResponse(BaseModel):
+    """Schema for a single job item in basic search results."""
+    id: UUID
+    title: str
+    description: str
+    location_type: LocationType
+    salary_min: Optional[int]
+    salary_max: Optional[int]
+    benefits: Optional[List[str]] = None
+
     model_config = {"from_attributes": True}
 
 
@@ -517,5 +547,147 @@ class JobMatchResponse(BaseModel):
         le=100,
         description="Job match score (0-100) prioritizing JD skill requirements"
     )
+
+    model_config = {"from_attributes": True}
+
+
+# ============================================================================
+# Story 9.1: Basic Job Search Schemas
+# ============================================================================
+
+
+class BasicJobSearchRequest(BaseModel):
+    """Request schema for basic job search by job seekers."""
+    
+    keyword: Optional[str] = Field(
+        default=None,
+        description="Search keyword to match in job title or description"
+    )
+    location: Optional[str] = Field(
+        default=None,
+        description="Location type filter: remote, hybrid, or on-site"
+    )
+    limit: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Maximum number of results to return (default: 20, max: 100)"
+    )
+    offset: int = Field(
+        default=0,
+        ge=0,
+        description="Number of results to skip for pagination (default: 0)"
+    )
+    # Story 9.2: Advanced filters
+    min_salary: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Minimum salary filter"
+    )
+    max_salary: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum salary filter"
+    )
+    job_types: Optional[List[str]] = Field(
+        default=None,
+        description="List of job types to filter (e.g., full-time, part-time)"
+    )
+    
+    @field_validator("location")
+    @classmethod
+    def validate_location(cls, v: Optional[str]) -> Optional[str]:
+        """Validate location type if provided."""
+        if v is not None:
+            valid_locations = ["remote", "hybrid", "on-site"]
+            if v.lower() not in valid_locations:
+                raise ValueError(f"Location must be one of: {', '.join(valid_locations)}")
+            return v.lower()
+        return v
+        
+    @model_validator(mode='after')
+    def validate_salary_range(self) -> 'BasicJobSearchRequest':
+        """Validate that max_salary is greater than or equal to min_salary if both are provided."""
+        if self.min_salary is not None and self.max_salary is not None:
+            if self.max_salary < self.min_salary:
+                raise ValueError("max_salary must be greater than or equal to min_salary")
+        return self
+    
+        return self
+    
+    @field_validator("job_types")
+    @classmethod
+    def validate_job_types(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate job types if provided."""
+        if v is not None:
+            valid_types = ["full-time", "part-time", "contract", "internship", "freelance"]
+            invalid_types = [t for t in v if t.lower() not in valid_types]
+            if invalid_types:
+                raise ValueError(f"Invalid job types: {', '.join(invalid_types)}. Valid types are: {', '.join(valid_types)}")
+            return [t.lower() for t in v]
+        return v
+    
+    model_config = {"from_attributes": True}
+
+
+class BasicJobSearchItemResponse(BaseModel):
+    """Response schema for a single job in basic search results."""
+    
+    id: UUID = Field(description="Job unique identifier")
+    title: str = Field(description="Job title")
+    description: str = Field(description="Job description (truncated for list view)")
+    location_type: str = Field(description="Work location type")
+    uploaded_at: datetime = Field(description="When the job was posted")
+    salary_min: Optional[int] = Field(default=None, description="Minimum salary")
+    salary_max: Optional[int] = Field(default=None, description="Maximum salary")
+    job_type: Optional[str] = Field(default=None, description="Employment type (full-time, part-time, etc.)")
+    
+    model_config = {"from_attributes": True}
+
+
+class BasicJobSearchResponse(BaseModel):
+    """Response schema for basic job search results."""
+    
+    items: List[BasicJobSearchItemResponse] = Field(
+        default_factory=list,
+        description="List of matching jobs"
+    )
+    total: int = Field(
+        ge=0,
+        description="Total number of matching jobs (before pagination)"
+    )
+    limit: int = Field(
+        ge=1,
+        description="Maximum number of items per page"
+    )
+    offset: int = Field(
+        ge=0,
+        description="Number of items skipped"
+    )
+    
+    model_config = {"from_attributes": True}
+
+class SkillSuggestion(BaseModel):
+    skill: str
+    count: int
+
+class SkillSuggestionResponse(BaseModel):
+    suggestions: List[SkillSuggestion]
+
+
+class ApplicationBase(BaseModel):
+    cover_letter: Optional[str] = Field(None, description="Optional cover letter")
+
+class ApplicationCreate(ApplicationBase):
+    cv_id: UUID = Field(..., description="ID of the CV to apply with")
+
+class ApplicationResponse(ApplicationBase):
+    id: UUID
+    job_id: UUID
+    user_id: int
+    cv_id: Optional[UUID]
+    status: str
+    created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}

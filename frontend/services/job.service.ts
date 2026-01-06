@@ -11,6 +11,8 @@ import {
   SearchResultListResponse,
   CandidateCVFromSearchResponse,
   JobMatchResponse,
+  ApplicationResponse,
+  ApplicationCreate,
 } from "@datn/shared-types";
 
 export const jobService = {
@@ -62,7 +64,7 @@ export const jobService = {
         body: formData,
         credentials: 'include',
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const error = new Error('Failed to create JD with file') as Error & {
@@ -71,7 +73,7 @@ export const jobService = {
         error.response = { status: response.status, data: errorData };
         throw error;
       }
-      
+
       return await response.json();
     } catch (error) {
       console.error("Error creating JD with file:", error);
@@ -426,6 +428,55 @@ export const jobService = {
   },
 
   /**
+   * Get public job details
+   */
+  getJobDetail: async (id: string): Promise<JobDescriptionResponse> => {
+    try {
+      console.log("Fetching Job Detail for ID:", id);
+      // Public endpoint
+      const response = await apiClient.get<JobDescriptionResponse>(`/jobs/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching job detail:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Apply to a job
+   */
+  applyJob: async (
+    jobId: string,
+    cvId: string,
+    coverLetter?: string,
+    accessToken?: string
+  ): Promise<ApplicationResponse> => {
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
+      const payload: ApplicationCreate = {
+        cv_id: cvId,
+        cover_letter: coverLetter,
+      };
+
+      const response = await apiClient.post<ApplicationResponse>(
+        `/jobs/${jobId}/apply`,
+        payload,
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error applying to job:", error);
+      throw error;
+    }
+  },
+
+  /**
    * Calculate job match score for a CV against a JD (Story 5.7)
    * Client-side version that uses Next.js API route proxy
    * @param jdId - Job Description ID
@@ -456,6 +507,105 @@ export const jobService = {
       return await response.json();
     } catch (error) {
       console.error("Error calculating job match (client):", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get skill suggestions for autocomplete
+   * @param query - Skill keyword to search
+   * @param limit - Max number of suggestions
+   * @returns List of skill suggestions with counts
+   */
+  getSkillSuggestions: async (query: string, limit: number = 10): Promise<Array<{ skill: string; count: number }>> => {
+    try {
+      // Use direct axios call since path is under /jobs
+      // Or use apiClient if base URL is set to /api/v1
+      // apiClient in this file seems to point to backend API
+      const response = await apiClient.get('/jobs/skills/autocomplete', {
+        params: { query, limit }
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching skill suggestions:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Search for jobs using basic search (Story 9.1)
+   * Public endpoint - no authentication required
+   * @param params - Search parameters (keyword, location, limit, offset)
+   * @returns Paginated list of job postings
+   */
+  searchJobsBasic: async (params: {
+    keyword?: string;
+    location?: string;
+    min_salary?: number;
+    max_salary?: number;
+    job_types?: string[];
+    skills?: string[];
+    benefits?: string[];
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    items: Array<{
+      id: string;
+      title: string;
+      description: string;
+      location_type: string;
+      uploaded_at: string;
+      salary_min?: number;
+      salary_max?: number;
+      job_type?: string;
+      benefits?: string[];
+    }>;
+    total: number;
+    limit: number;
+    offset: number;
+  }> => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.keyword) {
+        queryParams.append("keyword", params.keyword);
+      }
+      if (params.location) {
+        queryParams.append("location", params.location);
+      }
+      if (params.min_salary !== undefined) {
+        queryParams.append("min_salary", params.min_salary.toString());
+      }
+      if (params.max_salary !== undefined) {
+        queryParams.append("max_salary", params.max_salary.toString());
+      }
+      if (params.job_types && params.job_types.length > 0) {
+        params.job_types.forEach((type) => {
+          queryParams.append("job_types", type);
+        });
+      }
+      if (params.skills && params.skills.length > 0) {
+        params.skills.forEach((skill) => {
+          queryParams.append("skills", skill);
+        });
+      }
+      if (params.benefits && params.benefits.length > 0) {
+        params.benefits.forEach((benefit) => {
+          queryParams.append("benefits", benefit);
+        });
+      }
+      if (params.limit !== undefined) {
+        queryParams.append("limit", params.limit.toString());
+      }
+      if (params.offset !== undefined) {
+        queryParams.append("offset", params.offset.toString());
+      }
+      const queryString = queryParams.toString();
+      const url = `/jobs/search/basic${queryString ? `?${queryString}` : ""}`;
+
+      const response = await apiClient.get(url);
+      return response.data;
+    } catch (error) {
+      console.error("Error searching jobs:", error);
       throw error;
     }
   },

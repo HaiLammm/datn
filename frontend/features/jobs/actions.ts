@@ -93,7 +93,7 @@ function extractErrorMessage(detail: unknown, defaultMessage: string): string {
   if (typeof detail === "string") {
     return detail;
   }
-  
+
   if (Array.isArray(detail)) {
     // Pydantic validation errors format: [{type, loc, msg, input}, ...]
     const messages = detail
@@ -106,10 +106,10 @@ function extractErrorMessage(detail: unknown, defaultMessage: string): string {
         return null;
       })
       .filter(Boolean);
-    
+
     return messages.length > 0 ? messages.join("; ") : defaultMessage;
   }
-  
+
   if (detail && typeof detail === "object") {
     // If it's an object with a 'msg' property (single validation error)
     if ("msg" in detail) {
@@ -120,7 +120,7 @@ function extractErrorMessage(detail: unknown, defaultMessage: string): string {
       return String((detail as { message: unknown }).message);
     }
   }
-  
+
   return defaultMessage;
 }
 
@@ -166,24 +166,24 @@ export async function createJDAction(
       serviceFormData.append("file", jdFile);
       serviceFormData.append("title", title);
       serviceFormData.append("location_type", location_type);
-      
+
       const parsedSkills = parseSkillsString(required_skills);
       if (parsedSkills) {
         parsedSkills.forEach((skill) => {
           serviceFormData.append("required_skills", skill);
         });
       }
-      
+
       const minExp = parseNumberString(min_experience_years);
       if (minExp !== undefined) {
         serviceFormData.append("min_experience_years", minExp.toString());
       }
-      
+
       const salMin = parseNumberString(salary_min);
       if (salMin !== undefined) {
         serviceFormData.append("salary_min", salMin.toString());
       }
-      
+
       const salMax = parseNumberString(salary_max);
       if (salMax !== undefined) {
         serviceFormData.append("salary_max", salMax.toString());
@@ -263,7 +263,7 @@ export async function createJDAction(
     console.error("Server Action Error:", error);
     const defaultMessage = "Đã xảy ra lỗi khi tạo Job Description.";
     let errorMessage = defaultMessage;
-    
+
     if (error && typeof error === "object" && "response" in error) {
       const axiosError = error as {
         response?: { data?: { detail?: unknown } };
@@ -271,7 +271,7 @@ export async function createJDAction(
       const detail = axiosError.response?.data?.detail;
       errorMessage = extractErrorMessage(detail, defaultMessage);
     }
-    
+
     return {
       message: errorMessage,
       errors: {},
@@ -373,7 +373,7 @@ export async function getCandidatesAction(
     return await jobService.getCandidatesForJD(jdId, params, accessToken);
   } catch (error) {
     console.error("Error fetching candidates:", error);
-    
+
     // Log detailed error information
     if (error && typeof error === "object" && "response" in error) {
       const axiosError = error as {
@@ -382,7 +382,7 @@ export async function getCandidatesAction(
       console.error("Response status:", axiosError.response?.status);
       console.error("Response data:", axiosError.response?.data);
     }
-    
+
     return null;
   }
 }
@@ -404,13 +404,13 @@ export async function getCandidateCVAction(
     return { success: true, data };
   } catch (error) {
     console.error("Error fetching candidate CV:", error);
-    
+
     // Check for specific error codes
     if (error && typeof error === "object" && "response" in error) {
       const axiosError = error as {
         response?: { status?: number; data?: { detail?: string } };
       };
-      
+
       if (axiosError.response?.status === 403) {
         return {
           success: false,
@@ -418,7 +418,7 @@ export async function getCandidateCVAction(
           errorCode: "PRIVATE",
         };
       }
-      
+
       if (axiosError.response?.status === 404) {
         return {
           success: false,
@@ -427,7 +427,7 @@ export async function getCandidateCVAction(
         };
       }
     }
-    
+
     return {
       success: false,
       error: "Failed to load candidate CV",
@@ -618,4 +618,67 @@ export async function calculateJobMatchBatchAction(
   }
 
   return results;
+}
+
+// ============================================================
+// Basic Job Search Actions (Story 9.1)
+// ============================================================
+
+export interface BasicJobSearchParams {
+  keyword?: string;
+  location?: string;
+  min_salary?: number;
+  max_salary?: number;
+  job_types?: string[];
+  skills?: string[];
+  benefits?: string[];
+  limit?: number;
+  offset?: number;
+}
+
+export interface BasicJobSearchResult {
+  items: Array<{
+    id: string;
+    title: string;
+    description: string;
+    location_type: string;
+    uploaded_at: string;
+    salary_min?: number;
+    salary_max?: number;
+    job_type?: string;
+    benefits?: string[];
+  }>;
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Search for jobs using basic search (public endpoint)
+ * @param params - Search parameters (keyword, location, limit, offset)
+ * @returns Paginated list of job postings
+ */
+export async function searchJobsBasicAction(
+  params: BasicJobSearchParams
+): Promise<BasicJobSearchResult | null> {
+  try {
+    return await jobService.searchJobsBasic(params);
+  } catch (error) {
+    console.error("Error searching jobs:", error);
+    return null;
+  }
+}
+
+export interface SkillSuggestion {
+  skill: string;
+  count: number;
+}
+
+export async function getSkillSuggestionsAction(query: string, limit: number = 10): Promise<SkillSuggestion[]> {
+  try {
+    return await jobService.getSkillSuggestions(query, limit);
+  } catch (error) {
+    console.error("Error getting skill suggestions:", error);
+    return [];
+  }
 }

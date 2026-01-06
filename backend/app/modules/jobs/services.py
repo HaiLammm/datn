@@ -5,11 +5,11 @@ from typing import List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import UploadFile
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.modules.jobs.models import JobDescription
+from app.modules.jobs.models import JobDescription, Application
 from app.modules.jobs.schemas import JobDescriptionCreate, JDParseStatus, LocationType, ParsedRequirementsUpdate
 from app.modules.jobs.jd_parser import jd_parser
 from app.modules.users.models import User
@@ -432,3 +432,176 @@ async def calculate_job_match_score(
     )
 
     return total_score, None
+
+
+async def get_skill_suggestions(
+    db: AsyncSession, query: str, limit: int = 10
+) -> List[dict]:
+    """
+    Get skill suggestions based on jobs' required_skills.
+    
+    Returns a list of dicts with 'skill' and 'count' keys.
+    """
+    # Create subquery to unnest skills from active jobs
+    unnest_stmt = select(func.unnest(JobDescription.required_skills).label("skill")).where(
+        JobDescription.is_active == True
+    )
+    subq = unnest_stmt.subquery()
+    
+    # Query for skills matching the keyword, grouped and counted
+    stmt = (
+        select(subq.c.skill, func.count().label("count"))
+        .where(subq.c.skill.ilike(f"%{query}%"))
+        .group_by(subq.c.skill)
+        .order_by(func.count().desc())
+        .limit(limit)
+    )
+    
+    result = await db.execute(stmt)
+    return [{"skill": row.skill, "count": row.count} for row in result.all()]
+
+
+async def search_jobs_basic(
+    db: AsyncSession,
+    keyword: Optional[str] = None,
+    location: Optional[str] = None,
+    min_salary: Optional[int] = None,
+    max_salary: Optional[int] = None,
+    job_types: Optional[List[str]] = None,
+    skills: Optional[List[str]] = None,
+    benefits: Optional[List[str]] = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> Tuple[List[JobDescription], int]:
+    """
+    Basic job search for job seekers with advanced filters.
+    
+    Args:
+        db: Database session.
+        keyword: Search keyword to match in title or description (case-insensitive).
+        location: Location type filter (remote, hybrid, on-site).
+        min_salary: Minimum salary filter.
+        max_salary: Maximum salary filter.
+        job_types: List of job types to filter (OR logic).
+        limit: Maximum number of results to return.
+        offset: Number of results to skip for pagination.
+        
+    Returns:
+        Tuple of (list of matching jobs, total count before pagination).
+    """
+    # Build base query for active jobs only
+    query = select(JobDescription).where(JobDescription.is_active == True)
+    
+    # Apply keyword filter (search in title and description)
+    if keyword and keyword.strip():
+        search_pattern = f"%{keyword.strip()}%"
+        query = query.where(
+            (JobDescription.title.ilike(search_pattern)) |
+            (JobDescription.description.ilike(search_pattern))
+        )
+    
+    # Apply location filter
+    if location:
+        query = query.where(JobDescription.location_type == location.lower())
+        
+    # Apply job type filter (OR logic)
+    if job_types and len(job_types) > 0:
+        # Normalize job types to lowercase
+        normalized_types = [t.lower() for t in job_types]
+        query = query.where(JobDescription.job_type.in_(normalized_types))
+        
+    # Apply salary range filter (Overlap logic)
+    if min_salary is not None or max_salary is not None:
+        if min_salary is not None and max_salary is not None:
+            # Match if job range overlaps with user range
+            # Job Max >= User Min AND Job Min <= User Max
+            query = query.where(
+                and_(
+                    JobDescription.salary_max >= min_salary,
+                    JobDescription.salary_min <= max_salary
+                )
+            )
+        elif min_salary is not None:
+            # Only min is provided: overlap with [min, infinity]
+            # Job Max >= User Min
+            query = query.where(JobDescription.salary_max >= min_salary)
+        elif max_salary is not None:
+            # Only max is provided: overlap with [0, max]
+            # Job Min <= User Max
+            query = query.where(JobDescription.salary_min <= max_salary)
+
+    # Apply skills filter (Overlap: match any skill)
+    if skills:
+        # Use Postgres overlap operator (&&)
+        query = query.where(JobDescription.required_skills.overlap(skills))
+
+    # Apply benefits filter (Overlap: match any benefit)
+    if benefits:
+        query = query.where(JobDescription.benefits.overlap(benefits))
+    
+    # Get total count before pagination
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # Apply pagination and ordering
+    query = query.order_by(JobDescription.uploaded_at.desc())
+    query = query.limit(limit).offset(offset)
+    
+    # Execute query
+    result = await db.execute(query)
+    jobs = list(result.scalars().all())
+    
+    logger.info(
+        f"Basic job search: keyword='{keyword}', location='{location}', "
+        f"found {total} jobs, returning {len(jobs)} (limit={limit}, offset={offset})"
+    )
+    
+    return jobs, total
+
+
+async def get_public_job(db: AsyncSession, job_id: UUID) -> Optional[JobDescription]:
+    """Get active job details."""
+    query = select(JobDescription).where(
+        JobDescription.id == job_id,
+        JobDescription.is_active == True
+    )
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
+async def create_application(
+    db: AsyncSession, job_id: UUID, user_id: int, cv_id: UUID, cover_letter: Optional[str] = None
+) -> Application:
+    """Submit an application."""
+    # Check job
+    job = await get_public_job(db, job_id)
+    if not job:
+        raise ValueError("Job not found or inactive")
+
+    # Check duplicate
+    query = select(Application).where(
+        Application.job_id == job_id,
+        Application.user_id == user_id
+    )
+    result = await db.execute(query)
+    if result.scalar_one_or_none():
+        raise ValueError("You have already applied to this job")
+
+    # Verify CV exists and belongs to user
+    cv_query = select(CV).where(CV.id == cv_id, CV.user_id == user_id)
+    cv_result = await db.execute(cv_query)
+    if not cv_result.scalar_one_or_none():
+         raise ValueError("Invalid CV")
+
+    application = Application(
+        job_id=job_id,
+        user_id=user_id,
+        cv_id=cv_id,
+        cover_letter=cover_letter,
+        status="pending"
+    )
+    db.add(application)
+    await db.commit()
+    await db.refresh(application)
+    return application

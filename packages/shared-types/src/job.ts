@@ -40,12 +40,14 @@ export interface JobDescriptionBase {
   location_type: LocationType;
   salary_min?: number | null;
   salary_max?: number | null;
+  benefits?: string[] | null;
+  job_type?: string | null;
 }
 
 /**
  * Request payload for creating a new job description
  */
-export interface JobDescriptionCreate extends JobDescriptionBase {}
+export interface JobDescriptionCreate extends JobDescriptionBase { }
 
 /**
  * Response from the API for a single job description
@@ -209,4 +211,25 @@ export interface JobMatchResponse {
   cv_id: string;
   job_id: string;
   job_match_score: number; // 0-100
+}
+
+/**
+ * Application types (Story 9.3)
+ */
+export interface ApplicationBase {
+  cover_letter?: string | null;
+}
+
+export interface ApplicationCreate extends ApplicationBase {
+  cv_id: string;
+}
+
+export interface ApplicationResponse extends ApplicationBase {
+  id: string;
+  job_id: string;
+  user_id: number;
+  cv_id: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
 }

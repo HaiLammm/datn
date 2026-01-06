@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +33,8 @@ class JobDescription(Base):
     )
     salary_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     salary_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    job_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    benefits: Mapped[Optional[List[str]]] = mapped_column(ARRAY(Text), nullable=True)
     
     # Parsing status: pending, processing, completed, failed
     parse_status: Mapped[str] = mapped_column(
@@ -59,4 +61,53 @@ class JobDescription(Base):
             "parse_status IN ('pending', 'processing', 'completed', 'failed')",
             name="check_parse_status"
         ),
+        CheckConstraint(
+            "job_type IN ('full-time', 'part-time', 'contract', 'internship', 'freelance') OR job_type IS NULL",
+            name="check_job_type"
+        ),
     )
+    
+    # Relationships
+    applications = relationship("Application", back_populates="job", cascade="all, delete-orphan")
+
+
+class Application(Base):
+    __tablename__ = "applications"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("job_descriptions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    cv_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cvs.id", ondelete="SET NULL"), nullable=True
+    )
+    cover_letter: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(50), default="pending", nullable=False, index=True
+    )
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    job = relationship("JobDescription", back_populates="applications")
+    user = relationship("User") 
+    cv = relationship("CV")
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'job_id', name='uq_user_job_application'),
+        CheckConstraint(
+            "status IN ('pending', 'reviewed', 'shortlisted', 'rejected', 'accepted', 'hired')",
+            name="check_application_status"
+        ),
+    )
+

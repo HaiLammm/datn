@@ -11,9 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 
 from app.core.database import get_db, AsyncSessionLocal
-from app.modules.auth.dependencies import require_recruiter
+from app.modules.auth.dependencies import require_recruiter, require_job_seeker, get_current_user
 from app.modules.jobs import services as job_service
 from app.modules.jobs.schemas import (
+    BasicJobSearchRequest,
+    BasicJobSearchResponse,
+    BasicJobSearchItemResponse,
+    ApplicationCreate,
+    ApplicationResponse,
     CandidateCVFromSearchResponse,
     JDParseStatus,
     JDParseStatusResponse,
@@ -33,6 +38,7 @@ from app.modules.jobs.schemas import (
     SearchResultListResponse,
     SearchResultResponse,
     SemanticSearchRequest,
+    SkillSuggestion,
 )
 from app.modules.jobs.candidate_ranker import candidate_ranker
 from app.modules.jobs.semantic_searcher import semantic_searcher
@@ -54,6 +60,19 @@ async def _run_jd_parsing(jd_id: UUID) -> None:
     """
     async with AsyncSessionLocal() as db:
         await job_service.parse_job_description(db, jd_id)
+
+
+@router.get("/skills/autocomplete", response_model=List[SkillSuggestion])
+async def suggest_skills(
+    query: str = Query(..., min_length=1, description="Skill keyword"),
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get skill suggestions for autocomplete.
+    """
+    from app.modules.jobs.services import get_skill_suggestions
+    return await get_skill_suggestions(db, query, limit)
 
 
 @router.post(
@@ -1157,3 +1176,127 @@ async def get_job_applicants(
     ]
 
     return ApplicantListResponse(applicants=applicants, total=len(applicants))
+
+
+# ============================================================================
+# Story 9.1: Basic Job Search for Job Seekers
+# ============================================================================
+
+
+@router.get(
+    "/search/basic",
+    response_model=BasicJobSearchResponse,
+    summary="Basic job search for job seekers",
+)
+async def search_jobs_basic(
+    keyword: Optional[str] = Query(None, description="Search keyword (title/description)"),
+    location: Optional[str] = Query(None, description="Location type: remote, hybrid, on-site"),
+    min_salary: Optional[int] = Query(None, ge=0, description="Minimum salary filter"),
+    max_salary: Optional[int] = Query(None, ge=0, description="Maximum salary filter"),
+    job_types: Optional[List[str]] = Query(None, description="List of job types (full-time, part-time, etc.)"),
+    skills: Optional[List[str]] = Query(None, description="List of skills to filter"),
+    benefits: Optional[List[str]] = Query(None, description="List of benefits to filter (e.g. insurance, training)"),
+    limit: int = Query(20, ge=1, le=100, description="Max results (default: 20, max: 100)"),
+    offset: int = Query(0, ge=0, description="Results to skip (default: 0)"),
+    db: AsyncSession = Depends(get_db),
+) -> BasicJobSearchResponse:
+    """
+    Search for job postings by keyword and location.
+    
+    This endpoint allows job seekers to search for available positions without authentication.
+    
+    **Query Parameters:**
+    - **keyword**: Search term to match in job title or description (case-insensitive)
+      - Examples: "Python Developer", "Data Scientist", "Remote"
+    - **location**: Filter by work location type
+      - Options: "remote", "hybrid", "on-site"
+    - **limit**: Maximum results per page (default: 20, max: 100)
+    - **offset**: Number of results to skip for pagination (default: 0)
+    
+    **Returns:**
+    - **items**: List of matching job postings with basic info
+    - **total**: Total number of matching jobs (before pagination)
+    - **limit**: Applied limit
+    - **offset**: Applied offset
+    
+    **Example Searches:**
+    - `/api/v1/jobs/search/basic?keyword=Python&location=remote`
+    - `/api/v1/jobs/search/basic?keyword=Developer&limit=10`
+    - `/api/v1/jobs/search/basic?location=on-site`
+    """
+    # Call service layer
+    jobs, total = await job_service.search_jobs_basic(
+        db=db,
+        keyword=keyword,
+        location=location,
+        min_salary=min_salary,
+        max_salary=max_salary,
+        job_types=job_types,
+        skills=skills,
+        benefits=benefits,
+        limit=limit,
+        offset=offset,
+    )
+    
+    # Convert to response schema
+    items = [
+        BasicJobSearchItemResponse(
+            id=job.id,
+            title=job.title,
+            description=job.description[:500] + "..." if len(job.description) > 500 else job.description,
+            location_type=job.location_type,
+            uploaded_at=job.uploaded_at,
+            salary_min=job.salary_min,
+            salary_max=job.salary_max,
+            job_type=job.job_type,
+            benefits=job.benefits,
+        )
+        for job in jobs
+    ]
+    
+    return BasicJobSearchResponse(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/{job_id}", response_model=JobDescriptionResponse)
+async def get_job_detail(
+    job_id: UUID, db: AsyncSession = Depends(get_db)
+):
+    """
+    Get job details by ID.
+    
+    Public access.
+    """
+    job = await job_service.get_public_job(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.post("/{job_id}/apply", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
+async def apply_job(
+    job_id: UUID,
+    application_data: ApplicationCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_job_seeker),
+):
+    """
+    Apply to a job.
+    
+    Requires Job Seeker role.
+    """
+    try:
+        application = await job_service.create_application(
+            db=db,
+            job_id=job_id,
+            user_id=current_user.id,
+            cv_id=application_data.cv_id,
+            cover_letter=application_data.cover_letter
+        )
+        return application
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
