@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getJDListAction } from "@/features/jobs/actions";
 import { JDList } from "@/features/jobs/components/JDList";
@@ -9,11 +9,14 @@ import { Plus, Search } from "lucide-react";
 
 export default async function JobsPage() {
   // Authentication Guard
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("access_token")?.value;
+  const session = await getSession();
 
-  if (!accessToken) {
+  if (!session) {
     redirect("/login");
+  }
+
+  if (session.user.role === 'job_seeker') {
+    redirect("/jobs/find");
   }
 
   const jds = await getJDListAction();

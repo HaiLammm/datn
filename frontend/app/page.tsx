@@ -35,6 +35,12 @@ export default function Home() {
             >
               Login
             </Link>
+            <Link
+              href="/jobs/find"
+              className="px-6 py-2 font-semibold text-white bg-green-600 rounded-md hover:bg-green-700"
+            >
+              Tìm việc làm
+            </Link>
           </div>
         </div>
       </div>

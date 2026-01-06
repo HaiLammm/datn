@@ -10,11 +10,11 @@ export default async function JobsLayout({
 }) {
   // Get session and check role-based access
   const session = await getSession();
-  
+
   if (!session) {
     redirect("/login");
   }
-  
+
   // Check if user can access Job features
   if (!canAccessJobs(session.user.role)) {
     // Redirect to appropriate section based on role
@@ -35,13 +35,23 @@ export default async function JobsLayout({
                 <Home className="h-5 w-5" />
                 <span className="hidden sm:inline">Dashboard</span>
               </Link>
-              <Link
-                href="/jobs"
-                className="flex items-center gap-2 text-blue-600 font-medium"
-              >
-                <Briefcase className="h-5 w-5" />
-                <span>Job Descriptions</span>
-              </Link>
+              {(session.user.role === 'recruiter' || session.user.role === 'admin') ? (
+                <Link
+                  href="/jobs"
+                  className="flex items-center gap-2 text-blue-600 font-medium"
+                >
+                  <Briefcase className="h-5 w-5" />
+                  <span>Job Descriptions</span>
+                </Link>
+              ) : (
+                <Link
+                  href="/jobs/find"
+                  className="flex items-center gap-2 text-blue-600 font-medium"
+                >
+                  <Briefcase className="h-5 w-5" />
+                  <span>Tìm việc làm</span>
+                </Link>
+              )}
             </div>
           </div>
         </div>

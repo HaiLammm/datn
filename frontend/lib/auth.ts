@@ -20,7 +20,7 @@ export async function getSession(): Promise<Session | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('access_token')?.value;
-    
+
     // Enhanced debug info
     const allCookies = cookieStore.getAll();
     console.log('🔍 Auth Debug Info\n', {
@@ -29,18 +29,18 @@ export async function getSession(): Promise<Session | null> {
       allCookieNames: allCookies.map(c => c.name),
       cookieCount: allCookies.length
     });
-    
+
     if (!token) {
       console.log('🔍 No access_token found in cookies');
       return null;
     }
-    
+
     const decoded = jwtDecode<JWTPayload>(token);
-    
+
     // Check if token is expired
     const now = Date.now();
     const expiry = decoded.exp * 1000;
-    
+
     if (expiry < now) {
       console.log('🔍 Token expired:', {
         expiry: new Date(expiry).toISOString(),
@@ -49,24 +49,24 @@ export async function getSession(): Promise<Session | null> {
       });
       return null;
     }
-    
+
     const user: SessionUser = {
       id: decoded.sub,
       email: decoded.email,
       role: decoded.role,
     };
-    
+
     const session: Session = {
       user,
     };
-    
+
     console.log('🔍 Valid session found:', {
       userId: user.id,
       role: user.role,
       email: user.email,
       expiresAt: new Date(expiry).toISOString()
     });
-    
+
     return session;
   } catch (error) {
     console.log('🔍 Session decode error:', error);
@@ -99,7 +99,7 @@ export function canAccessCVs(role: UserRole): boolean {
  * @returns true if the role can access Jobs
  */
 export function canAccessJobs(role: UserRole): boolean {
-  return role === 'recruiter' || role === 'admin';
+  return role === 'recruiter' || role === 'admin' || role === 'job_seeker';
 }
 
 /**

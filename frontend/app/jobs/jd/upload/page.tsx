@@ -1,16 +1,19 @@
 import { JDUploadForm } from "@/features/jobs/components/JDUploadForm";
-import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 export default async function JDUploadPage() {
   // Authentication Guard
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("access_token")?.value;
+  const session = await getSession();
 
-  if (!accessToken) {
+  if (!session) {
     redirect("/login");
+  }
+
+  if (session.user.role !== 'recruiter' && session.user.role !== 'admin') {
+    redirect("/jobs/find");
   }
 
   return (
