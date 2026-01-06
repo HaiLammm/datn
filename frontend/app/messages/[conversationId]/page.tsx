@@ -4,7 +4,7 @@ import React, { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { ChatWindow } from "@/features/messages/components/ChatWindow";
 import { useSocket, Message } from "@/lib/hooks/useSocket";
-import { getClientSession } from "@/lib/auth-client";
+import { getConversationWithContext, getConversationMessages } from "@/features/messages/actions";
 
 interface MessageUser {
   id: string; // Changed from number to match SessionUser
@@ -58,66 +58,33 @@ export default function ChatPage({ params }: PageProps) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Get current user
-        const session = getClientSession();
-        if (!session?.user) {
-          router.push("/login");
-          return;
-        }
-        setCurrentUser(session.user);
-
-        // Fetch conversation details and initial messages
-        const token = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("access_token="))
-          ?.split("=")[1];
-
-        if (!token) {
-          router.push("/login");
-          return;
-        }
-
-        // Fetch conversation details
-        const convResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations/${conversationId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (!convResponse.ok) {
+        // Fetch conversation details with context using server action
+        // Layout already verified auth, no need to check session here
+        const convData = await getConversationWithContext(conversationId);
+        if (!convData) {
           throw new Error("Conversation not found");
         }
-
-        const convData: ConversationDetails = await convResponse.json();
-        setConversation(convData);
-
-        // Fetch initial messages
-        const messagesResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations/${conversationId}/messages`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (messagesResponse.ok) {
-          const msgData: MessageListResponse = await messagesResponse.json();
+        
+        // Fetch initial messages using server action
+        const msgData = await getConversationMessages(conversationId);
+        if (msgData?.messages) {
           setInitialMessages(msgData.messages);
         }
 
-        // Determine other user name for display
-        const otherUserId =
-          session.user.id === convData.recruiter_id
-            ? convData.candidate_id
-            : convData.recruiter_id;
-
-        // In a real app, you'd fetch the other user's details
+        // Set conversation with other user info
         setConversation({
           ...convData,
           other_user: {
-            id: otherUserId,
+            id: convData.otherUserId,
             full_name: "User", // Would be fetched from API
           },
+        });
+        
+        // Set current user from server data
+        setCurrentUser({
+          id: convData.currentUserId,
+          email: '', // Not needed for chat
+          role: '', // Not needed for chat
         });
       } catch (err) {
         console.error("Error fetching data:", err);

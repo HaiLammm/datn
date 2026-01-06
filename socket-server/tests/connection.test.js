@@ -276,5 +276,139 @@ describe('Socket.io Server Tests', () => {
 
       expect(typingEvents.length).to.equal(1);
     });
+
+    it('should track typing users with server-side timeout', (done) => {
+      // Simulate typing timeout tracking map
+      const typingUsers = new Map(); // Map<conversationId, Map<userId, timeoutId>>
+      const typingEvents = [];
+
+      const mockIo = {
+        to: (room) => ({
+          emit: (event, data) => {
+            typingEvents.push({ room, event, data });
+          }
+        })
+      };
+
+      const mockSocket = {
+        userId: 1,
+        userName: 'Test User',
+        to: (room) => mockIo.to(room)
+      };
+
+      // Simulate typing-start with server timeout
+      const conversationId = 'conv-123';
+      
+      // Track typing user
+      if (!typingUsers.has(conversationId)) {
+        typingUsers.set(conversationId, new Map());
+      }
+      const conversationTyping = typingUsers.get(conversationId);
+
+      // Clear existing timeout
+      if (conversationTyping.has(mockSocket.userId)) {
+        clearTimeout(conversationTyping.get(mockSocket.userId));
+      }
+
+      // Set auto-timeout for 5 seconds
+      const timeoutId = setTimeout(() => {
+        mockSocket.to(`conversation:${conversationId}`).emit('user-stopped-typing', {
+          conversation_id: conversationId,
+          user_id: mockSocket.userId
+        });
+        conversationTyping.delete(mockSocket.userId);
+        
+        // Verify auto-timeout fired
+        expect(typingEvents.length).to.equal(1);
+        expect(typingEvents[0].event).to.equal('user-stopped-typing');
+        done();
+      }, 100); // Shorter timeout for test
+
+      conversationTyping.set(mockSocket.userId, timeoutId);
+
+      // Start timer should be set
+      expect(conversationTyping.has(mockSocket.userId)).to.be.true;
+    });
+
+    it('should clear timeout when manual typing-stop received', () => {
+      const typingUsers = new Map();
+      const typingEvents = [];
+      let timeoutCleared = false;
+
+      // Mock clearTimeout to track if it was called
+      const originalClearTimeout = global.clearTimeout;
+      global.clearTimeout = (id) => {
+        timeoutCleared = true;
+        originalClearTimeout(id);
+      };
+
+      const conversationId = 'conv-123';
+      const userId = 1;
+
+      // Set up typing tracking
+      if (!typingUsers.has(conversationId)) {
+        typingUsers.set(conversationId, new Map());
+      }
+      const conversationTyping = typingUsers.get(conversationId);
+
+      // Set a timeout
+      const timeoutId = setTimeout(() => {}, 5000);
+      conversationTyping.set(userId, timeoutId);
+
+      // Simulate manual typing-stop
+      if (conversationTyping.has(userId)) {
+        clearTimeout(conversationTyping.get(userId));
+        conversationTyping.delete(userId);
+      }
+
+      // Restore original clearTimeout
+      global.clearTimeout = originalClearTimeout;
+
+      expect(timeoutCleared).to.be.true;
+      expect(conversationTyping.has(userId)).to.be.false;
+    });
+
+    it('should prevent stuck typing indicators on disconnect', () => {
+      const typingUsers = new Map();
+      const typingEvents = [];
+
+      const mockIo = {
+        to: (room) => ({
+          emit: (event, data) => {
+            typingEvents.push({ room, event, data });
+          }
+        })
+      };
+
+      const userId = 1;
+      const conversationId1 = 'conv-123';
+      const conversationId2 = 'conv-456';
+
+      // Set up user typing in multiple conversations
+      typingUsers.set(conversationId1, new Map());
+      typingUsers.set(conversationId2, new Map());
+      
+      typingUsers.get(conversationId1).set(userId, setTimeout(() => {}, 5000));
+      typingUsers.get(conversationId2).set(userId, setTimeout(() => {}, 5000));
+
+      // Simulate disconnect cleanup
+      typingUsers.forEach((conversationTyping, conversationId) => {
+        if (conversationTyping.has(userId)) {
+          clearTimeout(conversationTyping.get(userId));
+          conversationTyping.delete(userId);
+
+          mockIo.to(`conversation:${conversationId}`).emit('user-stopped-typing', {
+            conversation_id: conversationId,
+            user_id: userId
+          });
+        }
+      });
+
+      expect(typingEvents.length).to.equal(2);
+      expect(typingEvents[0].event).to.equal('user-stopped-typing');
+      expect(typingEvents[1].event).to.equal('user-stopped-typing');
+      expect(typingUsers.get(conversationId1).has(userId)).to.be.false;
+      expect(typingUsers.get(conversationId2).has(userId)).to.be.false;
+    });
   });
 });

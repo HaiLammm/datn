@@ -8,6 +8,37 @@
 -   **Backend Modularity:** All new backend logic **must** be encapsulated within a feature module in `apps/backend/app/modules/`. Each module must follow the `router.py`, `service.py`, `schemas.py`, `models.py` pattern.
 -   **Cookie Security:** Do not attempt to read or write authentication tokens from client-side JavaScript. Rely on `HttpOnly` cookies and the backend to manage the session. The frontend must use `withCredentials: true` (or the equivalent) for all API calls.
 -   **Authentication Actions:** All authentication operations (login, register, logout, password reset) **must** be implemented as Next.js Server Actions (`'use server'`). Never call authentication APIs directly from client-side JavaScript. This ensures HttpOnly cookies are properly handled server-side and tokens are never exposed to the browser.
+-   **HttpOnly Cookie Access:**
+    -   **NEVER** read authentication tokens using `document.cookie` in client components - HttpOnly cookies are not accessible to JavaScript by design (security feature).
+    -   **Client Components:** Do NOT check session/auth in client components using `getClientSession()` or `document.cookie` for protected routes. Let the Layout handle server-side auth checks.
+    -   **Server Components/Layouts:** Use `getSession()` from `lib/auth.ts` (server-side only) to verify authentication.
+    -   **Server Actions:** Use `cookies()` from `next/headers` to read HttpOnly cookies server-side.
+    -   **Protected Routes Pattern:**
+        ```typescript
+        // ❌ WRONG - Client component checking auth
+        "use client";
+        export default function Page() {
+          const session = getClientSession(); // Won't work with HttpOnly cookies
+          if (!session) router.push("/login"); // Will always redirect
+        }
+
+        // ✅ CORRECT - Layout checks auth server-side
+        // layout.tsx (Server Component)
+        export default async function Layout({ children }) {
+          const session = await getSession(); // Server-side cookie access
+          if (!session) redirect("/login");
+          return children;
+        }
+        
+        // page.tsx (Client Component)
+        "use client";
+        export default function Page() {
+          // No auth check needed - Layout already protected
+          // Just fetch data using Server Actions
+          const data = await fetchDataAction();
+        }
+        ```
+    -   **Data Fetching with Auth:** All authenticated API calls from client components **must** use Server Actions that read cookies server-side.
 -   **Environment Variables:** Access environment variables only through a dedicated configuration module (e.g., `app/core/config.py` in the backend). Never access `process.env` directly within frontend components or backend business logic.
 -   **State Updates:** In React components, never mutate state directly. Always use the setter function from `useState` or dispatch actions for reducers.
 
@@ -249,5 +280,66 @@ DownloadCVButton.tsx    PDFPreviewSection.tsx
 | Python Variables/Functions | N/A | `snake_case` | `get_current_user` |
 | Python Classes | N/A | `PascalCase` | `class AuthService:` |
 | TypeScript Types/Interfaces | `PascalCase` | N/A | `interface UserProfile {}` |
+
+## Real-time Messaging Flow (Epic 7)
+
+### Conversation Initialization
+
+**Business Rules:**
+- Only **Recruiters** can initiate conversations with Job Seekers
+- Job Seekers can only **reply** to existing conversations
+- Conversations are created in the context of job applications
+
+**Recruiter → Job Seeker Flow:**
+```
+1. Recruiter navigates to: /jobs/jd/[jdId]/applicants
+2. Views list of candidates who applied to their job posting
+3. Clicks "Start Chat" button next to a candidate
+4. Enters initial message in prompt dialog
+5. System calls createConversation(candidateId, message) Server Action
+6. Backend creates conversation record (unique per recruiter-candidate pair)
+7. System navigates to /messages/[conversationId]
+8. Chat window opens with Socket.io connection
+9. Job Seeker receives real-time notification
+10. Job Seeker can reply from /messages page
+```
+
+**Implementation Pattern:**
+```typescript
+// ✅ CORRECT - Applicants page with Server Actions
+"use client";
+import { getJDAction, getApplicantsAction } from "@/features/jobs/actions";
+import { createConversation } from "@/features/messages/actions";
+
+export default function ApplicantsPage() {
+  useEffect(() => {
+    const fetchData = async () => {
+      // Use Server Actions - no document.cookie access
+      const jobData = await getJDAction(jdId);
+      const applicantsData = await getApplicantsAction(jdId);
+      setApplicants(applicantsData.applicants);
+    };
+    fetchData();
+  }, [jdId]);
+
+  const handleStartChat = async (candidateId: number) => {
+    const message = prompt("Enter your first message:");
+    const conversationId = await createConversation(candidateId, message);
+    router.push(`/messages/${conversationId}`);
+  };
+}
+```
+
+**Key Components:**
+- **Conversation List:** `/messages` - Shows all conversations for current user
+- **Chat Window:** `/messages/[conversationId]` - Real-time chat interface
+- **Applicants Page:** `/jobs/jd/[jdId]/applicants` - "Start Chat" entry point
+- **Server Actions:** `features/messages/actions.ts` - createConversation, getConversations, etc.
+
+**Socket.io Events:**
+- `join-conversation` - User joins conversation room
+- `send-message` - Send message to conversation
+- `new-message` - Receive message in real-time
+- `conversation-updated` - Update conversation list (last message, unread count)
 
 ---

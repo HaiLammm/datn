@@ -2,12 +2,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { FileText, Briefcase, Shield, Upload, Search, Users } from "lucide-react";
+import { FileText, Briefcase, Shield, Upload, Search, Users, MessageSquare } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { getSession, getRoleDisplayName } from "@/lib/auth";
 import { getCVList } from "@/features/cv/actions";
 import { JobSeekerDashboardContent } from "@/features/dashboard/components/JobSeekerDashboardContent";
 import { DashboardSkeleton } from "@/features/dashboard/components/DashboardSkeleton";
+import { AuthDebug } from "@/components/debug/AuthDebug";
+import { TokenRefreshButton } from "@/components/debug/TokenRefreshButton";
+import { ApiConnectionTest } from "@/components/debug/ApiConnectionTest";
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -39,6 +42,17 @@ export default async function DashboardPage() {
             <LogoutButton />
           </div>
         </div>
+
+        {/* Auth Debug - Temporarily disabled to avoid CORS issues */}
+        {process.env.NODE_ENV === 'development' && false && (
+          <div className="bg-gray-50 p-4 rounded border space-y-4">
+            <AuthDebug />
+            <div className="flex gap-2">
+              <TokenRefreshButton />
+            </div>
+            <ApiConnectionTest />
+          </div>
+        )}
 
         {/* Role-specific content */}
         {user.role === 'job_seeker' && (

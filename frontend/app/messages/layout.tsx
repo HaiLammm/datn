@@ -8,15 +8,22 @@ export default async function MessagesLayout({
 }: {
   children: React.ReactNode;
 }) {
+  console.log("🔍 Messages Layout - Checking session...");
   const session = await getSession();
+  console.log("🔍 Messages Layout - Session:", session ? `✅ ${session.user.email} (${session.user.role})` : "❌ null");
 
   if (!session) {
+    console.log("❌ No session found, redirecting to /login");
     redirect("/login");
   }
 
+  console.log("🔍 Messages Layout - Can access messages:", canAccessMessages(session.user.role));
   if (!canAccessMessages(session.user.role)) {
+    console.log("❌ User cannot access messages, redirecting to:", getDefaultRedirect(session.user.role));
     redirect(getDefaultRedirect(session.user.role));
   }
+
+  console.log("✅ Messages Layout - Access granted!");
 
   const unreadCount = 0; // Would be fetched from API in real implementation
 

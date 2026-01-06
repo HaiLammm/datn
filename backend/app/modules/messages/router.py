@@ -285,27 +285,3 @@ async def verify_auth(
         is_active=current_user.is_active,
     )
 
-    if not conversation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found",
-        )
-
-    if (
-        current_user.id != conversation.recruiter_id
-        and current_user.id != conversation.candidate_id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this conversation",
-        )
-
-    marked_count = await MessageService.mark_messages_as_read(
-        db=db,
-        conversation_id=conversation_id,
-        user_id=current_user.id,
-    )
-
-    # Return updated unread count (should be 0 after marking as read)
-    return {"unread_count": 0, "marked_count": marked_count}
-

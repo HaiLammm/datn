@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Upload, FileText, User, MessageSquare } from "lucide-react";
+import { Upload, FileText, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SafeMessagesButton } from "@/components/debug/SafeMessagesButton";
 
 export function QuickActions() {
   return (
@@ -24,17 +25,7 @@ export function QuickActions() {
             View CV History
           </Link>
         </Button>
-        <Button
-          asChild
-          variant="outline"
-          className="flex-1"
-          data-testid="messages-button"
-        >
-          <Link href="/messages">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Messages
-          </Link>
-        </Button>
+        <SafeMessagesButton />
         <Button
           asChild
           variant="outline"

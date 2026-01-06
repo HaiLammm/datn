@@ -48,6 +48,9 @@ class AccessToken(BaseModel):
 
 
 class TokenPayload(BaseModel):
-    sub: Optional[EmailStr] = None
-    role: Optional[UserRole] = None  # Include role in token payload
-    type: str = "access"
+    sub: Optional[EmailStr] = None  # User email (primary identifier)
+    user_id: Optional[str] = None   # User ID as string
+    email: Optional[EmailStr] = None  # User email (duplicate for clarity)
+    role: Optional[UserRole] = None   # User role
+    type: str = "access"              # Token type (access/refresh)
+    exp: Optional[int] = None         # Expiration timestamp

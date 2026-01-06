@@ -73,6 +73,238 @@ export async function navigateToConversation(conversationId: string): Promise<vo
 }
 
 /**
+ * Server action to fetch conversation list
+ *
+ * @returns List of conversations or empty array
+ */
+export async function getConversations(): Promise<any[]> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("access_token")?.value;
+
+    console.log("🔍 getConversations - Token exists:", !!token);
+    console.log("🔍 getConversations - Token length:", token?.length);
+    console.log("🔍 getConversations - API URL:", process.env.NEXT_PUBLIC_API_URL);
+
+    if (!token) {
+      console.log("❌ No token found, redirecting to login");
+      redirect("/login");
+    }
+
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations`;
+    console.log("🔍 Fetching conversations from:", apiUrl);
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store', // Always fetch fresh data
+    });
+
+    console.log("🔍 Response status:", response.status);
+    console.log("🔍 Response ok:", response.ok);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ API Error:", response.status, errorText);
+      
+      if (response.status === 401 || response.status === 403) {
+        console.log("❌ Auth failed, redirecting to login");
+        redirect("/login");
+      }
+      throw new Error("Failed to fetch conversations");
+    }
+
+    const data = await response.json();
+    console.log("✅ Conversations fetched:", data.length, "items");
+    return data;
+  } catch (error) {
+    console.error("❌ Error fetching conversations:", error);
+    throw error;
+  }
+}
+
+/**
+ * Server action to mark conversation as read
+ *
+ * @param conversationId - ID of the conversation to mark as read
+ */
+export async function markConversationAsRead(conversationId: string): Promise<void> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("access_token")?.value;
+
+    if (!token) {
+      return;
+    }
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations/${conversationId}/mark-read`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok && response.status !== 404) {
+      console.error("Failed to mark conversation as read");
+    }
+  } catch (error) {
+    console.error("Error marking conversation as read:", error);
+  }
+}
+
+/**
+ * Server action to fetch conversation messages
+ *
+ * @param conversationId - ID of the conversation
+ * @param limit - Number of messages to fetch
+ * @param before - Fetch messages before this timestamp (for pagination)
+ * @returns List of messages or empty array
+ */
+export async function getConversationMessages(
+  conversationId: string,
+  limit: number = 50,
+  before?: string
+): Promise<any> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("access_token")?.value;
+
+    if (!token) {
+      redirect("/login");
+    }
+
+    const url = new URL(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations/${conversationId}/messages`
+    );
+    url.searchParams.set("limit", limit.toString());
+    if (before) {
+      url.searchParams.set("before", before);
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        redirect("/login");
+      }
+      throw new Error("Failed to fetch messages");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    throw error;
+  }
+}
+
+/**
+ * Server action to get conversation details with current user context
+ *
+ * @param conversationId - ID of the conversation
+ * @returns Conversation details with other user info and current user ID
+ */
+export async function getConversationWithContext(conversationId: string): Promise<any> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("access_token")?.value;
+
+    if (!token) {
+      redirect("/login");
+    }
+
+    // Decode token to get current user ID
+    const { jwtDecode } = await import('jwt-decode');
+    const decoded: any = jwtDecode(token);
+    const currentUserId = decoded.user_id || decoded.sub;
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations/${conversationId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: 'no-store',
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        redirect("/login");
+      }
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error("Failed to fetch conversation");
+    }
+
+    const convData = await response.json();
+    
+    // Add current user ID and determine other user
+    return {
+      ...convData,
+      currentUserId,
+      otherUserId: currentUserId === convData.recruiter_id 
+        ? convData.candidate_id 
+        : convData.recruiter_id
+    };
+  } catch (error) {
+    console.error("Error fetching conversation:", error);
+    throw error;
+  }
+}
+
+/**
+ * Server action to get conversation details
+ *
+ * @param conversationId - ID of the conversation
+ * @returns Conversation details with other user info
+ */
+export async function getConversationDetails(conversationId: string): Promise<any> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("access_token")?.value;
+
+    if (!token) {
+      redirect("/login");
+    }
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations/${conversationId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: 'no-store',
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        redirect("/login");
+      }
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error("Failed to fetch conversation");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching conversation:", error);
+    throw error;
+  }
+}
+
+/**
  * Server action to fetch conversation details
  *
  * @param conversationId - ID of the conversation

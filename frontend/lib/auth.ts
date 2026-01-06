@@ -6,17 +6,7 @@
  */
 import { cookies } from 'next/headers';
 import { jwtDecode } from 'jwt-decode';
-import type { UserRole, Session, SessionUser } from '@datn/shared-types';
-
-/**
- * JWT payload structure from the backend
- */
-interface JWTPayload {
-  sub: string;      // User ID
-  email: string;
-  role: UserRole;
-  exp: number;      // Expiration timestamp
-}
+import type { UserRole, Session, SessionUser, JWTPayload } from '@datn/shared-types';
 
 /**
  * Get the current session from the JWT cookie.
@@ -31,14 +21,32 @@ export async function getSession(): Promise<Session | null> {
     const cookieStore = await cookies();
     const token = cookieStore.get('access_token')?.value;
     
+    // Enhanced debug info
+    const allCookies = cookieStore.getAll();
+    console.log('🔍 Auth Debug Info\n', {
+      hasToken: token ? '✅ Yes' : '❌ No',
+      tokenLength: token?.length || 0,
+      allCookieNames: allCookies.map(c => c.name),
+      cookieCount: allCookies.length
+    });
+    
     if (!token) {
+      console.log('🔍 No access_token found in cookies');
       return null;
     }
     
     const decoded = jwtDecode<JWTPayload>(token);
     
     // Check if token is expired
-    if (decoded.exp * 1000 < Date.now()) {
+    const now = Date.now();
+    const expiry = decoded.exp * 1000;
+    
+    if (expiry < now) {
+      console.log('🔍 Token expired:', {
+        expiry: new Date(expiry).toISOString(),
+        now: new Date(now).toISOString(),
+        expired: true
+      });
       return null;
     }
     
@@ -48,10 +56,20 @@ export async function getSession(): Promise<Session | null> {
       role: decoded.role,
     };
     
-    return { user };
+    const session: Session = {
+      user,
+    };
+    
+    console.log('🔍 Valid session found:', {
+      userId: user.id,
+      role: user.role,
+      email: user.email,
+      expiresAt: new Date(expiry).toISOString()
+    });
+    
+    return session;
   } catch (error) {
-    // Invalid token or decode error
-    console.error('Session decode error:', error);
+    console.log('🔍 Session decode error:', error);
     return null;
   }
 }

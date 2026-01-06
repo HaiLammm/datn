@@ -65,6 +65,8 @@ export type LoginFormState = {
 };
 
 export async function loginUser(prevState: LoginFormState, formData: FormData): Promise<LoginFormState> {
+  console.log('🚀 NEW LOGIN ACTION STARTED - If you see this, new code is running!');
+  
   const validatedFields = LoginSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -72,31 +74,63 @@ export async function loginUser(prevState: LoginFormState, formData: FormData): 
   }
 
   try {
-    const response = await authService.login(validatedFields.data);
+    // 🔧 FIX: Call backend API directly from server-side instead of using axios client
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const loginUrl = `${baseUrl}/api/v1/auth/login`;
+    
+    console.log('🔍 Login Debug:', {
+      baseUrl,
+      loginUrl,
+      env: process.env.NEXT_PUBLIC_API_URL,
+      timestamp: new Date().toISOString()
+    });
+    
+    const response = await fetch(loginUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: validatedFields.data.email,
+        password: validatedFields.data.password,
+      }),
+      credentials: 'include', // Important: include credentials for cookies
+    });
 
-    // Xử lý Set-Cookie header từ Backend
-    const setCookieHeader = response.headers['set-cookie'];
-    if (setCookieHeader) {
-      await applySetCookie(setCookieHeader);
+    if (!response.ok) {
+      const errorData = await response.json();
+      const detail = errorData.detail;
+      let errorMessage = 'Đăng nhập thất bại. Vui lòng thử lại.';
+      
+      if (typeof detail === 'string') {
+        errorMessage = detail;
+        if (detail.includes('không tồn tại') || detail.includes('username')) {
+          return { errors: { email: [detail] } };
+        }
+        if (detail.includes('password') || detail.includes('Mật khẩu')) {
+          return { errors: { password: [detail] } };
+        }
+      } else if (Array.isArray(detail)) {
+        errorMessage = detail.map((e: any) => e.msg || e).join(', ');
+      }
+      
+      return { errors: { server: [errorMessage] } };
+    }
+
+    // Extract Set-Cookie headers from response
+    const setCookieHeaders = response.headers.getSetCookie();
+    
+    if (setCookieHeaders && setCookieHeaders.length > 0) {
+      await applySetCookie(setCookieHeaders);
+      console.log('✅ Cookies set successfully:', setCookieHeaders.length);
     } else {
-      // This case might happen if login is successful but no cookie is set.
+      console.warn('⚠️ No Set-Cookie headers found in response');
       return { errors: { server: ['Login response missing session cookie.'] } };
     }
+
   } catch (error: any) {
-    const detail = error.response?.data?.detail;
-    let errorMessage = 'Đăng nhập thất bại. Vui lòng thử lại.';
-    if (typeof detail === 'string') {
-      errorMessage = detail;
-      if (detail.includes('không tồn tại')) {
-        return { errors: { email: [detail] } };
-      }
-      if (detail.includes('Mật khẩu không đúng')) {
-        return { errors: { password: [detail] } };
-      }
-    } else if (Array.isArray(detail) && detail.length > 0) {
-      errorMessage = detail.map((e: any) => e.msg || e).join(', ');
-    }
-    return { errors: { server: [errorMessage] } };
+    console.error('❌ Login error:', error);
+    return { errors: { server: ['Lỗi kết nối đến server. Vui lòng thử lại.'] } };
   }
 
   redirect('/dashboard');

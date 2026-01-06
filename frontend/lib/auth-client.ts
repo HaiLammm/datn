@@ -5,17 +5,7 @@
  * Used for client components that need auth functionality.
  */
 import { jwtDecode } from 'jwt-decode';
-import type { UserRole, Session, SessionUser } from '@datn/shared-types';
-
-/**
- * JWT payload structure from the backend
- */
-interface JWTPayload {
-  sub: string;      // User ID
-  email: string;
-  role: UserRole;
-  exp: number;      // Expiration timestamp
-}
+import type { UserRole, Session, SessionUser, JWTPayload } from '@datn/shared-types';
 
 /**
  * Client-side function to get auth token from cookie or localStorage
@@ -54,7 +44,7 @@ export function getClientSession(): Session | null {
     }
     
     const user: SessionUser = {
-      id: decoded.sub,
+      id: decoded.user_id || decoded.sub, // Handle both user_id and sub
       email: decoded.email,
       role: decoded.role,
     };

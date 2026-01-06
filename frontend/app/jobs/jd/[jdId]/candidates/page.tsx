@@ -70,6 +70,46 @@ export default async function CandidatesPage({ params }: CandidatesPageProps) {
     offset: 0,
   });
 
+  // Handle initial data fetch error
+  if (initialCandidates === null) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <Link
+          href={`/jobs/jd/${jdId}`}
+          className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors mb-6"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Quay lại JD
+        </Link>
+
+        <Card className="p-8 text-center">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">
+            Không thể tải danh sách ứng viên
+          </h1>
+          <p className="text-muted-foreground mb-4">
+            Đã xảy ra lỗi khi tải danh sách ứng viên. Điều này có thể do:
+          </p>
+          <ul className="text-left text-muted-foreground mb-4 space-y-1">
+            <li>• Chưa có CV nào trong hệ thống</li>
+            <li>• Lỗi kết nối đến server</li>
+            <li>• Lỗi xử lý dữ liệu</li>
+          </ul>
+          <div className="space-x-2">
+            <Link href={`/jobs/jd/${jdId}`}>
+              <Button variant="outline">
+                Quay lại JD
+              </Button>
+            </Link>
+            <Button onClick={() => window.location.reload()}>
+              Thử lại
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}

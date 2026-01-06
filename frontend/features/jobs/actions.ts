@@ -373,6 +373,16 @@ export async function getCandidatesAction(
     return await jobService.getCandidatesForJD(jdId, params, accessToken);
   } catch (error) {
     console.error("Error fetching candidates:", error);
+    
+    // Log detailed error information
+    if (error && typeof error === "object" && "response" in error) {
+      const axiosError = error as {
+        response?: { status?: number; data?: { detail?: unknown } };
+      };
+      console.error("Response status:", axiosError.response?.status);
+      console.error("Response data:", axiosError.response?.data);
+    }
+    
     return null;
   }
 }
@@ -541,6 +551,38 @@ export async function calculateJobMatchAction(
     return await jobService.calculateJobMatch(jdId, cvId, accessToken);
   } catch (error) {
     console.error("Error calculating job match:", error);
+    return null;
+  }
+}
+
+/**
+ * Get applicants for a job posting
+ * @param jdId - Job Description ID
+ * @returns List of applicants or null on error
+ */
+export async function getApplicantsAction(
+  jdId: string
+): Promise<{ applicants: any[] } | null> {
+  try {
+    const accessToken = await getAccessToken();
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/jobs/jd/${jdId}/applicants`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        cache: 'no-store',
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`Failed to fetch applicants: ${response.status}`);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching applicants:", error);
     return null;
   }
 }

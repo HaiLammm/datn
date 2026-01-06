@@ -21,6 +21,10 @@ const io = new Server(httpServer, {
 // Format: { userId: { socketId: { id, userRole, userName, joinedConversations } } }
 const activeConnections = new Map();
 
+// Typing users storage with server-side timeout tracking
+// Format: Map<conversationId, Map<userId, timeoutId>>
+const typingUsers = new Map();
+
 // ============ JWT Authentication Middleware ============
 
 io.use(async (socket, next) => {
@@ -170,25 +174,73 @@ io.on('connection', (socket) => {
 
   socket.on('typing-start', (data) => {
     const { conversationId } = data;
+    
+    // Broadcast to conversation room (exclude sender)
     socket.to(`conversation:${conversationId}`).emit('user-typing', {
-      conversationId,
-      userId: socket.userId,
-      userName: socket.userName,
+      conversation_id: conversationId,
+      user_id: socket.userId,
+      user_name: socket.userName
     });
+
+    // Server-side timeout tracking
+    if (!typingUsers.has(conversationId)) {
+      typingUsers.set(conversationId, new Map());
+    }
+
+    const conversationTyping = typingUsers.get(conversationId);
+
+    // Clear existing timeout
+    if (conversationTyping.has(socket.userId)) {
+      clearTimeout(conversationTyping.get(socket.userId));
+    }
+
+    // Set 5-second server timeout
+    const timeoutId = setTimeout(() => {
+      socket.to(`conversation:${conversationId}`).emit('user-stopped-typing', {
+        conversation_id: conversationId,
+        user_id: socket.userId
+      });
+      conversationTyping.delete(socket.userId);
+    }, 5000);
+
+    conversationTyping.set(socket.userId, timeoutId);
   });
 
   socket.on('typing-stop', (data) => {
     const { conversationId } = data;
+    
     socket.to(`conversation:${conversationId}`).emit('user-stopped-typing', {
-      conversationId,
-      userId: socket.userId,
+      conversation_id: conversationId,
+      user_id: socket.userId
     });
+
+    // Clear server timeout
+    if (typingUsers.has(conversationId)) {
+      const conversationTyping = typingUsers.get(conversationId);
+      if (conversationTyping.has(socket.userId)) {
+        clearTimeout(conversationTyping.get(socket.userId));
+        conversationTyping.delete(socket.userId);
+      }
+    }
   });
 
   // ============ Disconnect Handler ============
 
   socket.on('disconnect', (reason) => {
     // User disconnected - clean up
+
+    // Cleanup typing indicators for all conversations this user was typing in
+    typingUsers.forEach((conversationTyping, conversationId) => {
+      if (conversationTyping.has(socket.userId)) {
+        clearTimeout(conversationTyping.get(socket.userId));
+        conversationTyping.delete(socket.userId);
+
+        io.to(`conversation:${conversationId}`).emit('user-stopped-typing', {
+          conversation_id: conversationId,
+          user_id: socket.userId
+        });
+      }
+    });
 
     // Remove from active connections
     const userConnections = activeConnections.get(socket.userId);
@@ -221,15 +273,8 @@ async function emitConversationUpdated(conversationId, message) {
     // Emit conversation-updated to each participant's user room
     for (const participantId of participants) {
       try {
-        // Get unread count for this specific participant
-        const unreadResponse = await axios.get(
-          `${process.env.BACKEND_API_URL}/api/v1/messages/conversations/unread-count`,
-          {
-            headers: { Authorization: `Bearer ${process.env.API_SYSTEM_TOKEN || ''}` },
-          }
-        );
-
-        // For simplicity, set unread_count based on whether user is sender
+        // For simplicity in Story 7.3, calculate unread_count based on whether user is sender
+        // In production, you'd want to get actual unread count from database
         const unreadCount = participantId === message.sender_id ? 0 : 1;
 
         const conversationUpdateData = {
@@ -237,7 +282,8 @@ async function emitConversationUpdated(conversationId, message) {
           last_message: {
             content: message.content,
             timestamp: message.created_at,
-            sender_id: message.sender_id
+            sender_id: message.sender_id,
+            sender_name: message.sender_name || 'Unknown' // Include sender name for toast
           },
           unread_count: unreadCount,
           updated_at: new Date().toISOString()
@@ -245,7 +291,11 @@ async function emitConversationUpdated(conversationId, message) {
 
         // Emit to participant's user room
         io.to(`user:${participantId}`).emit('conversation-updated', conversationUpdateData);
-        console.log(`Emitted conversation-updated to user:${participantId}`);
+        console.log(`Emitted conversation-updated to user:${participantId}`, {
+          conversationId,
+          unreadCount,
+          lastMessage: conversationUpdateData.last_message.content.substring(0, 50)
+        });
       } catch (error) {
         console.error(`Error emitting to user ${participantId}:`, error.message);
       }

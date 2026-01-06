@@ -2,6 +2,44 @@
 
 Tệp này cung cấp hướng dẫn và bộ nhớ cho CLI lập trình của bạn.
 
+## 🚨 **CODING STANDARDS COMPLIANCE**
+
+**CRITICAL**: Khi thực hiện bất kỳ coding task nào, OpenCode **PHẢI LUÔN** tuân thủ coding standards được định nghĩa trong:
+
+📋 **File**: `_bmad-output/planning-artifacts/architecture/coding-standards.md`
+
+### **Quy tắc Bắt buộc:**
+1. **Đọc planning artifacts TRƯỚC** khi phân tích hoặc viết code
+2. **Tuân thủ Critical Fullstack Rules** (HttpOnly cookies, Server Actions, API Service Layer, etc.)
+3. **Follow SQLAlchemy Async Rules** để tránh MissingGreenlet errors
+4. **Apply DRY principle** và component hierarchy standards
+5. **Use established naming conventions** cho tất cả code elements
+
+### **Process Protocol:**
+```
+1. READ FOUNDATION FILES:
+   - _bmad-output/planning-artifacts/architecture/coding-standards.md
+   - _bmad-output/planning-artifacts/architecture/introduction.md  
+   - _bmad-output/planning-artifacts/architecture/source-tree.md
+   - _bmad-output/planning-artifacts/architecture/tech-stack.md
+
+2. READ ARCHITECTURE CONTEXT:
+   - _bmad-output/planning-artifacts/architecture/frontend-architecture.md
+   - _bmad-output/planning-artifacts/architecture/data-models-and-apis.md
+   - _bmad-output/planning-artifacts/architecture/api-specification.md
+
+3. READ BUSINESS CONTEXT:
+   - _bmad-output/planning-artifacts/prd.md
+   - _bmad-output/planning-artifacts/epics.md
+   - Relevant story files for current task
+
+4. ANALYZE: So sánh implementation với standards
+5. CODE: Tuân thủ standards khi viết/sửa code  
+6. VALIDATE: Kiểm tra compliance trước khi hoàn thành
+```
+
+**⚠️ KHÔNG được ignore hoặc deviate từ coding standards trừ khi có explicit permission từ user.**
+
 <!-- BEGIN: BMAD-AGENTS-OPENCODE -->
 # Các Tác nhân và Nhiệm vụ của BMAD-METHOD (OpenCode)
 

@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-// Lấy URL từ biến môi trường và đảm bảo nó trỏ đến đúng API version
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+// Backend uses /api/v1 prefix via settings.API_V1_STR in main.py
+// Check if NEXT_PUBLIC_API_URL already includes /api/v1 to avoid duplication
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const baseURL = apiUrl.endsWith('/api/v1') ? apiUrl : apiUrl + '/api/v1';
 
 export const apiClient = axios.create({
   baseURL,

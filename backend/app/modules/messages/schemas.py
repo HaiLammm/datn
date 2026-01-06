@@ -102,14 +102,7 @@ class MessageListResponse(BaseModel):
 
 
 # ============ Auth Verification Schemas ============
-
-
-class TokenPayload(BaseModel):
-    """JWT token payload for Socket.io authentication."""
-
-    sub: int  # user_id
-    role: str
-    exp: Optional[datetime] = None
+# Note: JWT TokenPayload is imported from auth module to maintain consistency
 
 
 class AuthVerifyResponse(BaseModel):

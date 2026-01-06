@@ -113,10 +113,10 @@ export function ChatWindow({
       {/* Message Input */}
       <MessageInput
         onSend={handleSendMessage}
-        onTypingStart={handleTypingStart}
-        onTypingStop={handleTypingStop}
+        onTyping={handleTypingStart}
+        onStopTyping={handleTypingStop}
         disabled={!isConnected}
-        placeholder="Type a message..."
+        placeholder="Nhập tin nhắn..."
       />
     </div>
   );

@@ -110,8 +110,8 @@ development_status:
   epic-7: in-progress
   7-1-recruiter-initiate-chat: done  # Socket.io server setup + real-time messaging
   7-2-candidate-receive-reply: review  # Bidirectional Socket.io messaging
-  7-3-conversation-list: ready-for-dev        # Real-time conversation updates
-  7-4-notifications: ready-for-dev            # Toast notifications + typing indicator
+  7-3-conversation-list: review                # Real-time conversation updates
+  7-4-notifications: review                   # Toast notifications + typing indicator
   epic-7-retrospective: optional
 
   # Epic 8: Virtual AI Interview Room (Stories 8.1-8.4)

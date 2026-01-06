@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
 import { CandidateListItem } from "@/features/messages/components/CandidateListItem";
 import { createConversation, navigateToConversation } from "@/features/messages/actions";
-import { getClientSession } from "@/lib/auth-client";
+import { getJDAction, getApplicantsAction } from "@/features/jobs/actions";
 
 interface Applicant {
   id: number;
@@ -44,62 +44,22 @@ export default function ApplicantsPage() {
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isRecruiter, setIsRecruiter] = useState(false);
 
   // Fetch job details and applicants
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Check user role
-        const session = getClientSession();
-        if (!session?.user) {
-          router.push("/login");
-          return;
-        }
-
-        const userRole = session.user.role;
-        if (userRole !== "recruiter" && userRole !== "admin") {
-          router.push("/");
-          return;
-        }
-        setIsRecruiter(true);
-
-        // Fetch job details
-        const token = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("access_token="))
-          ?.split("=")[1];
-
-        if (!token) {
-          router.push("/login");
-          return;
-        }
-
-        const jobResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/jobs/jd/${jdId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (!jobResponse.ok) {
+        // Fetch job details using server action
+        const jobData = await getJDAction(jdId);
+        if (!jobData) {
           throw new Error("Failed to fetch job details");
         }
-
-        const jobData: JobDetails = await jobResponse.json();
         setJobDetails(jobData);
 
-        // Fetch applicants
-        const applicantsResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/jobs/jd/${jdId}/applicants`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (applicantsResponse.ok) {
-          const data = await applicantsResponse.json();
-          setApplicants(data.applicants || []);
+        // Fetch applicants using server action
+        const applicantsData = await getApplicantsAction(jdId);
+        if (applicantsData) {
+          setApplicants(applicantsData.applicants || []);
         } else {
           // If endpoint doesn't exist yet, show empty state
           setApplicants([]);
@@ -113,7 +73,7 @@ export default function ApplicantsPage() {
     };
 
     fetchData();
-  }, [jdId, router]);
+  }, [jdId]);
 
   // Handle start chat
   const handleStartChat = async (candidateId: number) => {

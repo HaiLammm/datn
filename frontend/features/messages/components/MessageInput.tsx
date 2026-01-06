@@ -4,8 +4,8 @@ import React, { useState, useRef, useCallback } from "react";
 
 interface MessageInputProps {
   onSend: (content: string) => void;
-  onTypingStart?: () => void;
-  onTypingStop?: () => void;
+  onTyping?: () => void; // Updated to use with useTypingIndicator
+  onStopTyping?: () => void; // Renamed for clarity
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
@@ -23,10 +23,10 @@ interface MessageInputProps {
  */
 export function MessageInput({
   onSend,
-  onTypingStart,
-  onTypingStop,
+  onTyping,
+  onStopTyping,
   disabled = false,
-  placeholder = "Type a message...",
+  placeholder = "Nhập tin nhắn...",
   maxLength = 5000,
 }: MessageInputProps) {
   const [message, setMessage] = useState("");
@@ -47,7 +47,7 @@ export function MessageInput({
   const handleTyping = useCallback(() => {
     if (!isTyping) {
       setIsTyping(true);
-      onTypingStart?.();
+      onTyping?.();
     }
 
     // Clear existing timeout
@@ -55,12 +55,12 @@ export function MessageInput({
       clearTimeout(typingTimeoutRef.current);
     }
 
-    // Set timeout to stop typing indicator
+    // Set timeout to stop typing indicator (3 seconds for consistency)
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      onTypingStop?.();
-    }, 2000);
-  }, [isTyping, onTypingStart, onTypingStop]);
+      onStopTyping?.();
+    }, 3000);
+  }, [isTyping, onTyping, onStopTyping]);
 
   // Handle input change
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -85,7 +85,7 @@ export function MessageInput({
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-      onTypingStop?.();
+      onStopTyping?.();
 
       // Refocus textarea
       textareaRef.current?.focus();

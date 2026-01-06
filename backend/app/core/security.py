@@ -29,8 +29,18 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.utcnow() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
-    to_encode.update({"exp": expire, "sub": to_encode["sub"], "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    
+    # Create comprehensive JWT payload following shared types
+    payload = {
+        "sub": to_encode["sub"],           # User email (primary identifier)
+        "user_id": str(to_encode.get("user_id", "")),  # User ID as string
+        "email": to_encode["sub"],         # User email (duplicate for clarity)
+        "role": to_encode["role"],         # User role
+        "type": "access",                  # Token type
+        "exp": expire                      # Expiration
+    }
+    
+    encoded_jwt = jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 
@@ -42,6 +52,16 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
         expire = datetime.utcnow() + timedelta(
             minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES
         )
-    to_encode.update({"exp": expire, "sub": to_encode["sub"], "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    
+    # Create comprehensive JWT payload following shared types
+    payload = {
+        "sub": to_encode["sub"],           # User email (primary identifier)
+        "user_id": str(to_encode.get("user_id", "")),  # User ID as string
+        "email": to_encode["sub"],         # User email (duplicate for clarity) 
+        "role": to_encode["role"],         # User role
+        "type": "refresh",                 # Token type
+        "exp": expire                      # Expiration
+    }
+    
+    encoded_jwt = jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

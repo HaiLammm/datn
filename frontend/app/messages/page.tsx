@@ -3,21 +3,13 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConversationList } from "@/features/messages/components/ConversationList";
-import { getClientSession } from "@/lib/auth-client";
 import { useGlobalSocket } from "@/hooks/useGlobalSocket";
 import { ConversationListItem, ConversationUpdatedEvent } from "@/types/messages";
-
-interface User {
-  id: string;
-  email: string;
-  role: string;
-  full_name?: string;
-}
+import { getConversations, markConversationAsRead } from "@/features/messages/actions";
 
 export default function MessagesPage(): React.ReactElement {
   const router = useRouter();
   const socket = useGlobalSocket();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,38 +17,9 @@ export default function MessagesPage(): React.ReactElement {
   useEffect(() => {
     const fetchConversations = async () => {
       try {
-        // Get current user
-        const session = getClientSession();
-        if (!session?.user) {
-          router.push("/login");
-          return;
-        }
-        setCurrentUser(session.user);
-
-        // Get auth token
-        const token = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("access_token="))
-          ?.split("=")[1];
-
-        if (!token) {
-          router.push("/login");
-          return;
-        }
-
-        // Fetch conversations using new API
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch conversations");
-        }
-
-        const data: ConversationListItem[] = await response.json();
+        // Fetch conversations using server action
+        // Layout already verified auth, no need to check session here
+        const data = await getConversations();
         setConversations(data);
       } catch (err) {
         console.error("Error fetching conversations:", err);
@@ -104,22 +67,9 @@ export default function MessagesPage(): React.ReactElement {
   }, [socket]);
 
   // Story 7.3: Mark conversation as read when clicked
-  const markConversationAsRead = async (conversationId: string) => {
+  const handleMarkAsRead = async (conversationId: string) => {
     try {
-      const token = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("access_token="))
-        ?.split("=")[1];
-
-      if (!token) return;
-
-      await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations/${conversationId}/mark-read`,
-        {
-          method: 'PATCH',
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      await markConversationAsRead(conversationId);
 
       // Update local state to mark as read
       setConversations(prev =>
@@ -226,7 +176,7 @@ export default function MessagesPage(): React.ReactElement {
 
           <ConversationList 
             conversations={conversations} 
-            onConversationClick={markConversationAsRead}
+            onConversationClick={handleMarkAsRead}
           />
         </div>
       </div>
