@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { Plus, Search } from "lucide-react";
 import { getCVList } from "@/features/cv/actions";
 import { CVsClientWrapper } from "@/features/cv/components/CVsClientWrapper";
 import { CVHistorySkeleton } from "@/features/cv/components/CVHistorySkeleton";
@@ -26,12 +27,20 @@ export default async function CVsPage() {
         </p>
       </div>
 
-      <div className="mb-6">
+      <div className="flex flex-wrap gap-4 mb-6">
         <Link
           href="/cvs/upload"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 shadow-sm"
         >
+          <Plus className="h-4 w-4 mr-2" />
           Upload New CV
+        </Link>
+        <Link
+          href="/jobs/find"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 shadow-sm"
+        >
+          <Search className="h-4 w-4 mr-2" />
+          Tìm kiếm việc làm
         </Link>
       </div>
 
