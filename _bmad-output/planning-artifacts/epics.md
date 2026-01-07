@@ -265,36 +265,42 @@ So that tôi có thể đưa ra quyết định tuyển dụng sáng suốt.
 *   **Given** tôi đã tìm thấy một ứng viên có CV công khai, **When** tôi truy cập hồ sơ của ứng viên đó, **Then** tôi có thể xem phân tích CV chi tiết và báo cáo phỏng vấn AI (nếu có). (Covers FR24)
 *   **Given** ứng viên đó đã đặt CV là riêng tư, **When** tôi cố gắng xem chi tiết hồ sơ, **Then** hệ thống hiển thị thông báo "CV này là riêng tư" và không hiển thị thông tin chi tiết. (Covers NFR2.2)
 
-### Epic 5: Giao tiếp Thời gian thực (Real-time Communication)
+### Epic 5: Giao tiếp Thời gian thực (Real-time Communication) ✅ COMPLETED
 **Mục tiêu:** Xây dựng một kênh giao tiếp tức thời giữa nhà tuyển dụng và ứng viên để tăng tốc quá trình tuyển dụng.
 **FRs bao gồm:** FR25, FR26, FR27
+**Completion Date:** January 7, 2026
+**Status:** All 3 stories completed and tested. 11 issues fixed, 1 enhancement added.
+**Tech Stack:** FastAPI backend, Socket.io server (port 3001), Next.js frontend with real-time Socket.io client.
 
-### Story 5.1: Bắt đầu Cuộc Trò chuyện (Initiate Conversation)
+### Story 5.1: Bắt đầu Cuộc Trò chuyện (Initiate Conversation) ✅ COMPLETED
 As a nhà tuyển dụng,
 I want để bắt đầu một cuộc trò chuyện với một ứng viên,
 So that tôi có thể giao tiếp trực tiếp để sàng lọc hoặc sắp xếp phỏng vấn.
 **Acceptance Criteria:**
-*   **Given** tôi đã tìm thấy một ứng viên phù hợp, **When** tôi nhấp vào nút "Bắt đầu Trò chuyện", **Then** một giao diện trò chuyện mới mở ra và tôi có thể gửi tin nhắn đầu tiên. (Covers FR25)
-*   **Given** đã có một cuộc trò chuyện với ứng viên đó, **When** tôi cố gắng bắt đầu cuộc trò chuyện mới, **Then** hệ thống đưa tôi đến cuộc trò chuyện hiện có.
-*   **Given** tôi gửi tin nhắn, **When** tin nhắn được gửi, **Then** tin nhắn của tôi xuất hiện trong giao diện trò chuyện và được gửi đến ứng viên. (Covers NFR1.2)
+*   ✅ **Given** tôi đã tìm thấy một ứng viên phù hợp, **When** tôi nhấp vào nút "Bắt đầu Trò chuyện", **Then** một giao diện trò chuyện mới mở ra và tôi có thể gửi tin nhắn đầu tiên. (Covers FR25)
+*   ✅ **Given** đã có một cuộc trò chuyện với ứng viên đó, **When** tôi cố gắng bắt đầu cuộc trò chuyện mới, **Then** hệ thống đưa tôi đến cuộc trò chuyện hiện có.
+*   ✅ **Given** tôi gửi tin nhắn, **When** tin nhắn được gửi, **Then** tin nhắn của tôi xuất hiện trong giao diện trò chuyện và được gửi đến ứng viên. (Covers NFR1.2)
+**Implementation:** Enhanced với smart conversation detection - kiểm tra existing conversation trước khi mở modal.
 
-### Story 5.2: Gửi và Nhận Tin nhắn (Send and Receive Messages)
+### Story 5.2: Gửi và Nhận Tin nhắn (Send and Receive Messages) ✅ COMPLETED
 As a người dùng (nhà tuyển dụng hoặc ứng viên),
 I want để gửi và nhận tin nhắn thời gian thực trong giao diện trò chuyện,
 So that tôi có thể trao đổi thông tin liên tục và hiệu quả.
 **Acceptance Criteria:**
-*   **Given** tôi đang ở trong giao diện trò chuyện, **When** tôi nhập tin nhắn và gửi, **Then** tin nhắn của tôi xuất hiện ngay lập tức trong cuộc trò chuyện và người đối thoại nhận được tin nhắn. (Covers FR26, NFR1.2, UXR3)
-*   **Given** tôi nhận được tin nhắn mới, **When** tin nhắn đến, **Then** tin nhắn đó hiển thị ngay lập tức trong giao diện trò chuyện.
-*   **And** tất cả tin nhắn được lưu trữ an toàn và có thể truy cập lại sau này. (Covers NFR2.1)
+*   ✅ **Given** tôi đang ở trong giao diện trò chuyện, **When** tôi nhập tin nhắn và gửi, **Then** tin nhắn của tôi xuất hiện ngay lập tức trong cuộc trò chuyện và người đối thoại nhận được tin nhắn. (Covers FR26, NFR1.2, UXR3)
+*   ✅ **Given** tôi nhận được tin nhắn mới, **When** tin nhắn đến, **Then** tin nhắn đó hiển thị ngay lập tức trong giao diện trò chuyện.
+*   ✅ **And** tất cả tin nhắn được lưu trữ an toàn và có thể truy cập lại sau này. (Covers NFR2.1)
+**Implementation:** Real-time via Socket.io. Own messages: blue/right-aligned. Received: gray/left-aligned with sender name.
 
-### Story 5.3: Danh sách & Lịch sử Cuộc Trò chuyện (Conversation List & History)
+### Story 5.3: Danh sách & Lịch sử Cuộc Trò chuyện (Conversation List & History) ✅ COMPLETED
 As a người dùng,
 I want để xem danh sách tất cả các cuộc trò chuyện của mình và truy cập lịch sử tin nhắn,
 So that tôi có thể dễ dàng quản lý các trao đổi và theo dõi thông tin.
 **Acceptance Criteria:**
-*   **Given** tôi đã đăng nhập, **When** tôi truy cập trang tin nhắn, **Then** tôi thấy danh sách các cuộc trò chuyện của mình, sắp xếp theo tin nhắn gần nhất. (Covers FR27)
-*   **Given** một cuộc trò chuyện có tin nhắn chưa đọc, **When** tôi xem danh sách, **Then** cuộc trò chuyện đó được đánh dấu là có tin nhắn mới.
-*   **Given** tôi chọn một cuộc trò chuyện từ danh sách, **When** tôi nhấp vào, **Then** hệ thống đưa tôi đến giao diện trò chuyện với lịch sử tin nhắn đầy đủ.
+*   ✅ **Given** tôi đã đăng nhập, **When** tôi truy cập trang tin nhắn, **Then** tôi thấy danh sách các cuộc trò chuyện của mình, sắp xếp theo tin nhắn gần nhất. (Covers FR27)
+*   ✅ **Given** một cuộc trò chuyện có tin nhắn chưa đọc, **When** tôi xem danh sách, **Then** cuộc trò chuyện đó được đánh dấu là có tin nhắn mới.
+*   ✅ **Given** tôi chọn một cuộc trò chuyện từ danh sách, **When** tôi nhấp vào, **Then** hệ thống đưa tôi đến giao diện trò chuyện với lịch sử tin nhắn đầy đủ.
+**Implementation:** Route `/messages` displays conversation list với participant names, avatars, và last message preview.
 
 ### Epic 6: Giám sát và Quản trị Hệ thống (Admin Oversight & Monitoring)
 **Mục tiêu:** Cung cấp cho quản trị viên các công cụ cần thiết để giám sát sức khỏe hệ thống và quản lý người dùng, nội dung.

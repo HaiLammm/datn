@@ -15,6 +15,16 @@ class ConversationCreateRequest(BaseModel):
     initial_message: str = Field(..., min_length=1, max_length=5000, description="First message content")
 
 
+class UserBasicInfo(BaseModel):
+    """Schema for basic user information."""
+    
+    id: int
+    full_name: str
+    email: str
+    role: str
+    avatar: Optional[str] = None
+
+
 class ConversationResponse(BaseModel):
     """Schema for conversation response."""
 
@@ -23,6 +33,8 @@ class ConversationResponse(BaseModel):
     candidate_id: int
     created_at: datetime
     updated_at: datetime
+    recruiter: Optional[UserBasicInfo] = None
+    candidate: Optional[UserBasicInfo] = None
 
     class Config:
         from_attributes = True
@@ -116,15 +128,7 @@ class AuthVerifyResponse(BaseModel):
 
 
 # ============ Story 7.3: Conversation List Schemas ============
-
-
-class UserBasicInfo(BaseModel):
-    """Basic user information for conversation participants."""
-    
-    id: int
-    name: str
-    avatar: Optional[str] = None
-    role: str
+# Note: UserBasicInfo is defined above (line 18-24)
 
 
 class MessagePreview(BaseModel):

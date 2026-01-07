@@ -1,12 +1,15 @@
 import uuid
 from datetime import datetime
-from typing import List
+from typing import List, TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.modules.users.models import User
 
 
 class Conversation(Base):
@@ -31,6 +34,12 @@ class Conversation(Base):
     # Relationships
     messages: Mapped[List["Message"]] = relationship(
         "Message", back_populates="conversation", cascade="all, delete-orphan"
+    )
+    recruiter: Mapped["User"] = relationship(
+        "User", foreign_keys=[recruiter_id], lazy="selectin"
+    )
+    candidate: Mapped["User"] = relationship(
+        "User", foreign_keys=[candidate_id], lazy="selectin"
     )
 
     # Define unique constraint to prevent duplicate conversations

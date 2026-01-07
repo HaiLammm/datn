@@ -682,3 +682,40 @@ export async function getSkillSuggestionsAction(query: string, limit: number = 1
     return [];
   }
 }
+
+// ============================================================
+// Job Application Actions (Story 9.3)
+// ============================================================
+
+/**
+ * Apply to a job posting
+ * @param jobId - Job Description ID
+ * @param cvId - CV ID to use for application
+ * @param coverLetter - Optional cover letter
+ * @returns Success result with message
+ */
+export async function applyJobAction(
+  jobId: string,
+  cvId: string,
+  coverLetter?: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const accessToken = await getAccessToken();
+    await jobService.applyJob(jobId, cvId, coverLetter, accessToken);
+    return { success: true, message: "Ứng tuyển thành công!" };
+  } catch (error) {
+    console.error("Error applying to job:", error);
+    
+    // Extract error message from response
+    if (error && typeof error === "object" && "response" in error) {
+      const axiosError = error as {
+        response?: { status?: number; data?: { detail?: unknown } };
+      };
+      const detail = axiosError.response?.data?.detail;
+      const errorMessage = extractErrorMessage(detail, "Đã xảy ra lỗi khi ứng tuyển");
+      return { success: false, message: errorMessage };
+    }
+    
+    return { success: false, message: "Đã xảy ra lỗi khi ứng tuyển" };
+  }
+}

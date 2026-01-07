@@ -28,12 +28,18 @@ export async function createConversation(
   initialMessage: string
 ): Promise<string> {
   try {
+    console.log("🔐 Getting authentication token...");
     const cookieStore = await cookies();
     const token = cookieStore.get("access_token")?.value;
 
     if (!token) {
+      console.error("❌ No authentication token found");
       throw new Error("Authentication required");
     }
+
+    console.log("📡 Sending POST request to create conversation");
+    console.log("   Candidate ID:", candidateId);
+    console.log("   API URL:", `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations`);
 
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations`,
@@ -50,25 +56,34 @@ export async function createConversation(
       }
     );
 
+    console.log("📥 Response status:", response.status);
+
     if (!response.ok) {
       const error = await response.json();
+      console.error("❌ API error:", error);
       throw new Error(error.detail || "Failed to create conversation");
     }
 
     const data: ConversationResponse = await response.json();
+    console.log("✅ Conversation created successfully:", data.id);
     return data.id;
   } catch (error) {
-    console.error("Error creating conversation:", error);
+    console.error("❌ Error creating conversation:", error);
     throw error;
   }
 }
 
 /**
  * Server action to navigate to a conversation
+ * 
+ * ⚠️ DEPRECATED: Don't use this function from client components!
+ * Next.js redirect() throws NEXT_REDIRECT error when awaited in client.
+ * Use router.push() instead from client components.
  *
  * @param conversationId - ID of the conversation to navigate to
  */
 export async function navigateToConversation(conversationId: string): Promise<void> {
+  console.log("🔄 Redirecting to:", `/messages/${conversationId}`);
   redirect(`/messages/${conversationId}`);
 }
 
@@ -121,6 +136,28 @@ export async function getConversations(): Promise<any[]> {
   } catch (error) {
     console.error("❌ Error fetching conversations:", error);
     throw error;
+  }
+}
+
+/**
+ * Server action to find existing conversation with a candidate
+ * 
+ * @param candidateId - ID of the candidate
+ * @returns Conversation ID if exists, null if not found
+ */
+export async function findExistingConversation(candidateId: number): Promise<string | null> {
+  try {
+    const conversations = await getConversations();
+    
+    // Find conversation where other participant is the candidate
+    const conversation = conversations.find((conv: any) => {
+      return conv.other_participant?.id === candidateId;
+    });
+    
+    return conversation ? conversation.conversation_id : null;
+  } catch (error) {
+    console.error("Error finding conversation:", error);
+    return null;
   }
 }
 
@@ -224,7 +261,7 @@ export async function getConversationWithContext(conversationId: string): Promis
     // Decode token to get current user ID
     const { jwtDecode } = await import('jwt-decode');
     const decoded: any = jwtDecode(token);
-    const currentUserId = decoded.user_id || decoded.sub;
+    const currentUserId = Number(decoded.user_id || decoded.sub);
 
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/messages/conversations/${conversationId}`,
@@ -237,13 +274,16 @@ export async function getConversationWithContext(conversationId: string): Promis
     );
 
     if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`[getConversationWithContext] HTTP ${response.status}:`, errorBody);
+      
       if (response.status === 401 || response.status === 403) {
         redirect("/login");
       }
       if (response.status === 404) {
         return null;
       }
-      throw new Error("Failed to fetch conversation");
+      throw new Error(`Failed to fetch conversation: ${response.status} - ${errorBody}`);
     }
 
     const convData = await response.json();

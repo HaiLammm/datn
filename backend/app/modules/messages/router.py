@@ -90,6 +90,42 @@ async def get_unread_count(
     return {"unread_count": unread_count}
 
 
+@router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
+async def get_conversation(
+    conversation_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get a single conversation by ID.
+    
+    Returns conversation details if the user is a participant.
+    """
+    # Verify conversation exists
+    conversation = await MessageService.get_conversation_by_id(
+        db=db,
+        conversation_id=conversation_id,
+    )
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+
+    # Check user is part of the conversation
+    if (
+        current_user.id != conversation.recruiter_id
+        and current_user.id != conversation.candidate_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this conversation",
+        )
+
+    return conversation
+
+
 @router.post("/messages", response_model=MessageResponse)
 async def create_message(
     request: MessageCreateRequest,

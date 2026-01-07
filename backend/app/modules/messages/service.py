@@ -240,7 +240,7 @@ class MessageService:
         conversation_id: uuid.UUID,
     ) -> Optional[ConversationResponse]:
         """
-        Get a conversation by ID.
+        Get a conversation by ID with user details.
 
         Args:
             db: Database session
@@ -249,13 +249,44 @@ class MessageService:
         Returns:
             ConversationResponse or None if not found
         """
+        from sqlalchemy.orm import selectinload
+        from app.modules.users.models import User
+        from app.modules.messages.schemas import UserBasicInfo
+        
         result = await db.execute(
-            select(Conversation).where(Conversation.id == conversation_id)
+            select(Conversation)
+            .options(
+                selectinload(Conversation.recruiter),
+                selectinload(Conversation.candidate)
+            )
+            .where(Conversation.id == conversation_id)
         )
         conversation = result.scalars().first()
 
         if not conversation:
             return None
+
+        # Get recruiter and candidate info
+        recruiter_info = None
+        candidate_info = None
+        
+        if conversation.recruiter:
+            recruiter_info = UserBasicInfo(
+                id=conversation.recruiter.id,
+                full_name=conversation.recruiter.full_name or conversation.recruiter.email,
+                email=conversation.recruiter.email,
+                role=conversation.recruiter.role,
+                avatar=None  # Add avatar field to User model if needed
+            )
+        
+        if conversation.candidate:
+            candidate_info = UserBasicInfo(
+                id=conversation.candidate.id,
+                full_name=conversation.candidate.full_name or conversation.candidate.email,
+                email=conversation.candidate.email,
+                role=conversation.candidate.role,
+                avatar=None  # Add avatar field to User model if needed
+            )
 
         return ConversationResponse(
             id=conversation.id,
@@ -263,6 +294,8 @@ class MessageService:
             candidate_id=conversation.candidate_id,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
+            recruiter=recruiter_info,
+            candidate=candidate_info,
         )
 
     @staticmethod
@@ -498,9 +531,10 @@ class MessageService:
                 conversation_id=row.conversation_id,
                 other_participant=UserBasicInfo(
                     id=row.other_user_id,
-                    name=row.other_user_name or f"User {row.other_user_id}",
-                    avatar=row.other_user_avatar,
-                    role=row.other_user_role
+                    full_name=row.other_user_name or f"User {row.other_user_id}",
+                    email="",  # Not available in this query
+                    role=row.other_user_role,
+                    avatar=row.other_user_avatar
                 ),
                 last_message=last_message,
                 unread_count=row.unread_count,

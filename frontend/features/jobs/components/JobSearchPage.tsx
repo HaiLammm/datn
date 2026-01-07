@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, MapPin, Loader2, Filter } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { JobCard } from "./JobCard";
 import { SalaryJobTypeFilters } from "./SalaryJobTypeFilters";
 import { searchJobsBasicAction, BasicJobSearchResult } from "../actions";
@@ -130,9 +132,16 @@ export function JobSearchPage() {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold tracking-tight">Tìm kiếm việc làm</h1>
+                <Link href="/">
+                    <Button variant="ghost" size="icon" aria-label="Quay lại">
+                        <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                <h1 className="text-3xl font-bold tracking-tight">Tìm kiếm việc làm</h1>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+                </Link>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Sidebar Filters (Desktop) */}
                 <div className="hidden lg:block lg:col-span-1 space-y-4">
                     <SalaryJobTypeFilters

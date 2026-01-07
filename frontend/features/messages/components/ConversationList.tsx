@@ -58,11 +58,11 @@ function ConversationItem({
           {otherParticipant.avatar ? (
             <img
               src={otherParticipant.avatar}
-              alt={otherParticipant.name}
+              alt={otherParticipant.full_name}
               className="w-full h-full rounded-full object-cover"
             />
           ) : (
-            otherParticipant.name.charAt(0).toUpperCase()
+            otherParticipant.full_name.charAt(0).toUpperCase()
           )}
         </div>
       </div>
@@ -71,7 +71,7 @@ function ConversationItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
           <h3 className={`font-medium truncate ${hasUnread ? "font-bold text-gray-900" : "text-gray-700"}`}>
-            {otherParticipant.name}
+            {otherParticipant.full_name}
           </h3>
           {lastMessage && (
             <span className="text-xs text-gray-400">

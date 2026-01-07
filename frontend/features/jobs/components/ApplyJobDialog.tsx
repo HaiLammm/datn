@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { JobDescriptionResponse, CVWithStatus } from "@datn/shared-types";
 import { useState, useEffect } from "react";
-import { cvService } from "@/services/cv.service";
-import { jobService } from "@/services/job.service";
+import { getCVList } from "@/features/cv/actions";
+import { applyJobAction } from "@/features/jobs/actions";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -42,7 +42,7 @@ export function ApplyJobDialog({ job, trigger }: ApplyJobDialogProps) {
     const fetchCVs = async () => {
         setLoadingCVs(true);
         try {
-            const data = await cvService.getCVList();
+            const data = await getCVList();
             setCvs(data);
             if (data.length > 0) {
                 setSelectedCV(data[0].id);
@@ -62,11 +62,16 @@ export function ApplyJobDialog({ job, trigger }: ApplyJobDialogProps) {
         }
         setApplying(true);
         try {
-            await jobService.applyJob(job.id, selectedCV, coverLetter);
-            toast.success("Ứng tuyển thành công!");
-            setOpen(false);
+            const result = await applyJobAction(job.id, selectedCV, coverLetter);
+            if (result.success) {
+                toast.success("Ứng tuyển thành công!");
+                setOpen(false);
+            } else {
+                toast.error(result.message || "Đã xảy ra lỗi khi ứng tuyển");
+            }
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || "Đã xảy ra lỗi khi ứng tuyển");
+            console.error("Apply error:", error);
+            toast.error("Đã xảy ra lỗi khi ứng tuyển");
         } finally {
             setApplying(false);
         }

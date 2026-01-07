@@ -10,12 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.modules.jobs.models import JobDescription, Application
-from app.modules.jobs.schemas import JobDescriptionCreate, JDParseStatus, LocationType, ParsedRequirementsUpdate
+from app.modules.jobs.schemas import JobDescriptionCreate, JDParseStatus, LocationType, ParsedRequirementsUpdate, JobRecommendationResponse
 from app.modules.jobs.jd_parser import jd_parser
 from app.modules.users.models import User
 from app.modules.cv.models import CV
 from app.modules.ai.models import CVAnalysis
 from app.modules.ai.skill_scorer import SkillMatcher
+from app.modules.ai.vector_store import vector_store
+from app.modules.ai.embeddings import embedding_service
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -605,3 +608,180 @@ async def create_application(
     await db.commit()
     await db.refresh(application)
     return application
+
+
+async def get_recommendations_for_user(
+    db: AsyncSession, user_id: int, limit: int = 10
+) -> List[JobRecommendationResponse]:
+    """
+    Get personalized job recommendations for a user.
+    
+    Algorithm:
+    1. Get user's active/latest public CV
+    2. Generate embedding for CV content
+    3. Semantic Search (Vector Store): Retrieve top 50 candidates
+    4. Hybrid Scoring for each candidate:
+       - Skills Match (40%): Overlap of structured skills
+       - Experience Match (30%): Years of experience check
+       - Location Match (15%): Remote preference or location match
+       - Semantic Match (15%): Vector similarity score
+       
+    Returns:
+        List of JobRecommendationResponse objects sorted by match_score.
+    """
+    # 1. Get User's Active CV
+    result = await db.execute(
+        select(CV)
+        .options(selectinload(CV.analyses))
+        .where(CV.user_id == user_id, CV.is_active == True)
+        .order_by(CV.uploaded_at.desc())
+        .limit(1)
+    )
+    cv = result.scalar_one_or_none()
+    
+    # If no CV, return empty (Frontend should show "Upload CV" CTA)
+    if not cv:
+        return []
+        
+    # Get CV Analysis content for embedding
+    cv_content = ""
+    cv_skills = []
+    cv_experience_years = 0.0
+    
+    if cv.analyses and cv.analyses[0].status == "COMPLETED":
+        analysis = cv.analyses[0]
+        # Use AI summary and extracted skills for better semantic representation
+        cv_content = f"Skills: {', '.join(analysis.extracted_skills or [])}\n"
+        cv_content += f"Summary: {analysis.ai_summary or ''}\n"
+        
+        cv_skills = analysis.extracted_skills or []
+        
+        # Extract experience years
+        ai_feedback = analysis.ai_feedback or {}
+        exp_breakdown = ai_feedback.get("experience_breakdown", {})
+        if isinstance(exp_breakdown, dict):
+            cv_experience_years = float(exp_breakdown.get("total_years", 0))
+    else:
+        # Fallback to simple file path or name if analysis pending (suboptimal)
+        cv_content = cv.filename
+        
+    # 2. Generate Embedding
+    if not embedding_service.is_available:
+        logger.warning("Embedding service unavailable for recommendations")
+        return []
+        
+    query_embedding = embedding_service.generate_embedding(cv_content)
+    if not query_embedding:
+        return []
+        
+    # 3. Semantic Search
+    # Query more than limit to allow regarding based on other factors
+    vector_results = vector_store.query_similar(
+        collection_name=settings.CHROMA_COLLECTION_JOBS,
+        query_embedding=query_embedding,
+        top_k=50
+    )
+    
+    if not vector_results:
+        return []
+        
+    # extract JD IDs from vector results
+    jd_ids = [UUID(r['id']) for r in vector_results]
+    jd_score_map = {UUID(r['id']): r['score'] for r in vector_results} # semantic score 0-1
+    
+    # 4. Fetch JD Details
+    # Fetch active jobs only
+    jd_result = await db.execute(
+        select(JobDescription)
+        .where(
+            JobDescription.id.in_(jd_ids),
+            JobDescription.is_active == True,
+            JobDescription.parse_status == JDParseStatus.COMPLETED.value
+        )
+    )
+    jds = jd_result.scalars().all()
+    
+    recommendations = []
+    skill_matcher = SkillMatcher()
+    
+    for jd in jds:
+        # --- CALCULATION ---
+        
+        # A. Semantic Score (15%)
+        # Normalize vector score (usually 0.0-1.0 cosine similarity)
+        semantic_score = jd_score_map.get(jd.id, 0.0)
+        weighted_semantic = semantic_score * 15
+        
+        # B. Skills Match (40%)
+        # Reuse logic similar to calculate_job_match_score but avoid DB calls
+        parsed_req = jd.parsed_requirements or {}
+        jd_required = parsed_req.get("required_skills", [])
+        jd_nice = parsed_req.get("nice_to_have_skills", [])
+        
+        # Use SkillMatcher for robust matching
+        jd_skills_text = " ".join(jd_required + jd_nice)
+        if not jd_skills_text.strip():
+            jd_skills_text = jd.description or ""
+            
+        # We need categories for matcher, but if detailed categories missing, 
+        # just pass extracted skills as a generic list wrapped in dict if needed
+        # Actually SkillMatcher.match_skills takes (cv_skill_categories, jd_text)
+        # We can construct a simple category dict if needed, or if cv analysis has it
+        cv_categories = {}
+        if cv.analyses:
+            cv_categories = cv.analyses[0].skill_categories or {}
+            
+        if not cv_categories and cv_skills:
+            cv_categories = {"general": cv_skills}
+            
+        match_result = skill_matcher.match_skills(cv_categories, jd_skills_text)
+        skill_match_rate = match_result["skill_match_rate"] # 0.0 to 1.0
+        weighted_skills = skill_match_rate * 40
+        
+        # C. Experience Match (30%)
+        jd_min_exp = jd.min_experience_years
+        exp_score_val = 0.0
+        
+        if jd_min_exp is not None and jd_min_exp > 0:
+            if cv_experience_years >= jd_min_exp:
+                exp_score_val = 1.0
+            elif cv_experience_years > 0:
+                exp_score_val = cv_experience_years / jd_min_exp
+        else:
+            exp_score_val = 1.0 # No requirement met
+            
+        weighted_experience = exp_score_val * 30
+        
+        # D. Location Match (15%)
+        # Simplified: Remote = 100%, else 50% (neutral)
+        loc_score_val = 0.5
+        if jd.location_type == "remote":
+            loc_score_val = 1.0
+        weighted_location = loc_score_val * 15
+        
+        # TOTAL SCORE
+        total_score = weighted_skills + weighted_experience + weighted_location + weighted_semantic
+        total_score = min(100, max(0, int(total_score)))
+        
+        # Match Breakdown
+        matched_skills = match_result.get("matched_skills", [])
+        missing_skills = match_result.get("missing_skills", [])
+        
+        recommendations.append(JobRecommendationResponse(
+            id=jd.id,
+            title=jd.title,
+            description=jd.description,
+            location_type=jd.location_type,
+            salary_min=jd.salary_min,
+            salary_max=jd.salary_max,
+            match_score=total_score,
+            semantic_score=semantic_score,
+            matched_skills=matched_skills[:10],
+            missing_skills=missing_skills[:10],
+            uploaded_at=jd.uploaded_at
+        ))
+        
+    # Sort by score descending
+    recommendations.sort(key=lambda x: x.match_score, reverse=True)
+    
+    return recommendations[:limit]

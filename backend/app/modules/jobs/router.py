@@ -25,6 +25,7 @@ from app.modules.jobs.schemas import (
     JobDescriptionCreate,
     JobDescriptionList,
     JobDescriptionResponse,
+    JobRecommendationResponse,
     JobMatchRequest,
     JobMatchResponse,
     LocationType,
@@ -45,6 +46,7 @@ from app.modules.jobs.semantic_searcher import semantic_searcher
 from app.modules.users.models import User
 from app.modules.cv.models import CV
 from app.modules.ai.models import CVAnalysis
+from app.modules.jobs.models import Application
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
@@ -1112,6 +1114,10 @@ class ApplicantResponse(BaseModel):
     avatar: str | None
     role: str
     applied_at: str
+    application_id: str  # UUID of the application
+    cv_id: str | None  # UUID of the CV used for application
+    cover_letter: str | None  # Cover letter submitted with application
+    status: str  # Application status (pending, reviewed, accepted, rejected)
 
 
 class ApplicantListResponse(BaseModel):
@@ -1152,16 +1158,18 @@ async def get_job_applicants(
             detail="Job description not found",
         )
 
-    # For now, return mock data - in a real app, this would query
-    # an applications/jobs table
-    # This is a placeholder that returns users who have uploaded CVs
+    # Query real applications for this job
+    # Join Application with User to get applicant profile information
     result = await db.execute(
-        select(User)
-        .where(User.role == "job_seeker")
-        .order_by(User.created_at.desc())
-        .limit(20)
+        select(Application, User)
+        .join(User, Application.user_id == User.id)
+        .where(
+            Application.job_id == jd_id,
+            User.role == "job_seeker"
+        )
+        .order_by(Application.created_at.desc())
     )
-    users = result.scalars().all()
+    applications_with_users = result.all()
 
     applicants = [
         ApplicantResponse(
@@ -1170,12 +1178,46 @@ async def get_job_applicants(
             email=user.email,
             avatar=user.avatar,
             role=user.role,
-            applied_at=user.created_at.isoformat(),
+            applied_at=application.created_at.isoformat(),
+            application_id=str(application.id),
+            cv_id=str(application.cv_id) if application.cv_id else None,
+            cover_letter=application.cover_letter,
+            status=application.status,
         )
-        for user in users
+        for application, user in applications_with_users
     ]
 
     return ApplicantListResponse(applicants=applicants, total=len(applicants))
+
+
+# ============================================================================
+# Story 9.4: Job Recommendations
+# ============================================================================
+
+
+@router.get(
+    "/recommendations",
+    response_model=List[JobRecommendationResponse],
+    summary="Get personalized job recommendations for job seekers",
+)
+async def get_recommendations(
+    limit: int = Query(10, ge=1, le=50, description="Max recommendations to return"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_job_seeker),
+):
+    """
+    Get personalized job recommendations based on user's CV.
+    
+    Algorithm:
+    1. Uses the user's active/latest public CV.
+    2. Performs semantic search using CV embeddings.
+    3. Calculates hybrid score (Skills + Experience + Location + Semantic).
+    
+    Requires Job Seeker role.
+    """
+    return await job_service.get_recommendations_for_user(
+        db=db, user_id=current_user.id, limit=limit
+    )
 
 
 # ============================================================================

@@ -137,7 +137,7 @@ io.on('connection', (socket) => {
 
       // Save message via FastAPI
       const response = await axios.post(
-        `${process.env.BACKEND_API_URL}/api/v1/messages`,
+        `${process.env.BACKEND_API_URL}/api/v1/messages/messages`,
         {
           conversation_id: conversationId,
           content: content,

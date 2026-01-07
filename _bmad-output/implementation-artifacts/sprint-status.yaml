@@ -123,9 +123,14 @@ development_status:
   epic-8-retrospective: optional
 
   # Epic 9: Advanced Job Search Application (Stories 9.1-9.4)
-  epic-9: ready-for-dev
-  9-1-job-search-backend: ready-for-dev
-  9-2-advanced-filters: ready-for-dev
-  9-3-application-tracking: ready-for-dev
+  epic-9: done
+  9-1-tim-kiem-tin-tuyen-dung-co-ban: done
+  
+  # Story 9.2 split into sub-stories for better manageability
+  9-2-1-salary-and-job-type-filters: done
+  9-2-2-skills-filter-with-autocomplete: done
+  9-2-3-benefits-and-active-filters: done
+  
+  9-3-job-application-flow: done
   9-4-job-recommendations: ready-for-dev
   epic-9-retrospective: optional

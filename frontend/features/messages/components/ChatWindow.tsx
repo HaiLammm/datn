@@ -9,8 +9,10 @@ interface ChatWindowProps {
   conversationId: string;
   candidateName: string;
   candidateAvatar?: string;
+  currentUserId?: number | null;
   initialMessages?: Message[];
   onSendMessage?: (content: string) => void;
+  authToken?: string | null;
 }
 
 /**
@@ -26,8 +28,10 @@ export function ChatWindow({
   conversationId,
   candidateName,
   candidateAvatar,
+  currentUserId = null,
   initialMessages = [],
   onSendMessage,
+  authToken,
 }: ChatWindowProps) {
   const {
     isConnected,
@@ -38,7 +42,8 @@ export function ChatWindow({
     startTyping,
     stopTyping,
     clearMessages,
-  } = useSocket(conversationId);
+    setMessages,
+  } = useSocket(conversationId, authToken);
 
   // Combine initial messages with real-time messages
   const allMessages = React.useMemo(() => {
@@ -107,7 +112,7 @@ export function ChatWindow({
 
       {/* Message List */}
       <div className="flex-1 overflow-y-auto">
-        <MessageList messages={allMessages} currentUserId={null} />
+        <MessageList messages={allMessages} currentUserId={currentUserId} />
       </div>
 
       {/* Message Input */}

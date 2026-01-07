@@ -46,8 +46,11 @@ export interface UseSocketReturn {
  * - Auto-reconnect on network issues
  * - Error handling with user feedback
  * - Typing indicators support
+ * 
+ * @param conversationId - ID of the conversation
+ * @param authToken - JWT token from server (optional, will try client-side if not provided)
  */
-export function useSocket(conversationId: string): UseSocketReturn {
+export function useSocket(conversationId: string, authToken?: string | null): UseSocketReturn {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -179,7 +182,8 @@ export function useSocket(conversationId: string): UseSocketReturn {
   useEffect(() => {
     if (!conversationId) return;
 
-    const token = getAuthToken();
+    // Use provided token or try to get from client
+    const token = authToken || getAuthToken();
     if (!token) {
       setErrorWithTimeout('Authentication token not found. Please log in again.', true);
       return;
@@ -336,7 +340,7 @@ export function useSocket(conversationId: string): UseSocketReturn {
       setIsConnected(false);
       setIsConnecting(false);
     };
-  }, [conversationId, getAuthToken, addMessage, setErrorWithTimeout]);
+  }, [conversationId, authToken, getAuthToken, addMessage, setErrorWithTimeout]);
 
   return {
     socket,

@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
 import { CandidateListItem } from "@/features/messages/components/CandidateListItem";
-import { createConversation, navigateToConversation } from "@/features/messages/actions";
 import { getJDAction, getApplicantsAction } from "@/features/jobs/actions";
 
 interface Applicant {
@@ -15,6 +14,10 @@ interface Applicant {
   role?: string;
   match_score?: number;
   applied_at: string;
+  application_id: string;
+  cv_id?: string;
+  cover_letter?: string;
+  status: string;
 }
 
 interface JobDetails {
@@ -33,7 +36,7 @@ interface PageProps {
  * Features:
  * - List of applicants with match scores
  * - "Start Chat" button for each candidate
- * - Navigation to chat after starting conversation
+ * - Navigation to existing chat or messages list
  */
 export default function ApplicantsPage() {
   const params = useParams();
@@ -75,31 +78,29 @@ export default function ApplicantsPage() {
     fetchData();
   }, [jdId]);
 
-  // Handle start chat
+  // Handle start chat - check existing conversation first
   const handleStartChat = async (candidateId: number) => {
+    console.log("🚀 Starting chat with candidate:", candidateId);
+
     try {
-      // Show a dialog to enter initial message
-      const initialMessage = prompt(
-        "Enter your first message to this candidate:"
-      );
-
-      if (!initialMessage || !initialMessage.trim()) {
-        return;
+      // Check if conversation already exists
+      console.log("🔍 Checking for existing conversation...");
+      const { findExistingConversation } = await import("@/features/messages/actions");
+      const existingConversationId = await findExistingConversation(candidateId);
+      
+      if (existingConversationId) {
+        // Conversation exists, navigate directly to it
+        console.log("✅ Found existing conversation:", existingConversationId);
+        router.push(`/messages/${existingConversationId}`);
+      } else {
+        // No conversation exists, navigate to messages page
+        console.log("📝 No existing conversation, navigating to /messages");
+        router.push("/messages");
       }
-
-      // Create conversation
-      const conversationId = await createConversation(
-        candidateId,
-        initialMessage.trim()
-      );
-
-      // Navigate to chat
-      await navigateToConversation(conversationId);
-    } catch (err) {
-      console.error("Error starting chat:", err);
-      alert(
-        err instanceof Error ? err.message : "Failed to start conversation"
-      );
+    } catch (error) {
+      console.error("❌ Error checking conversation:", error);
+      // Fallback: navigate to messages page
+      router.push("/messages");
     }
   };
 

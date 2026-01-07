@@ -13,6 +13,7 @@ import {
   JobMatchResponse,
   ApplicationResponse,
   ApplicationCreate,
+  JobRecommendation,
 } from "@datn/shared-types";
 
 export const jobService = {
@@ -606,6 +607,31 @@ export const jobService = {
       return response.data;
     } catch (error) {
       console.error("Error searching jobs:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get personalized job recommendations (Story 9.4)
+   * @param limit - Max recommendations to return
+   * @param accessToken - Optional access token
+   */
+  getRecommendations: async (
+    limit: number = 10,
+    accessToken?: string
+  ): Promise<JobRecommendation[]> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.get<JobRecommendation[]>("/jobs/recommendations", {
+        params: { limit },
+        headers
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching recommendations:", error);
       throw error;
     }
   },

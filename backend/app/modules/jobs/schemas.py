@@ -691,3 +691,25 @@ class ApplicationResponse(ApplicationBase):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class JobRecommendationResponse(BaseModel):
+    """Schema for a recommended job."""
+    
+    id: UUID = Field(description="Job unique identifier")
+    title: str = Field(description="Job title")
+    description: str = Field(description="Job description (truncated)")
+    location_type: str = Field(description="Work location type")
+    salary_min: Optional[int] = Field(default=None, description="Minimum salary")
+    salary_max: Optional[int] = Field(default=None, description="Maximum salary")
+    
+    match_score: int = Field(ge=0, le=100, description="Overall match score (0-100)")
+    semantic_score: Optional[float] = Field(default=0.0, description="Semantic vector similarity score (0-1)")
+    
+    # Matching breakdown
+    matched_skills: List[str] = Field(default_factory=list, description="Skills matching the user's CV")
+    missing_skills: List[str] = Field(default_factory=list, description="Required skills missing from CV")
+    
+    uploaded_at: datetime = Field(description="When the job was posted")
+
+    model_config = {"from_attributes": True}

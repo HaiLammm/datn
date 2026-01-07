@@ -10,6 +10,8 @@ interface Candidate {
   role?: string;
   match_score?: number;
   applied_at?: string;
+  status?: string;  // Application status: pending, reviewed, accepted, rejected
+  cover_letter?: string;
 }
 
 interface CandidateListItemProps {
@@ -65,10 +67,26 @@ export function CandidateListItem({
           <p className="text-sm text-gray-500 truncate">{candidate.email}</p>
 
           {/* Role and Match Score */}
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             {candidate.role && (
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
                 {candidate.role}
+              </span>
+            )}
+
+            {candidate.status && (
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                  candidate.status === "accepted"
+                    ? "bg-green-100 text-green-800"
+                    : candidate.status === "reviewed"
+                    ? "bg-blue-100 text-blue-800"
+                    : candidate.status === "rejected"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-yellow-100 text-yellow-800"
+                }`}
+              >
+                {candidate.status.charAt(0).toUpperCase() + candidate.status.slice(1)}
               </span>
             )}
 
@@ -92,6 +110,14 @@ export function CandidateListItem({
               </span>
             )}
           </div>
+
+          {/* Cover Letter Preview */}
+          {candidate.cover_letter && (
+            <div className="mt-2 text-sm text-gray-600 line-clamp-2">
+              <span className="font-medium text-gray-700">Cover Letter: </span>
+              {candidate.cover_letter}
+            </div>
+          )}
         </div>
 
         {/* Start Chat Button */}

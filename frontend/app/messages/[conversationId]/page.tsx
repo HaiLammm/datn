@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { ChatWindow } from "@/features/messages/components/ChatWindow";
 import { useSocket, Message } from "@/lib/hooks/useSocket";
 import { getConversationWithContext, getConversationMessages } from "@/features/messages/actions";
+import { getAccessToken } from "@/lib/auth-actions";
 
 interface MessageUser {
-  id: string; // Changed from number to match SessionUser
+  id: number;
   email: string;
   role: string;
   full_name?: string;
@@ -15,12 +16,12 @@ interface MessageUser {
 
 interface ConversationDetails {
   id: string;
-  recruiter_id: string; // Changed from number to match user ID type
-  candidate_id: string; // Changed from number to match user ID type
+  recruiter_id: number;
+  candidate_id: number;
   created_at: string;
   updated_at: string;
   other_user?: {
-    id: string; // Changed from number
+    id: number;
     full_name: string;
     avatar?: string;
   };
@@ -53,11 +54,21 @@ export default function ChatPage({ params }: PageProps) {
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
   // Fetch session and conversation data
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Get auth token first
+        console.log("🔐 Fetching auth token...");
+        const token = await getAccessToken();
+        if (!token) {
+          throw new Error("Authentication required. Please log in.");
+        }
+        console.log("✅ Auth token received");
+        setAuthToken(token);
+
         // Fetch conversation details with context using server action
         // Layout already verified auth, no need to check session here
         const convData = await getConversationWithContext(conversationId);
@@ -76,7 +87,12 @@ export default function ChatPage({ params }: PageProps) {
           ...convData,
           other_user: {
             id: convData.otherUserId,
-            full_name: "User", // Would be fetched from API
+            full_name: convData.recruiter_id === convData.currentUserId 
+              ? convData.candidate?.full_name || convData.candidate?.email || "User"
+              : convData.recruiter?.full_name || convData.recruiter?.email || "User",
+            avatar: convData.recruiter_id === convData.currentUserId
+              ? convData.candidate?.avatar
+              : convData.recruiter?.avatar,
           },
         });
         
@@ -201,8 +217,10 @@ export default function ChatPage({ params }: PageProps) {
             conversationId={conversationId}
             candidateName={conversation?.other_user?.full_name || "Chat"}
             candidateAvatar={conversation?.other_user?.avatar}
+            currentUserId={currentUser?.id || null}
             initialMessages={initialMessages}
             onSendMessage={handleSendMessage}
+            authToken={authToken}
           />
         </div>
       </main>

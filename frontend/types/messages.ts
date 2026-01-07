@@ -1,7 +1,8 @@
 // Story 7.3: Types for conversation list with enhanced data
 export interface UserBasicInfo {
   id: number;
-  name: string;
+  full_name: string;
+  email: string;
   avatar?: string;
   role: string;
 }

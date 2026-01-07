@@ -233,3 +233,22 @@ export interface ApplicationResponse extends ApplicationBase {
   created_at: string;
   updated_at: string;
 }
+
+/**
+ * Job Recommendation Response (Story 9.4)
+ */
+export interface JobRecommendation {
+  id: string; // Job ID
+  title: string;
+  description: string;
+  location_type: string;
+  salary_min: number | null;
+  salary_max: number | null;
+
+  match_score: number; // 0-100
+  semantic_score: number; // 0-1
+  matched_skills: string[];
+  missing_skills: string[];
+
+  uploaded_at: string;
+}
