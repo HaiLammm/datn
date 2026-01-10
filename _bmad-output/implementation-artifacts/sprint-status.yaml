@@ -115,9 +115,9 @@ development_status:
   epic-7-retrospective: optional
 
   # Epic 8: Virtual AI Interview Room (Stories 8.1-8.4)
-  epic-8: ready-for-dev
-  8-1-interview-room-setup: ready-for-dev
-  8-2-voice-interaction: ready-for-dev
+  epic-8: in-progress
+  8-1-interview-room-setup: in-progress
+  8-2-voice-interaction: in-progress
   8-3-performance-report: ready-for-dev
   8-4-interview-history: ready-for-dev
   epic-8-retrospective: optional

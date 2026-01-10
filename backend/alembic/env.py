@@ -15,6 +15,13 @@ from app.modules.users.models import User  # noqa: F401
 from app.modules.cv.models import CV  # noqa: F401
 from app.modules.jobs.models import JobDescription  # noqa: F401
 from app.modules.messages.models import Conversation, Message  # noqa: F401
+from app.modules.interviews.models import (  # noqa: F401
+    InterviewSession,
+    InterviewQuestion,
+    InterviewTurn,
+    InterviewEvaluation,
+    AgentCallLog,
+)
 
 
 # this is the Alembic Config object, which provides

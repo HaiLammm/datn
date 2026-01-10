@@ -184,11 +184,95 @@ So that tôi có thể chọn chia sẻ chi tiết CV với nhà tuyển dụng 
 *   **Given** tôi đã tải lên một CV, **When** tôi thay đổi trạng thái hiển thị của CV (công khai/riêng tư), **Then** trạng thái mới được lưu trữ và phản ánh ngay lập tức. (Covers FR11, UXR8)
 *   **Given** một nhà tuyển dụng tìm thấy hồ sơ của tôi, **When** CV của tôi là riêng tư, **Then** nhà tuyển dụng không thể xem chi tiết phân tích CV đầy đủ của tôi. (Covers NFR2.2)
 
-### Epic 3: Phòng phỏng vấn AI ảo (Virtual AI Interview Room)
+### Epic 8: Phòng phỏng vấn AI ảo (Virtual AI Interview Room) 🚧 IN PROGRESS
 **Mục tiêu:** Cung cấp một môi trường để ứng viên luyện tập phỏng vấn với AI, nhận phản hồi và theo dõi sự tiến bộ.
 **FRs bao gồm:** FR14, FR15, FR16, FR17
+**Status:** AI Sub-Agents Implementation Completed (January 7, 2026)
+**Tech Stack:** Ollama (local), Llama-3.2-3B-Instruct, Qwen2.5-1.5B-Instruct, Python agents, FastAPI backend integration
 
-### Story 3.1: Thiết lập Phòng Phỏng vấn Ảo (Virtual Interview Room Setup)
+#### AI Sub-Agents Architecture ✅ COMPLETED
+
+**Implementation Approach:** Simple Agents + Database-managed context (not Expert Agents with memory)
+- **Rationale:** Better scalability, no concurrency issues, single source of truth (PostgreSQL)
+- **Performance:** DB overhead (~100-200ms) negligible vs inference time (~2-4s)
+
+**3 Production AI Sub-Agents:**
+
+1. **QuestionCraft AI** ❓ (Question Generator Agent)
+   - **Model:** Llama-3.2-3B-Instruct-FP16
+   - **Function:** Generate 10-15 interview questions from Job Description + CV
+   - **Features:**
+     - Level-appropriate questions (Junior/Middle/Senior)
+     - 60-20-20 distribution (Technical-Behavioral-Situational)
+     - Scenario-based questions referencing actual JD/CV content
+     - JSON output with evaluation criteria for each question
+   - **Performance Target:** < 5s latency (P95)
+   - **Files:** `_sub-agents/agents/question_generator.py`, `configs/question_generator_config.json`, `prompts/question_generator_prompt.txt`
+
+2. **DialogFlow AI** 💬 (Conversation Agent)
+   - **Model:** Qwen2.5-1.5B-Instruct-FP16
+   - **Function:** Manage interview conversation flow, evaluate answers per-turn
+   - **Features:**
+     - Real-time answer evaluation (Technical, Communication, Depth dimensions)
+     - Intelligent next action decision (continue/follow-up/next_question/end)
+     - Natural, encouraging conversation tone
+     - Context-aware follow-up questions
+   - **Performance Target:** < 3s latency per turn (P95)
+   - **Files:** `_sub-agents/agents/conversation_agent.py`, `configs/conversation_agent_config.json`, `prompts/conversation_agent_prompt.txt`
+
+3. **EvalMaster AI** 📊 (Performance Evaluator Agent)
+   - **Model:** Llama-3.2-3B-Instruct-FP16
+   - **Function:** Comprehensive interview evaluation with detailed report
+   - **Features:**
+     - 3-dimension scoring: Technical (50%), Communication (25%), Behavioral (25%)
+     - Evidence-based analysis with specific quotes from transcript
+     - Hiring recommendation (Strong Hire/Hire/Consider/No Hire)
+     - Actionable feedback for both hiring decision and candidate development
+   - **Performance Target:** < 8s latency (P95)
+   - **Files:** `_sub-agents/agents/performance_evaluator.py`, `configs/performance_evaluator_config.json`, `prompts/performance_evaluator_prompt.txt`
+
+**Deliverables Completed (24 files):**
+- ✅ 3 System Prompts (comprehensive, Vietnamese-supported)
+- ✅ 3 JSON Configuration files (model parameters, quality settings)
+- ✅ 4 Python implementation files (base class + 3 agents with full error handling)
+- ✅ 3 API request templates with examples
+- ✅ 4 Documentation files (README, INTEGRATION_GUIDE, TESTING_GUIDE, PROMPT_TUNING)
+- ✅ 3 Sample data files (JDs, CVs, interview transcripts)
+- ✅ 4 Test files (conftest, base tests, question generator tests, test README)
+
+**Directory Structure:**
+```
+_sub-agents/
+├── agents/          # Python implementations
+├── configs/         # JSON configurations
+├── prompts/         # System prompts
+├── api_examples/    # API request templates
+├── samples/         # Test data
+├── tests/           # Unit & integration tests
+└── *.md            # Documentation
+```
+
+**Database Schema Extensions:**
+- `interview_sessions` - Track interview sessions
+- `interview_questions` - Store generated questions
+- `interview_turns` - Record conversation history with per-turn evaluations
+- `interview_evaluations` - Final comprehensive evaluation reports
+- `agent_call_logs` - Monitor agent performance and errors
+
+**Integration Status:**
+- ✅ Agents implemented and ready
+- ✅ Database schema designed
+- 🚧 Backend service layer (pending)
+- 🚧 FastAPI endpoints (pending)
+- 🚧 Frontend UI (pending)
+
+**Documentation:**
+- Main: `_sub-agents/README.md` - Architecture, quick start, troubleshooting
+- Integration: `_sub-agents/INTEGRATION_GUIDE.md` - Backend integration, DB schema, service layer
+- Testing: `_sub-agents/TESTING_GUIDE.md` - Test strategy, quality metrics, CI/CD
+- Customization: `_sub-agents/PROMPT_TUNING.md` - Prompt engineering best practices
+
+### Story 8.1: Thiết lập Phòng Phỏng vấn Ảo (Virtual Interview Room Setup) 🚧 IN PROGRESS
 As a người tìm việc,
 I want để tạo một phòng phỏng vấn ảo cho một vị trí công việc cụ thể hoặc sử dụng CV đã tải lên,
 So that AI có thể tạo ra các câu hỏi phỏng vấn phù hợp và cá nhân hóa.
@@ -198,7 +282,15 @@ So that AI có thể tạo ra các câu hỏi phỏng vấn phù hợp và cá n
 *   **And** tôi có thể xem trước các chủ đề hoặc loại câu hỏi sẽ được hỏi.
 *   **And** tôi có thể thiết lập các thông số cơ bản cho buổi phỏng vấn (ví dụ: thời lượng, số lượng câu hỏi, độ khó).
 
-### Story 3.2: Tương tác Giọng nói với AI Phỏng vấn (Voice Interaction with AI Interviewer)
+**Implementation Details:**
+- **Backend:** QuestionService calls QuestionCraft AI agent
+- **API Endpoint:** `POST /api/v1/interviews/generate-questions`
+- **Input:** `job_description`, `cv_content`, `position_level`, `num_questions`, `focus_areas` (optional)
+- **Output:** JSON array of 10-15 questions with evaluation criteria
+- **Database:** Questions saved to `interview_questions` table
+- **Agent:** `QuestionGeneratorAgent` (Llama-3.2-3B, ~4s latency)
+
+### Story 8.2: Tương tác Giọng nói với AI Phỏng vấn (Voice Interaction with AI Interviewer) 🚧 IN PROGRESS
 As a người tìm việc,
 I want để tương tác với AI phỏng vấn bằng giọng nói và nhận phản hồi bằng giọng nói,
 So that trải nghiệm phỏng vấn chân thực và hiệu quả hơn.
@@ -208,7 +300,19 @@ So that trải nghiệm phỏng vấn chân thực và hiệu quả hơn.
 *   **Given** tôi gặp sự cố với microphone hoặc kết nối, **When** tôi đang tương tác, **Then** hệ thống hiển thị thông báo lỗi và đề xuất giải pháp.
 *   **And** tất cả các tương tác (câu hỏi AI, câu trả lời của tôi) được ghi lại để xem xét sau này. (Covers NFR2.1, NFR6.1)
 
-### Story 3.3: Báo cáo Đánh giá Hiệu suất Phỏng vấn (Interview Performance Report)
+**Implementation Details:**
+- **Backend:** ConversationService calls DialogFlow AI agent
+- **API Endpoint:** `POST /api/v1/interviews/process-turn`
+- **Input:** `interview_id`, `current_question`, `candidate_answer` (text from voice-to-text), `conversation_history`
+- **Output:** 
+  - `turn_evaluation`: Per-turn scores (Technical, Communication, Depth, Overall)
+  - `next_action`: Action type + AI response + follow-up question (if needed)
+  - `context_update`: Topics covered, follow-up depth, turn count
+- **Database:** Each turn saved to `interview_turns` table with evaluations
+- **Agent:** `ConversationAgent` (Qwen2.5-1.5B, ~3s latency per turn)
+- **Frontend:** Voice-to-text (Web Speech API), text-to-speech for AI responses
+
+### Story 8.3: Báo cáo Đánh giá Hiệu suất Phỏng vấn (Interview Performance Report) 🚧 IN PROGRESS
 As a người tìm việc,
 I want để nhận báo cáo đánh giá chi tiết về hiệu suất của mình sau buổi phỏng vấn,
 So that tôi có thể học hỏi từ những sai lầm và cải thiện kỹ năng phỏng vấn của mình.
@@ -217,7 +321,25 @@ So that tôi có thể học hỏi từ những sai lầm và cải thiện kỹ
 *   **Given** tôi xem lại báo cáo, **When** tôi nhấp vào một câu hỏi cụ thể, **Then** tôi có thể xem lại câu hỏi và câu trả lời của mình (văn bản và âm thanh nếu có).
 *   **And** báo cáo được lưu trữ an toàn và chỉ tôi mới có thể truy cập.
 
-### Story 3.4: Lịch sử Buổi Phỏng vấn (Interview History)
+**Implementation Details:**
+- **Backend:** EvaluationService calls EvalMaster AI agent
+- **API Endpoint:** `POST /api/v1/interviews/evaluate`
+- **Input:** 
+  - `interview_id`, `candidate_info`
+  - `interview_transcript`: Full conversation history
+  - `questions_asked`: All questions with metadata
+  - `turn_evaluations`: Per-turn scores from DialogFlow AI
+  - `interview_duration_minutes`
+- **Output:**
+  - `overall_evaluation`: Final score (0-10), grade, hiring recommendation
+  - `dimension_scores`: Technical (50%), Communication (25%), Behavioral (25%) with sub-scores and evidence
+  - `detailed_analysis`: Key strengths, areas for improvement, notable moments, red flags
+  - `recommendations`: Hiring decision, reasoning, role fit, onboarding suggestions, development areas
+- **Database:** Report saved to `interview_evaluations` table
+- **Agent:** `PerformanceEvaluatorAgent` (Llama-3.2-3B, ~6s latency)
+- **Frontend:** Display comprehensive report with charts, dimension breakdown, evidence citations
+
+### Story 8.4: Lịch sử Buổi Phỏng vấn (Interview History) 🚧 IN PROGRESS
 As a người tìm việc,
 I want để xem lại lịch sử các buổi phỏng vấn ảo đã thực hiện,
 So that tôi có thể theo dõi sự tiến bộ của mình theo thời gian và chuẩn bị tốt hơn cho các buổi phỏng vấn thực tế.
@@ -225,6 +347,19 @@ So that tôi có thể theo dõi sự tiến bộ của mình theo thời gian v
 *   **Given** tôi đã hoàn thành nhiều buổi phỏng vấn ảo, **When** tôi truy cập trang lịch sử phỏng vấn, **Then** tôi thấy danh sách các buổi phỏng vấn với thông tin tóm tắt (tên vị trí, ngày, điểm tổng thể). (Covers FR17)
 *   **Given** tôi nhấp vào một mục trong danh sách lịch sử, **When** tôi muốn xem chi tiết, **Then** hệ thống điều hướng tôi đến báo cáo đánh giá chi tiết của buổi phỏng vấn đó.
 *   **And** danh sách lịch sử được phân trang nếu có nhiều buổi phỏng vấn.
+
+**Implementation Details:**
+- **Backend:** Standard CRUD endpoints for interview sessions
+- **API Endpoints:**
+  - `GET /api/v1/interviews` - List all sessions for current user
+  - `GET /api/v1/interviews/{id}` - Get session details
+  - `GET /api/v1/interviews/{id}/transcript` - Get full conversation transcript
+  - `GET /api/v1/interviews/{id}/evaluation` - Get evaluation report
+- **Database:** Query `interview_sessions` table with related data
+- **Frontend:** 
+  - List view with cards showing session summary
+  - Detail view showing full transcript with per-turn scores
+  - Evaluation report view with charts and recommendations
 
 ### Epic 4: Khám phá và Quản lý Ứng viên bằng AI (AI-Powered Candidate Discovery & Management)
 **Mục tiêu:** Trao quyền cho nhà tuyển dụng đăng tin, tìm kiếm, xếp hạng và quản lý các ứng viên tiềm năng một cách hiệu quả.

@@ -1,0 +1,59 @@
+{
+  "agent_id": "question-generator",
+  "agent_name": "QuestionCraft AI",
+  "model": "llama3.2:3b-instruct-fp16",
+  "model_parameters": {
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 40,
+    "repeat_penalty": 1.1,
+    "num_predict": 2048,
+    "stop": [
+      "</output>",
+      "\n\n---"
+    ]
+  },
+  "ollama_settings": {
+    "host": "http://localhost:11434",
+    "timeout": 30,
+    "keep_alive": "5m"
+  },
+  "prompt_settings": {
+    "prompt_file": "prompts/question_generator_prompt.txt",
+    "output_format": "json",
+    "language": "vi"
+  },
+  "quality_settings": {
+    "min_questions_per_level": 3,
+    "category_distribution": {
+      "technical": 0.6,
+      "behavioral": 0.2,
+      "situational": 0.2
+    },
+    "difficulty_levels": [
+      "junior",
+      "middle",
+      "senior"
+    ],
+    "required_fields": [
+      "question_id",
+      "category",
+      "difficulty",
+      "question_text",
+      "key_points",
+      "ideal_answer_outline",
+      "evaluation_criteria"
+    ]
+  },
+  "performance_settings": {
+    "max_retries": 2,
+    "target_latency_ms": 4000,
+    "cache_ttl_seconds": 3600
+  },
+  "logging": {
+    "log_level": "INFO",
+    "log_requests": true,
+    "log_responses": true,
+    "log_latency": true
+  }
+}

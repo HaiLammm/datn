@@ -1,0 +1,90 @@
+{
+  "description": "Example API request for DialogFlow AI - Process conversation turn and generate next action",
+  "endpoint": "/api/v1/agents/conversation/process-turn",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_API_TOKEN"
+  },
+  "request_body": {
+    "interview_id": "interview_12345",
+    "current_question": {
+      "question_id": "Q1",
+      "category": "technical",
+      "difficulty": "middle",
+      "question_text": "Bạn có thể giải thích cách FastAPI xử lý async/await khác với Django như thế nào?",
+      "key_points": [
+        "ASGI vs WSGI",
+        "Async/await trong Python",
+        "Use cases cho async"
+      ],
+      "evaluation_criteria": [
+        "Hiểu rõ khái niệm async/await",
+        "So sánh chính xác FastAPI vs Django",
+        "Ví dụ thực tế từ kinh nghiệm"
+      ]
+    },
+    "candidate_answer": "Vâng, em hiểu là FastAPI hỗ trợ async/await còn Django thì không... à không, Django cũng có async nhưng không mạnh bằng FastAPI. FastAPI chạy trên ASGI nên có thể xử lý nhiều requests cùng lúc. Trong dự án của em, em đã dùng async cho các API calls ra external services, ví dụ như gọi payment gateway hoặc send email. Nhờ async nên server không bị block khi đợi response từ các services này.",
+    "conversation_history": [
+      {
+        "turn_id": 0,
+        "question": "Xin chào! Em là Nguyễn Văn A ạ.",
+        "answer": "Xin chào Nguyễn Văn A! Cảm ơn em đã tham gia buổi phỏng vấn hôm nay. Trước khi bắt đầu, em có thể giới thiệu sơ qua về bản thân và kinh nghiệm làm việc với Python không?",
+        "score": null
+      }
+    ],
+    "interview_context": {
+      "position": "Backend Developer",
+      "level": "middle",
+      "candidate_name": "Nguyễn Văn A"
+    }
+  },
+  "expected_response": {
+    "status": "success",
+    "turn_evaluation": {
+      "turn_id": "turn_1",
+      "answer_quality": {
+        "technical_accuracy": 7.5,
+        "communication_clarity": 8.0,
+        "depth_of_knowledge": 6.5,
+        "overall_score": 7.3
+      },
+      "key_observations": [
+        "Hiểu đúng khái niệm ASGI vs WSGI",
+        "Đưa ra ví dụ thực tế từ kinh nghiệm (payment gateway, email)",
+        "Tự sửa lỗi khi nói Django không hỗ trợ async",
+        "Chưa đi sâu vào chi tiết kỹ thuật về event loop"
+      ],
+      "strengths": [
+        "Có kinh nghiệm thực tế với async",
+        "Communication rõ ràng, tự tin"
+      ],
+      "gaps": [
+        "Chưa giải thích sâu về cơ chế async hoạt động",
+        "Chưa so sánh performance cụ thể"
+      ]
+    },
+    "next_action": {
+      "action_type": "follow_up",
+      "ai_response": "Em giải thích rất tốt về use case của async trong dự án. Anh thấy em đề cập đến việc không bị block khi đợi external services.",
+      "follow_up_question": "Vậy em có thể cho anh biết thêm về performance improvement cụ thể khi em chuyển từ sync sang async cho phần payment gateway không? Có số liệu về response time trước và sau không?",
+      "reasoning": "Ứng viên đã trả lời đúng hướng nhưng chưa đủ sâu về mặt kỹ thuật. Follow-up để đánh giá khả năng đo lường performance và kinh nghiệm optimization thực tế."
+    },
+    "context_update": {
+      "topics_covered": [
+        "FastAPI async",
+        "ASGI",
+        "External API calls"
+      ],
+      "follow_up_depth": 1,
+      "turn_count": 1
+    }
+  },
+  "usage_notes": [
+    "conversation_history can be empty for first turn",
+    "interview_context is optional but recommended for better responses",
+    "action_type can be: 'continue', 'follow_up', 'next_question', 'end_interview'",
+    "Turn evaluations are saved to database for final evaluation",
+    "AI maintains conversation flow while assessing candidate's knowledge"
+  ]
+}

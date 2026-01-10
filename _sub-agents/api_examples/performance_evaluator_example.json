@@ -1,0 +1,181 @@
+{
+  "description": "Example API request for EvalMaster AI - Comprehensive interview evaluation",
+  "endpoint": "/api/v1/agents/evaluator/evaluate",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_API_TOKEN"
+  },
+  "request_body": {
+    "interview_id": "interview_12345",
+    "candidate_info": {
+      "name": "Nguyễn Văn A",
+      "position": "Backend Developer",
+      "level": "middle"
+    },
+    "interview_transcript": [
+      {
+        "turn_id": 0,
+        "ai_message": "Xin chào Nguyễn Văn A! Cảm ơn em đã tham gia buổi phỏng vấn. Em có thể giới thiệu về kinh nghiệm với Python không?",
+        "candidate_message": "Xin chào anh! Em có 3 năm kinh nghiệm với Python, chủ yếu làm backend với Django và FastAPI. Em đã phát triển nhiều RESTful APIs và làm việc với PostgreSQL."
+      },
+      {
+        "turn_id": 1,
+        "ai_message": "Bạn có thể giải thích cách FastAPI xử lý async/await khác với Django như thế nào?",
+        "candidate_message": "FastAPI chạy trên ASGI nên có thể xử lý async tốt hơn Django. Em đã dùng async cho external API calls trong dự án, giúp server không bị block khi đợi response."
+      },
+      {
+        "turn_id": 2,
+        "ai_message": "Vậy em có số liệu về performance improvement khi chuyển sang async không?",
+        "candidate_message": "Có ạ, response time của payment API giảm từ 800ms xuống 300ms, throughput tăng 2.5 lần. Em đã dùng Locust để load test."
+      }
+    ],
+    "questions_asked": [
+      {
+        "question_id": "Q1",
+        "category": "technical",
+        "difficulty": "middle",
+        "question_text": "Bạn có thể giải thích cách FastAPI xử lý async/await khác với Django như thế nào?",
+        "key_points": ["ASGI vs WSGI", "Async/await", "Use cases"]
+      },
+      {
+        "question_id": "Q2",
+        "category": "technical",
+        "difficulty": "middle",
+        "question_text": "Em có thể chia sẻ về kinh nghiệm optimize database queries với PostgreSQL?",
+        "key_points": ["Indexing", "Query optimization", "Performance monitoring"]
+      }
+    ],
+    "turn_evaluations": [
+      {
+        "turn_id": 1,
+        "answer_quality": {
+          "technical_accuracy": 7.5,
+          "communication_clarity": 8.0,
+          "depth_of_knowledge": 6.5,
+          "overall_score": 7.3
+        },
+        "key_observations": ["Hiểu ASGI", "Có kinh nghiệm thực tế"]
+      },
+      {
+        "turn_id": 2,
+        "answer_quality": {
+          "technical_accuracy": 9.0,
+          "communication_clarity": 9.0,
+          "depth_of_knowledge": 8.5,
+          "overall_score": 8.8
+        },
+        "key_observations": ["Có số liệu cụ thể", "Biết load testing"]
+      }
+    ],
+    "interview_duration_minutes": 45
+  },
+  "expected_response": {
+    "status": "success",
+    "overall_evaluation": {
+      "final_score": 7.8,
+      "grade": "good",
+      "hiring_recommendation": "hire"
+    },
+    "dimension_scores": {
+      "technical_competency": {
+        "score": 8.0,
+        "weight": 0.5,
+        "sub_scores": {
+          "knowledge_breadth": 7.5,
+          "knowledge_depth": 8.0,
+          "problem_solving": 8.5,
+          "technical_accuracy": 8.0
+        },
+        "evidence": [
+          "Hiểu rõ về async/await, ASGI vs WSGI (Turn 1)",
+          "Đưa ra số liệu performance cụ thể: 800ms -> 300ms, throughput tăng 2.5x (Turn 2)",
+          "Có kinh nghiệm với load testing tools (Locust)"
+        ],
+        "analysis": "Ứng viên thể hiện nền tảng kỹ thuật vững chắc với Python backend development. Đặc biệt mạnh về performance optimization với số liệu đo lường cụ thể. Có tư duy data-driven khi đánh giá hiệu suất hệ thống."
+      },
+      "communication_skills": {
+        "score": 8.5,
+        "weight": 0.25,
+        "sub_scores": {
+          "clarity": 9.0,
+          "structure": 8.0,
+          "articulation": 8.5,
+          "listening": 8.5
+        },
+        "evidence": [
+          "Trả lời có cấu trúc rõ ràng, đi từ concept đến ví dụ thực tế",
+          "Sử dụng số liệu cụ thể để minh họa",
+          "Tự tin, không ngập ngừng"
+        ],
+        "analysis": "Ứng viên giao tiếp tốt, trình bày ý tưởng rõ ràng. Biết sử dụng data để support arguments. Thái độ tự tin nhưng không kiêu căng."
+      },
+      "behavioral_fit": {
+        "score": 7.0,
+        "weight": 0.25,
+        "sub_scores": {
+          "attitude": 7.5,
+          "adaptability": 7.0,
+          "teamwork": 6.5,
+          "growth_mindset": 7.0
+        },
+        "evidence": [
+          "Chủ động tìm hiểu công nghệ mới (FastAPI, async)",
+          "Có thái độ học hỏi khi được hỏi về performance"
+        ],
+        "analysis": "Ứng viên có thái độ tích cực. Tuy nhiên, trong transcript chưa thể hiện rõ về teamwork và collaboration. Cần đánh giá thêm qua các câu hỏi behavioral."
+      }
+    },
+    "detailed_analysis": {
+      "key_strengths": [
+        "Nền tảng kỹ thuật vững chắc về Python backend (FastAPI, Django)",
+        "Tư duy data-driven, biết đo lường performance",
+        "Có kinh nghiệm thực tế với optimization (async, load testing)",
+        "Giao tiếp rõ ràng, tự tin"
+      ],
+      "areas_for_improvement": [
+        "Cần đánh giá thêm về kinh nghiệm làm việc nhóm",
+        "Chưa thể hiện về system design cho large scale",
+        "Có thể đào sâu thêm về database optimization"
+      ],
+      "notable_moments": [
+        "Turn 2: Ứng viên đưa ra số liệu performance cụ thể với throughput tăng 2.5x, cho thấy mindset đo lường kết quả",
+        "Chủ động nhắc đến công cụ load testing (Locust), thể hiện quy trình làm việc chuyên nghiệp"
+      ],
+      "red_flags": []
+    },
+    "recommendations": {
+      "hiring_decision": "hire",
+      "reasoning": "Ứng viên đáp ứng tốt yêu cầu cho vị trí Middle Backend Developer. Technical skills vững, có kinh nghiệm thực tế với performance optimization và modern Python frameworks. Communication skills tốt. Phù hợp cho các dự án yêu cầu optimize performance và scalability.",
+      "suggested_role_fit": "Backend Developer - Middle Level, phù hợp cho team cần optimize performance và xây dựng high-throughput APIs",
+      "onboarding_suggestions": [
+        "Pair với Senior Dev để học về system design",
+        "Tham gia sprint planning để develop teamwork skills",
+        "Assign các tasks về API optimization và performance tuning"
+      ],
+      "development_areas": [
+        "System design và architecture cho large-scale systems",
+        "Advanced database optimization (query planning, partitioning)",
+        "Leadership và mentoring skills"
+      ]
+    },
+    "metadata": {
+      "total_questions": 2,
+      "questions_by_category": {
+        "technical": 2,
+        "behavioral": 0,
+        "situational": 0
+      },
+      "interview_duration": 45,
+      "model_used": "llama3.2:3b-instruct-fp16"
+    }
+  },
+  "usage_notes": [
+    "This is a comprehensive evaluation of the entire interview",
+    "Requires full transcript and per-turn evaluations",
+    "Generates hiring recommendation with reasoning",
+    "Provides actionable feedback for both hiring decision and candidate development",
+    "Evidence field contains specific examples from the interview",
+    "Use this at the END of interview, not per-turn"
+  ]
+}

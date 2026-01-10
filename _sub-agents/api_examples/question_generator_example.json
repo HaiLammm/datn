@@ -1,0 +1,80 @@
+{
+  "description": "Example API request for QuestionCraft AI - Generate interview questions from JD and CV",
+  "endpoint": "/api/v1/agents/question-generator/generate",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_API_TOKEN"
+  },
+  "request_body": {
+    "job_description": "Tuyển dụng Backend Developer\n\nYêu cầu:\n- 2+ năm kinh nghiệm Python/FastAPI\n- Thành thạo SQL, PostgreSQL\n- Kinh nghiệm với Docker, CI/CD\n- Hiểu biết về RESTful API design\n- Am hiểu về authentication, authorization\n- Khả năng làm việc nhóm tốt\n\nƯu tiên:\n- Có kinh nghiệm với Microservices\n- Biết Redis, Celery\n- Có kinh nghiệm với AWS/GCP",
+    "cv_content": "Nguyễn Văn A\nBackend Developer\n\nKinh nghiệm:\n- 3 năm làm việc với Python, Django, FastAPI\n- Phát triển RESTful APIs cho ứng dụng e-commerce\n- Thiết kế database schema với PostgreSQL\n- Triển khai CI/CD với GitLab CI\n- Sử dụng Docker cho containerization\n\nKỹ năng:\n- Python, FastAPI, Django\n- PostgreSQL, MySQL\n- Docker, Kubernetes cơ bản\n- Git, GitLab CI/CD\n- Redis, Celery\n\nDự án nổi bật:\n- Hệ thống quản lý đơn hàng với 10k+ users\n- API Gateway cho microservices architecture",
+    "position_level": "middle",
+    "num_questions": 12,
+    "focus_areas": [
+      "FastAPI",
+      "PostgreSQL",
+      "Docker",
+      "Microservices"
+    ]
+  },
+  "expected_response": {
+    "status": "success",
+    "questions": [
+      {
+        "question_id": "Q1",
+        "category": "technical",
+        "difficulty": "middle",
+        "question_text": "Bạn có thể giải thích cách FastAPI xử lý async/await khác với Django như thế nào? Trong dự án của bạn, bạn đã sử dụng async ở đâu và tại sao?",
+        "key_points": [
+          "Hiểu về ASGI vs WSGI",
+          "Async/await trong Python",
+          "Use cases cho async trong FastAPI",
+          "So sánh performance"
+        ],
+        "ideal_answer_outline": "Ứng viên nên giải thích FastAPI chạy trên ASGI (async) trong khi Django truyền thống chạy WSGI (sync). Đề cập đến lợi ích của async cho I/O-bound operations. Nêu ví dụ cụ thể từ kinh nghiệm.",
+        "evaluation_criteria": [
+          "Hiểu rõ khái niệm async/await",
+          "So sánh chính xác FastAPI vs Django",
+          "Ví dụ thực tế từ kinh nghiệm",
+          "Hiểu khi nào nên/không nên dùng async"
+        ]
+      },
+      {
+        "question_id": "Q2",
+        "category": "technical",
+        "difficulty": "middle",
+        "question_text": "Trong dự án e-commerce của bạn với 10k+ users, bạn đã optimize database queries PostgreSQL như thế nào? Hãy cho ví dụ cụ thể về một truy vấn chậm mà bạn đã cải thiện.",
+        "key_points": [
+          "Database indexing",
+          "Query optimization",
+          "N+1 query problem",
+          "Performance monitoring"
+        ],
+        "ideal_answer_outline": "Ứng viên nên đề cập đến: tạo indexes cho các cột thường query, sử dụng EXPLAIN ANALYZE, tránh N+1 queries với eager loading, có thể nói về connection pooling.",
+        "evaluation_criteria": [
+          "Kinh nghiệm thực tế với query optimization",
+          "Hiểu về database indexes",
+          "Biết cách đo lường performance",
+          "Ví dụ cụ thể với số liệu"
+        ]
+      }
+    ],
+    "metadata": {
+      "total_questions": 12,
+      "distribution": {
+        "technical": 7,
+        "behavioral": 3,
+        "situational": 2
+      },
+      "model_used": "llama3.2:3b-instruct-fp16"
+    }
+  },
+  "usage_notes": [
+    "position_level must be one of: 'junior', 'middle', 'senior'",
+    "num_questions is optional, defaults to 10",
+    "focus_areas is optional, helps prioritize certain skills",
+    "Response includes evaluation criteria for each question",
+    "Questions are tailored to both JD requirements and candidate's experience"
+  ]
+}

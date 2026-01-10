@@ -1,0 +1,94 @@
+{
+  "agent_id": "performance-evaluator",
+  "agent_name": "EvalMaster AI",
+  "model": "llama3.2:3b-instruct-fp16",
+  "model_parameters": {
+    "temperature": 0.5,
+    "top_p": 0.85,
+    "top_k": 30,
+    "repeat_penalty": 1.1,
+    "num_predict": 3072,
+    "stop": ["</evaluation>", "\n\n---END---"]
+  },
+  "ollama_settings": {
+    "host": "http://localhost:11434",
+    "timeout": 40,
+    "keep_alive": "5m"
+  },
+  "prompt_settings": {
+    "prompt_file": "prompts/performance_evaluator_prompt.txt",
+    "output_format": "json",
+    "language": "vi",
+    "include_full_transcript": true
+  },
+  "evaluation_settings": {
+    "scoring_dimensions": {
+      "technical_competency": {
+        "weight": 0.5,
+        "sub_dimensions": [
+          "knowledge_breadth",
+          "knowledge_depth",
+          "problem_solving",
+          "technical_accuracy"
+        ]
+      },
+      "communication_skills": {
+        "weight": 0.25,
+        "sub_dimensions": [
+          "clarity",
+          "structure",
+          "articulation",
+          "listening"
+        ]
+      },
+      "behavioral_fit": {
+        "weight": 0.25,
+        "sub_dimensions": [
+          "attitude",
+          "adaptability",
+          "teamwork",
+          "growth_mindset"
+        ]
+      }
+    },
+    "score_range": [0, 10],
+    "grade_thresholds": {
+      "excellent": 8.5,
+      "good": 7.0,
+      "average": 5.0,
+      "poor": 3.0
+    },
+    "hiring_decision_thresholds": {
+      "strong_hire": 8.0,
+      "hire": 6.5,
+      "consider": 5.0,
+      "no_hire": 0.0
+    }
+  },
+  "report_settings": {
+    "include_evidence": true,
+    "include_strengths": true,
+    "include_weaknesses": true,
+    "include_recommendations": true,
+    "min_examples_per_dimension": 2,
+    "max_report_length": 5000
+  },
+  "quality_settings": {
+    "require_all_dimensions": true,
+    "validate_score_consistency": true,
+    "require_hiring_recommendation": true,
+    "min_evidence_count": 3
+  },
+  "performance_settings": {
+    "max_retries": 2,
+    "target_latency_ms": 6000,
+    "cache_ttl_seconds": 7200
+  },
+  "logging": {
+    "log_level": "INFO",
+    "log_requests": true,
+    "log_responses": true,
+    "log_latency": true,
+    "log_evaluation_details": true
+  }
+}

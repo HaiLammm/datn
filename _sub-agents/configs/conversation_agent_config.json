@@ -1,0 +1,64 @@
+{
+  "agent_id": "conversation-agent",
+  "agent_name": "DialogFlow AI",
+  "model": "qwen2.5:1.5b-instruct-fp16",
+  "model_parameters": {
+    "temperature": 0.8,
+    "top_p": 0.92,
+    "top_k": 50,
+    "repeat_penalty": 1.15,
+    "num_predict": 1024,
+    "stop": ["</response>", "\n\n[END]"]
+  },
+  "ollama_settings": {
+    "host": "http://localhost:11434",
+    "timeout": 20,
+    "keep_alive": "10m"
+  },
+  "prompt_settings": {
+    "prompt_file": "prompts/conversation_agent_prompt.txt",
+    "output_format": "json",
+    "language": "vi",
+    "include_context": true
+  },
+  "conversation_settings": {
+    "max_turns": 50,
+    "max_context_messages": 10,
+    "turn_timeout_seconds": 300,
+    "follow_up_depth": 2,
+    "evaluation_mode": "per_turn",
+    "action_types": [
+      "continue",
+      "follow_up",
+      "next_question",
+      "end_interview"
+    ]
+  },
+  "scoring_settings": {
+    "score_range": [0, 10],
+    "dimensions": [
+      "technical_accuracy",
+      "communication_clarity",
+      "depth_of_knowledge"
+    ],
+    "min_score_threshold": 3.0,
+    "auto_end_on_poor_performance": false
+  },
+  "performance_settings": {
+    "max_retries": 3,
+    "target_latency_ms": 3000,
+    "cache_ttl_seconds": 1800
+  },
+  "safety_settings": {
+    "detect_inappropriate_content": true,
+    "max_answer_length": 2000,
+    "detect_off_topic": true
+  },
+  "logging": {
+    "log_level": "INFO",
+    "log_requests": true,
+    "log_responses": true,
+    "log_latency": true,
+    "log_context": true
+  }
+}

@@ -123,3 +123,18 @@
     background-size: 40px 40px;
   }
 }
+
+/* Story 8.2: Voice Interaction - Waveform Animation */
+@keyframes waveform {
+  0%, 100% { 
+    transform: scaleY(0.3); 
+  }
+  50% { 
+    transform: scaleY(1); 
+  }
+}
+
+.animate-waveform {
+  animation: waveform 0.8s ease-in-out infinite;
+}
+

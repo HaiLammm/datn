@@ -66,5 +66,24 @@ class Settings(BaseSettings):
     RAG_MIN_SIMILARITY_SCORE: float = 0.3  # Minimum similarity score threshold
     RAG_RELEVANCE_CHECK_ENABLED: bool = True  # Enable career field relevance checking
 
+    # Epic 8: AI Interview Agents Settings
+    OLLAMA_HOST: str = "http://localhost:11434"
+    OLLAMA_TIMEOUT: int = 30
+    
+    # Agent configuration paths
+    # Agent configuration paths
+    # Resolve absolute paths based on project root
+    # config.py is in backend/app/core/
+    BACKEND_DIR: Path = Path(__file__).resolve().parent.parent.parent
+    PROJECT_ROOT: Path = BACKEND_DIR.parent
+    
+    QUESTION_AGENT_CONFIG: str = str(PROJECT_ROOT / "_sub-agents/configs/question_generator_config.json")
+    CONVERSATION_AGENT_CONFIG: str = str(PROJECT_ROOT / "_sub-agents/configs/conversation_agent_config.json")
+    EVALUATOR_AGENT_CONFIG: str = str(PROJECT_ROOT / "_sub-agents/configs/performance_evaluator_config.json")
+    
+    # Agent performance settings
+    AGENT_MAX_RETRIES: int = 2
+    AGENT_ENABLE_LOGGING: bool = True
+
 
 settings = Settings()  # type: ignore

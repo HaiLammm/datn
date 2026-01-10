@@ -1,39 +1,90 @@
-ERROR conda.cli.main_run:execute(127): `conda run env PYTHONPATH=. pytest tests/modules/jobs/test_job_recommendations.py::test_get_recommendations_no_cv -v` failed. (See above for error)
 ============================= test session starts ==============================
-platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /home/luonghailam/miniconda3/envs/backend312/bin/python3.12
-cachedir: .pytest_cache
+platform linux -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0
 rootdir: /home/luonghailam/Projects/datn/backend
-plugins: asyncio-1.3.0, anyio-4.12.0
+plugins: anyio-4.11.0, asyncio-1.3.0
 asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collecting ... collected 1 item
+collected 1 item
 
-tests/modules/jobs/test_job_recommendations.py::test_get_recommendations_no_cv ERROR [100%]
+tests/modules/interviews/test_flow.py 
+API Error: {"detail":"Failed to create interview session: 2 validation errors for InterviewSessionResponse\ncreated_at\n  Input should be a valid datetime [type=datetime_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.12/v/datetime_type\nupdated_at\n  Input should be a valid datetime [type=datetime_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.12/v/datetime_type"}
 
-==================================== ERRORS ====================================
-_______________ ERROR at setup of test_get_recommendations_no_cv _______________
-file /home/luonghailam/Projects/datn/backend/tests/modules/jobs/test_job_recommendations.py, line 37
-  @pytest.mark.asyncio
-  async def test_get_recommendations_no_cv(async_client: AsyncClient, test_user: User, db_session):
-      """Test recommendations when user has no active CV."""
-      # Ensure no CV exists
+F
 
-      # Override dependency to use test user
-      from app.modules.auth.dependencies import get_current_user
-      async_client.app.dependency_overrides[get_current_user] = lambda: test_user
+=================================== FAILURES ===================================
+__________________________ test_create_interview_flow __________________________
 
-      response = await async_client.get("/api/v1/jobs/recommendations")
-      assert response.status_code == 200
-      assert response.json() == []
-E       fixture 'db_session' not found
->       available fixtures: _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, async_client, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, create_test_user_and_cv, doctest_namespace, event_loop_policy, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, mock_db_session, mock_embedding_service, mock_skill_matcher, mock_vector_store, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, test_user, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unauthenticated_async_client, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
->       use 'pytest --fixtures [testpath]' for help on them.
+async_client = <httpx.AsyncClient object at 0x7a3f3a4d9010>
+candidate_user = <app.modules.users.models.User object at 0x7a3f3a5d5e50>
+mock_db_session = <AsyncMock spec='AsyncSession' id='134411981486944'>
 
-/home/luonghailam/Projects/datn/backend/tests/modules/jobs/test_job_recommendations.py:37
+    @pytest.mark.asyncio
+    async def test_create_interview_flow(async_client, candidate_user, mock_db_session):
+        # Override auth to be candidate
+        app.dependency_overrides[get_current_user] = lambda: candidate_user
+        app.dependency_overrides[require_job_seeker] = lambda: candidate_user
+    
+        # Mock the EXISTING agent instance on the global interview_service
+        from app.modules.interviews.router import interview_service
+    
+        # Create a mock for the generate_questions method
+        mock_generate = MagicMock(return_value={
+            "status": "success",
+            "questions": [
+                {
+                    "question_id": "Q1",
+                    "category": "technical",
+                    "difficulty": "middle",
+                    "question_text": "What is React?",
+                    "key_points": ["Library", "Components"],
+                    "ideal_answer_outline": "React is...",
+                    "evaluation_criteria": ["Mention components"],
+                }
+            ],
+            "metadata": {
+                "total_questions": 1,
+                "distribution": {"technical": 1}
+            }
+        })
+    
+        # Store original method to restore after test (optional but good practice)
+        original_method = interview_service.question_service.agent.generate_questions
+        interview_service.question_service.agent.generate_questions = mock_generate
+    
+        try:
+            # Mock DB behavior
+            # session.add, session.commit, session.refresh
+            async def mock_refresh(obj):
+                if not hasattr(obj, 'id') or obj.id is None:
+                    import uuid
+                    obj.id = uuid.uuid4()
+                return None
+    
+            def mock_add(obj):
+                if not hasattr(obj, 'id') or obj.id is None:
+                    import uuid
+                    obj.id = uuid.uuid4()
+    
+            mock_db_session.refresh.side_effect = mock_refresh
+            mock_db_session.add.side_effect = mock_add
+    
+            payload = {
+                "job_description": "We need a React developer with Node.js skills.",
+                "cv_content": "I am a Full Stack Developer with React experience.",
+                "position_level": "middle",
+                "num_questions": 5,
+                "focus_areas": ["React", "System Design"]
+            }
+    
+            response = await async_client.post("/api/v1/interviews", json=payload)
+    
+            if response.status_code != 201:
+                print(f"\nAPI Error: {response.text}\n")
+>           assert response.status_code == 201
+E           assert 500 == 201
+E            +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests/modules/interviews/test_flow.py:81: AssertionError
 =============================== warnings summary ===============================
-../../../miniconda3/envs/backend312/lib/python3.12/site-packages/passlib/utils/__init__.py:854
-  /home/luonghailam/miniconda3/envs/backend312/lib/python3.12/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
-    from crypt import crypt as _crypt
-
 app/modules/users/schemas.py:39
   /home/luonghailam/Projects/datn/backend/app/modules/users/schemas.py:39: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class UserResponse(BaseModel):
@@ -54,16 +105,39 @@ app/modules/admin/schemas.py:10
   /home/luonghailam/Projects/datn/backend/app/modules/admin/schemas.py:10: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class AdminUserResponse(BaseModel):
 
-app/modules/messages/schemas.py:18
-  /home/luonghailam/Projects/datn/backend/app/modules/messages/schemas.py:18: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+app/modules/messages/schemas.py:28
+  /home/luonghailam/Projects/datn/backend/app/modules/messages/schemas.py:28: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class ConversationResponse(BaseModel):
 
-app/modules/messages/schemas.py:61
-  /home/luonghailam/Projects/datn/backend/app/modules/messages/schemas.py:61: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+app/modules/messages/schemas.py:73
+  /home/luonghailam/Projects/datn/backend/app/modules/messages/schemas.py:73: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class MessageResponse(BaseModel):
+
+app/modules/interviews/schemas.py:35
+  /home/luonghailam/Projects/datn/backend/app/modules/interviews/schemas.py:35: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class InterviewSessionResponse(BaseModel):
+
+app/modules/interviews/schemas.py:69
+  /home/luonghailam/Projects/datn/backend/app/modules/interviews/schemas.py:69: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class InterviewQuestionResponse(BaseModel):
+
+app/modules/interviews/schemas.py:107
+  /home/luonghailam/Projects/datn/backend/app/modules/interviews/schemas.py:107: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class InterviewTurnResponse(BaseModel):
+
+app/modules/interviews/schemas.py:162
+  /home/luonghailam/Projects/datn/backend/app/modules/interviews/schemas.py:162: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class InterviewEvaluationResponse(BaseModel):
+
+app/modules/interviews/schemas.py:184
+  /home/luonghailam/Projects/datn/backend/app/modules/interviews/schemas.py:184: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AgentCallLogResponse(BaseModel):
+
+tests/modules/interviews/test_flow.py::test_create_interview_flow
+  /home/luonghailam/Projects/datn/backend/app/modules/interviews/service.py:540: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    session.started_at = datetime.utcnow()
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
-ERROR tests/modules/jobs/test_job_recommendations.py::test_get_recommendations_no_cv
-========================= 8 warnings, 1 error in 0.02s =========================
-
+FAILED tests/modules/interviews/test_flow.py::test_create_interview_flow - as...
+======================== 1 failed, 13 warnings in 0.07s ========================
