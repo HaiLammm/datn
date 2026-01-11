@@ -34,7 +34,7 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { createInterviewAction } from "../actions";
 import { CVWithStatus } from "@datn/shared-types";
 
@@ -45,13 +45,11 @@ const formSchema = z.object({
     cv_content: z.string().min(10, {
         message: "CV content is required (select a CV).",
     }),
-    position_level: z.enum(["junior", "middle", "senior"], {
-        required_error: "Please select a position level.",
-    }),
-    num_questions: z.string().transform((v) => parseInt(v, 10)),
+    position_level: z.enum(["junior", "middle", "senior"]),
+    num_questions: z.number().int().min(1).max(50),
     focus_areas: z.string().optional(),
-    selected_cv_id: z.string({
-        required_error: "Please select a CV.",
+    selected_cv_id: z.string().min(1, {
+        message: "Please select a CV.",
     }),
 });
 
@@ -61,7 +59,6 @@ interface InterviewSetupFormProps {
 
 export function InterviewSetupForm({ cvList }: InterviewSetupFormProps) {
     const router = useRouter();
-    const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
 
     const form = useForm<z.infer<typeof formSchema>>({
@@ -99,27 +96,16 @@ export function InterviewSetupForm({ cvList }: InterviewSetupFormProps) {
                         message: result.errors![key]
                     });
                 });
-                toast({
-                    variant: "destructive",
-                    title: "Validation Error",
-                    description: "Please check the form for errors.",
-                });
+                toast.error("Please check the form for errors.");
                 return;
             }
 
             if (result.message && !result.data) {
-                toast({
-                    variant: "destructive",
-                    title: "Error",
-                    description: result.message,
-                });
+                toast.error(result.message);
                 return;
             }
 
-            toast({
-                title: "Success",
-                description: "Interview session created! Redirecting...",
-            });
+            toast.success("Interview session created! Redirecting...");
 
             // Redirect to the interview room
             if (result.data) {
@@ -127,11 +113,7 @@ export function InterviewSetupForm({ cvList }: InterviewSetupFormProps) {
             }
 
         } catch (error) {
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Something went wrong. Please try again.",
-            });
+            toast.error("Something went wrong. Please try again.");
         } finally {
             setIsLoading(false);
         }

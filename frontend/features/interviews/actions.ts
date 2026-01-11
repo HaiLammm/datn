@@ -80,3 +80,67 @@ export async function getCVListAction(): Promise<CVWithStatus[]> {
         return [];
     }
 }
+
+export async function getEvaluationAction(
+    interviewId: string
+): Promise<{ data?: any; error?: string }> {
+    try {
+        const accessToken = await getAccessToken();
+        const evaluation = await interviewService.getEvaluation(interviewId, accessToken);
+        return { data: evaluation };
+    } catch (error: any) {
+        console.error("Error fetching evaluation:", error);
+        return {
+            error: error.response?.data?.detail || "Failed to fetch evaluation report",
+        };
+    }
+}
+
+export async function completeInterviewAction(
+    interviewId: string,
+    forceComplete: boolean = false
+): Promise<{ data?: any; error?: string }> {
+    try {
+        const accessToken = await getAccessToken();
+        const result = await interviewService.completeInterview(interviewId, forceComplete, accessToken);
+        revalidatePath(`/interviews/${interviewId}`);
+        revalidatePath(`/interviews/${interviewId}/evaluation`);
+        return { data: result };
+    } catch (error: any) {
+        console.error("Error completing interview:", error);
+        return {
+            error: error.response?.data?.detail || "Failed to complete interview",
+        };
+    }
+}
+
+export async function getTranscriptAction(
+    interviewId: string
+): Promise<{ data?: any; error?: string }> {
+    try {
+        const accessToken = await getAccessToken();
+        const transcript = await interviewService.getTranscript(interviewId, accessToken);
+        return { data: transcript };
+    } catch (error: any) {
+        console.error("Error fetching transcript:", error);
+        return {
+            error: error.response?.data?.detail || "Failed to fetch transcript",
+        };
+    }
+}
+
+export async function listInterviewsAction(
+    limit: number = 20,
+    skip: number = 0
+): Promise<{ data?: InterviewSessionListResponse; error?: string }> {
+    try {
+        const accessToken = await getAccessToken();
+        const interviews = await interviewService.listInterviews(limit, skip, accessToken);
+        return { data: interviews };
+    } catch (error: any) {
+        console.error("Error fetching interviews:", error);
+        return {
+            error: error.response?.data?.detail || "Failed to fetch interviews",
+        };
+    }
+}

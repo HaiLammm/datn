@@ -132,6 +132,16 @@ export interface InterviewCompleteResponse {
     message: string;
 }
 
+// ============ Evaluation Types (Story 8.3) ============
+
+export interface DimensionScoreDetail {
+    score: number;
+    weight: number;
+    sub_scores: Record<string, number>;
+    evidence: string[];
+    analysis?: string;
+}
+
 export interface InterviewEvaluationResponse {
     id: string;
     interview_session_id: string;
@@ -139,22 +149,34 @@ export interface InterviewEvaluationResponse {
     grade: string;
     hiring_recommendation: string;
     dimension_scores: {
-        technical_competence: Record<string, number>;
-        communication_skills: Record<string, number>;
-        behavioral_fit: Record<string, number>;
+        technical_competency?: DimensionScoreDetail;
+        technical_competence?: DimensionScoreDetail;
+        communication_skills: DimensionScoreDetail;
+        behavioral_fit: DimensionScoreDetail;
     };
     detailed_analysis: {
-        strengths: string[];
-        weaknesses: string[];
+        key_strengths?: string[];
+        strengths?: string[];
+        areas_for_improvement?: string[];
+        weaknesses?: string[];
         notable_moments: string[];
         red_flags?: string[];
     };
     recommendations: {
         hiring_decision: string;
         reasoning: string;
+        role_fit?: string;
+        suggested_role_fit?: string;
+        onboarding_suggestions?: string[];
+        development_areas?: string[];
         development_suggestions?: string[];
     };
-    evaluation_metadata?: Record<string, any>;
+    evaluation_metadata?: {
+        total_questions?: number;
+        questions_by_category?: Record<string, number>;
+        interview_duration?: number;
+        model_used?: string;
+    };
     created_at: string;
     updated_at: string;
 }

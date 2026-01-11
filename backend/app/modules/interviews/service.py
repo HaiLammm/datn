@@ -541,6 +541,16 @@ class InterviewService:
             await db.commit()
             await db.refresh(session)
             
+            # Eagerly load all question attributes to avoid MissingGreenlet errors
+            # This is required per coding-standards.md: access lazy-loaded attrs in async context
+            for q in questions:
+                await db.refresh(q)
+                # Access all attributes to force loading
+                _ = (q.id, q.interview_session_id, q.question_id, q.category,
+                     q.difficulty, q.question_text, q.key_points,
+                     q.ideal_answer_outline, q.evaluation_criteria,
+                     q.order_index, q.is_selected, q.created_at)
+            
             logger.info(f"Created interview session {session_id} for candidate {candidate_id}")
             return session, questions
             

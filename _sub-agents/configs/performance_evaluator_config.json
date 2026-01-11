@@ -1,18 +1,18 @@
 {
   "agent_id": "performance-evaluator",
   "agent_name": "EvalMaster AI",
-  "model": "llama3.2:3b-instruct-fp16",
+  "model": "yasserrmd/Human-Like-Qwen2.5-1.5B-Instruct:latest",
   "model_parameters": {
     "temperature": 0.5,
     "top_p": 0.85,
     "top_k": 30,
     "repeat_penalty": 1.1,
-    "num_predict": 3072,
+    "num_predict": 2048,
     "stop": ["</evaluation>", "\n\n---END---"]
   },
   "ollama_settings": {
     "host": "http://localhost:11434",
-    "timeout": 40,
+    "timeout": 120,
     "keep_alive": "5m"
   },
   "prompt_settings": {

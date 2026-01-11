@@ -77,7 +77,7 @@ class InterviewQuestionResponse(BaseModel):
     question_text: str
     key_points: Optional[List[str]] = None
     ideal_answer_outline: Optional[str] = None
-    evaluation_criteria: Optional[List[str]] = None
+    evaluation_criteria: Optional[Dict[str, str]] = None  # Dict with excellent/good/average keys
     order_index: int
     is_selected: bool
     created_at: datetime

@@ -187,4 +187,52 @@ export const interviewService = {
             throw error;
         }
     },
+
+    /**
+     * Get evaluation report for a completed interview.
+     * Story 8.3: Interview Performance Report
+     */
+    getEvaluation: async (
+        sessionId: string,
+        accessToken?: string
+    ): Promise<InterviewEvaluationResponse> => {
+        try {
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+                headers.Authorization = `Bearer ${accessToken}`;
+            }
+            const response = await apiClient.get<InterviewEvaluationResponse>(
+                `/interviews/${sessionId}/evaluation`,
+                { headers }
+            );
+            return response.data;
+        } catch (error) {
+            console.error("Error getting evaluation:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get full conversation transcript for an interview.
+     * Story 8.3: Interview Performance Report
+     */
+    getTranscript: async (
+        sessionId: string,
+        accessToken?: string
+    ): Promise<InterviewTurnListResponse> => {
+        try {
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+                headers.Authorization = `Bearer ${accessToken}`;
+            }
+            const response = await apiClient.get<InterviewTurnListResponse>(
+                `/interviews/${sessionId}/turns`,
+                { headers }
+            );
+            return response.data;
+        } catch (error) {
+            console.error("Error getting transcript:", error);
+            throw error;
+        }
+    },
 };

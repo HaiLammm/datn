@@ -1,7 +1,7 @@
 {
   "agent_id": "conversation-agent",
   "agent_name": "DialogFlow AI",
-  "model": "qwen2.5:1.5b-instruct-fp16",
+  "model": "yasserrmd/Human-Like-Qwen2.5-1.5B-Instruct:latest",
   "model_parameters": {
     "temperature": 0.8,
     "top_p": 0.92,
@@ -12,7 +12,7 @@
   },
   "ollama_settings": {
     "host": "http://localhost:11434",
-    "timeout": 20,
+    "timeout": 60,
     "keep_alive": "10m"
   },
   "prompt_settings": {

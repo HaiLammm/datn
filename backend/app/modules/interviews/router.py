@@ -106,10 +106,10 @@ async def list_interviews(
     Returns paginated list of interviews ordered by creation date (newest first).
     Only shows sessions belonging to the authenticated user.
     """
-    if current_user.role != "candidate":
+    if current_user.role != "job_seeker":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can view interview sessions"
+            detail="Only job seekers can view interview sessions"
         )
     
     sessions, total = await interview_service.list_sessions(
@@ -140,10 +140,10 @@ async def get_interview(
     - Conversation history (all Q&A turns)
     - Final evaluation report (if completed)
     """
-    if current_user.role != "candidate":
+    if current_user.role != "job_seeker":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can view interview sessions"
+            detail="Only job seekers can view interview sessions"
         )
     
     session = await interview_service.get_session(
@@ -172,10 +172,10 @@ async def get_interview_questions(
     
     Returns the list of AI-generated questions in order.
     """
-    if current_user.role != "candidate":
+    if current_user.role != "job_seeker":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can view interview questions"
+            detail="Only job seekers can view interview sessions"
         )
     
     session = await interview_service.get_session(
@@ -275,10 +275,10 @@ async def get_interview_turns(
     
     Returns complete dialogue history with AI evaluations.
     """
-    if current_user.role != "candidate":
+    if current_user.role != "job_seeker":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can view interview turns"
+            detail="Only job seekers can view interview turns"
         )
     
     session = await interview_service.get_session(
@@ -327,10 +327,10 @@ async def complete_interview(
     - Interview must be in 'in_progress' status
     - At least 3 conversation turns recommended (can be forced)
     """
-    if current_user.role != "candidate":
+    if current_user.role != "job_seeker":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can complete interviews"
+            detail="Only job seekers can complete interviews"
         )
     
     # Verify session belongs to user
@@ -391,10 +391,10 @@ async def get_interview_evaluation(
     Returns comprehensive analysis including scores, recommendations, and feedback.
     Only available after interview is completed.
     """
-    if current_user.role != "candidate":
+    if current_user.role != "job_seeker":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only candidates can view interview evaluations"
+            detail="Only job seekers can view interview evaluations"
         )
     
     session = await interview_service.get_session(

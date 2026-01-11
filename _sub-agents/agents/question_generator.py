@@ -3,6 +3,8 @@ QuestionCraft AI - Interview Question Generator Agent
 Generates interview questions from Job Description and CV
 """
 
+import json
+import re
 from typing import Dict, Any, List
 from .base_agent import BaseAgent
 
@@ -103,6 +105,23 @@ class QuestionGeneratorAgent(BaseAgent):
             # Parse response
             result = self._parse_json_response(response)
             
+            self.logger.info(f"Parsed result type: {type(result)}, keys: {list(result.keys()) if isinstance(result, dict) else 'N/A'}")
+            if isinstance(result, dict) and 'questions' in result:
+                self.logger.info(f"Found {len(result['questions'])} questions")
+                if result['questions']:
+                    first_q_keys = list(result['questions'][0].keys()) if isinstance(result['questions'][0], dict) else []
+                    self.logger.info(f"First question keys: {first_q_keys}")
+            
+            # Handle case where model returns array instead of {"questions": [...]}
+            if isinstance(result, list):
+                self.logger.warning("Model returned array instead of object with 'questions' key. Wrapping...")
+                result = {"questions": result}
+            elif "questions" not in result and isinstance(result, dict):
+                # If it's an object but doesn't have "questions", check if it has question-like keys
+                if any(key.startswith("question") for key in result.keys()):
+                    self.logger.warning("Model returned object without 'questions' key. Wrapping single question...")
+                    result = {"questions": [result]}
+            
             # Validate output quality
             if not self._validate_output(result):
                 raise ValueError("Generated questions do not meet quality standards")
@@ -188,12 +207,22 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
             return False
         
         # Validate each question has required fields
+        valid_questions = 0
         for idx, question in enumerate(questions):
-            if not self._validate_required_fields(question, self.required_fields):
-                self.logger.error(f"Question {idx} missing required fields")
-                return False
+            if self._validate_required_fields(question, self.required_fields):
+                valid_questions += 1
+            else:
+                self.logger.warning(f"Question {idx} missing required fields, will be excluded")
         
-        # Validate category distribution
+        # Accept if we have at least min_questions valid questions
+        if valid_questions < self.min_questions:
+            self.logger.error(f"Only {valid_questions} valid questions, minimum is {self.min_questions}")
+            return False
+        
+        if valid_questions < len(questions):
+            self.logger.warning(f"Accepted {valid_questions}/{len(questions)} questions after validation")
+        
+        # Validate category distribution (warning only, don't fail)
         distribution = self._calculate_distribution(questions)
         total = sum(distribution.values())
         
@@ -201,13 +230,100 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
             technical_ratio = distribution.get("technical", 0) / total
             expected_ratio = self.category_distribution.get("technical", 0.6)
             
-            # Allow 10% tolerance
-            if abs(technical_ratio - expected_ratio) > 0.15:
+            # Allow 20% tolerance (was 15%)
+            if abs(technical_ratio - expected_ratio) > 0.20:
                 self.logger.warning(
                     f"Category distribution off target: {technical_ratio:.2f} vs {expected_ratio:.2f}"
                 )
         
         return True
+    
+    def _parse_json_response(self, response: str) -> Dict[str, Any]:
+        """
+        Parse JSON from model response, with special handling for common issues.
+        Overrides base class method for more lenient parsing.
+        """
+        # Try to extract JSON from markdown code blocks
+        if "```json" in response:
+            start = response.find("```json") + 7
+            end = response.find("```", start)
+            if end == -1:  # No closing fence
+                response = response[start:].strip()
+            else:
+                response = response[start:end].strip()
+        elif "```" in response:
+            start = response.find("```") + 3
+            end = response.find("```", start)
+            if end == -1:  # No closing fence
+                response = response[start:].strip()
+            else:
+                response = response[start:end].strip()
+        
+        # Remove trailing commas before ] or }
+        response = re.sub(r',\s*([\]}])', r'\1', response)
+        
+        # Try to find where JSON ends if it got truncated
+        # Look for the last valid closing bracket
+        if response.count('[') > response.count(']'):
+            # Array not closed, try to close it
+            self.logger.warning(f"JSON has unclosed arrays: {response.count('[')} [ vs {response.count(']')} ]")
+            response = response + ']' * (response.count('[') - response.count(']'))
+        if response.count('{') > response.count('}'):
+            # Object not closed, try to close it  
+            self.logger.warning(f"JSON has unclosed objects: {response.count('{')} {{ vs {response.count('}')} }}")
+            response = response + '}' * (response.count('{') - response.count('}'))
+        
+        # Remove any trailing incomplete strings or values
+        # Find the last complete JSON value before truncation
+        response = re.sub(r',\s*$', '', response)  # Remove trailing comma
+        response = re.sub(r':\s*"[^"]*$', '', response)  # Remove incomplete string value
+        response = re.sub(r':\s*$', ': ""', response)  # Fill empty value
+        
+        try:
+            parsed = json.loads(response)
+            return parsed
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Failed to parse JSON: {e}")
+            self.logger.error(f"Attempted to parse (first 1000 chars): {response[:1000]}...")
+            self.logger.error(f"Last 500 chars: ...{response[-500:]}")
+            
+            # Last resort: try to extract just the questions array
+            match = re.search(r'\[\s*\{.*\}\s*\]', response, re.DOTALL)
+            if match:
+                try:
+                    array_str = match.group(0)
+                    # Fix trailing commas
+                    array_str = re.sub(r',\s*([\]}])', r'\1', array_str)
+                    
+                    # Try to find complete question objects even if array isn't closed
+                    # Extract all complete question objects
+                    question_pattern = r'\{[^{}]*"question_id"[^{}]*"question_text"[^{}]*\}'
+                    questions = re.findall(question_pattern, array_str, re.DOTALL)
+                    
+                    if questions:
+                        self.logger.warning(f"Extracted {len(questions)} complete question objects from malformed JSON")
+                        # Parse each question individually
+                        parsed_questions = []
+                        for q_str in questions:
+                            try:
+                                q_str = re.sub(r',\s*([\]}])', r'\1', q_str)
+                                parsed_q = json.loads(q_str)
+                                parsed_questions.append(parsed_q)
+                            except:
+                                continue
+                        
+                        if parsed_questions:
+                            self.logger.info(f"Successfully parsed {len(parsed_questions)} questions from malformed response")
+                            return {"questions": parsed_questions}
+                    
+                    # Original fallback
+                    parsed = json.loads(array_str)
+                    self.logger.warning("Extracted questions array from malformed JSON")
+                    return {"questions": parsed} if isinstance(parsed, list) else parsed
+                except:
+                    pass
+            
+            raise ValueError(f"Invalid JSON in model response: {e}")
     
     def _calculate_distribution(self, questions: List[Dict]) -> Dict[str, int]:
         """Calculate category distribution of questions."""

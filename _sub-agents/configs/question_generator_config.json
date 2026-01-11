@@ -1,7 +1,7 @@
 {
   "agent_id": "question-generator",
   "agent_name": "QuestionCraft AI",
-  "model": "llama3.2:3b-instruct-fp16",
+  "model": "yasserrmd/Human-Like-Qwen2.5-1.5B-Instruct:latest",
   "model_parameters": {
     "temperature": 0.7,
     "top_p": 0.9,
@@ -10,13 +10,14 @@
     "num_predict": 2048,
     "stop": [
       "</output>",
-      "\n\n---"
+      "\n\n---",
+      "```\n\n"
     ]
   },
   "ollama_settings": {
     "host": "http://localhost:11434",
-    "timeout": 30,
-    "keep_alive": "5m"
+    "timeout": 90,
+    "keep_alive": "2m"
   },
   "prompt_settings": {
     "prompt_file": "prompts/question_generator_prompt.txt",

@@ -33,39 +33,38 @@ Và các settings:
 - **difficulty**: "easy" | "medium" | "hard"
 - **focus_areas**: danh sách skills cần focus (optional)
 
-## Output Format (STRICT JSON)
+## Output Format (STRICT JSON - REQUIRED)
 
-Bạn PHẢI trả về JSON với format chính xác như sau:
+**CRITICAL**: You MUST return a JSON object with a "questions" array. Do NOT return just an array.
 
+Correct format:
 ```json
 {
   "questions": [
     {
-      "id": 1,
-      "category": "Technical" | "Behavioral" | "Problem-solving",
-      "question_vn": "Câu hỏi tiếng Việt",
-      "difficulty": "easy" | "medium" | "hard",
-      "focus_skill": "Python" | "React" | "System Design" | etc.,
-      "expected_answer_points": [
-        "Điểm chính cần có trong câu trả lời tốt",
-        "Điểm thứ 2",
-        "Điểm thứ 3"
+      "question_id": "Q001",
+      "category": "technical",
+      "question_text": "Câu hỏi tiếng Việt (KHÔNG dùng tiếng Trung hoặc tiếng khác)",
+      "difficulty": "junior",
+      "key_points": [
+        "Điểm 1",
+        "Điểm 2"
       ],
-      "evaluation_criteria": "Tiêu chí đánh giá câu trả lời này"
+      "ideal_answer_outline": "Mô tả ngắn gọn câu trả lời lý tưởng",
+      "evaluation_criteria": {
+        "excellent": "Tiêu chí xuất sắc",
+        "good": "Tiêu chí tốt",
+        "average": "Tiêu chí trung bình"
+      }
     }
-  ],
-  "question_distribution": {
-    "technical": 6,
-    "behavioral": 2,
-    "problem_solving": 2
-  },
-  "metadata": {
-    "position_level": "Junior" | "Mid" | "Senior",
-    "total_questions": 10,
-    "generated_at": "ISO timestamp"
-  }
+  ]
 }
 ```
+
+**WRONG formats** (do NOT use these):
+- `[{...}, {...}]` ← Missing "questions" wrapper
+- `{"data": [{...}]}` ← Wrong key name
+- Multiple JSON objects separated by commas
 
 ## Question Generation Guidelines
 
@@ -73,30 +72,33 @@ Bạn PHẢI trả về JSON với format chính xác như sau:
 - Focus: Fundamentals, syntax, basic concepts
 - Examples: "Giải thích sự khác biệt giữa list và tuple trong Python", "React hooks cơ bản là gì?"
 - Avoid: System design, architecture decisions, complex algorithms
+- difficulty: "junior"
 
-### For Mid Level:
+### For Mid Level (Middle):
 - Focus: Practical application, best practices, debugging
 - Examples: "Làm thế nào để optimize performance của một React component?", "Xử lý race condition trong async code như thế nào?"
 - Include: Some scenario-based questions
+- difficulty: "middle"
 
 ### For Senior Level:
 - Focus: Architecture, trade-offs, leadership, scalability
 - Examples: "Thiết kế hệ thống chat real-time cho 100k concurrent users", "Trade-offs giữa microservices và monolithic architecture?"
 - Include: Complex problem-solving, decision-making scenarios
+- difficulty: "senior"
 
 ## Category Guidelines
 
-### Technical (60%):
+### technical (60%):
 - Kiến thức kỹ thuật cụ thể về languages, frameworks, tools
 - Code comprehension và debugging
 - Best practices và design patterns
 
-### Behavioral (20%):
+### behavioral (20%):
 - Teamwork, communication, conflict resolution
 - Time management, prioritization
 - Learning approach, adaptability
 
-### Problem-solving (20%):
+### situational (20%):
 - Algorithmic thinking (phù hợp level)
 - System design (cho Mid/Senior)
 - Debugging scenarios
@@ -104,22 +106,61 @@ Bạn PHẢI trả về JSON với format chính xác như sau:
 
 ## Important Rules
 
-1. **Language**: Tất cả câu hỏi phải là tiếng Việt tự nhiên, KHÔNG dịch máy
-2. **Relevance**: Câu hỏi phải liên quan đến JD/CV input
-3. **Diversity**: Không hỏi lặp lại concepts tương tự
-4. **Clarity**: Câu hỏi phải rõ ràng, không ambiguous
-5. **Practicality**: Ưu tiên scenario-based hơn là lý thuyết suông
+1. **JSON Structure**: PHẢI có object wrapper với key "questions", KHÔNG trả về array trực tiếp
+2. **Language**: Tất cả câu hỏi phải là tiếng Việt tự nhiên, KHÔNG dịch máy, KHÔNG dùng tiếng Trung (分歧, etc.)
+3. **Relevance**: Câu hỏi phải liên quan đến JD/CV input
+4. **Diversity**: Không hỏi lặp lại concepts tương tự
+5. **Clarity**: Câu hỏi phải rõ ràng, không ambiguous
+6. **Practicality**: Ưu tiên scenario-based hơn là lý thuyết suông
+7. **Field Names**: PHẢI sử dụng chính xác các tên field: question_id, category (lowercase: technical/behavioral/situational), question_text, difficulty (junior/middle/senior), key_points (array), ideal_answer_outline (string), evaluation_criteria (object)
+8. **Categories**: Chỉ sử dụng 3 categories: "technical", "behavioral", "situational" (lowercase, không viết hoa)
+9. **Difficulty**: Phải khớp với position_level: "junior", "middle", "senior" (lowercase)
+10. **Completeness**: Tất cả fields phải complete, KHÔNG bỏ dở giữa chừng
 
 ## Example Good Questions
 
-**Junior - Technical:**
-"Trong Python, khi nào bạn sử dụng list comprehension thay vì vòng lặp for thông thường? Cho ví dụ cụ thể."
+**Junior - technical:**
+```json
+{
+  "question_id": "Q001",
+  "category": "technical",
+  "question_text": "Trong Python, khi nào bạn sử dụng list comprehension thay vì vòng lặp for thông thường? Cho ví dụ cụ thể.",
+  "difficulty": "junior",
+  "key_points": [
+    "List comprehension ngắn gọn hơn cho các phép biến đổi đơn giản",
+    "Hiệu suất tốt hơn vòng lặp for trong nhiều trường hợp",
+    "Ví dụ: [x*2 for x in range(10)]"
+  ],
+  "ideal_answer_outline": "Ứng viên nên giải thích list comprehension là cách viết tắt để tạo list mới từ iterable, dễ đọc hơn và nhanh hơn. Nên đưa ra ví dụ cụ thể so sánh cả hai cách.",
+  "evaluation_criteria": {
+    "excellent": "Giải thích rõ ràng, có ví dụ code cụ thể, nhắc đến performance",
+    "good": "Giải thích đúng concept, có ví dụ",
+    "average": "Biết khái niệm nhưng giải thích chưa rõ"
+  }
+}
+```
 
-**Mid - Problem-solving:**
-"Bạn nhận được bug report rằng API đôi khi trả về data cũ. Làm thế nào bạn sẽ investigate và fix issue này?"
-
-**Senior - Technical:**
-"Hệ thống hiện tại đang dùng REST API. Team đề xuất chuyển sang GraphQL. Bạn sẽ analyze trade-offs như thế nào và quyết định có nên migrate không?"
+**Middle - situational:**
+```json
+{
+  "question_id": "Q002",
+  "category": "situational",
+  "question_text": "Bạn nhận được bug report rằng API đôi khi trả về data cũ. Làm thế nào bạn sẽ investigate và fix issue này?",
+  "difficulty": "middle",
+  "key_points": [
+    "Check caching layer (Redis, CDN)",
+    "Kiểm tra database replication lag",
+    "Review stale-while-revalidate logic",
+    "Add monitoring và logging"
+  ],
+  "ideal_answer_outline": "Ứng viên cần thể hiện tư duy systematic debugging: kiểm tra cache, database, network. Đề xuất giải pháp cụ thể và cách monitor.",
+  "evaluation_criteria": {
+    "excellent": "Đưa ra quy trình debug có hệ thống, nhiều giả thuyết, cách verify và fix",
+    "good": "Xác định được vài nguyên nhân có thể, đề xuất cách kiểm tra",
+    "average": "Biết caching là vấn đề nhưng chưa có approach rõ ràng"
+  }
+}
+```
 
 ## What NOT to Do
 
@@ -133,10 +174,12 @@ Bạn PHẢI trả về JSON với format chính xác như sau:
 
 - [ ] Đã parse JD/CV và identify key skills?
 - [ ] Câu hỏi phù hợp với position_level?
-- [ ] Distribution: ~60% Technical, ~20% Behavioral, ~20% Problem-solving?
+- [ ] Distribution: ~60% technical, ~20% behavioral, ~20% situational?
 - [ ] Tất cả câu hỏi là tiếng Việt tự nhiên?
 - [ ] JSON format chính xác và valid?
-- [ ] Mỗi câu hỏi có expected_answer_points và evaluation_criteria?
+- [ ] Mỗi câu hỏi có đầy đủ: question_id, category, question_text, difficulty, key_points (array), ideal_answer_outline (string), evaluation_criteria (object)?
+- [ ] category phải là: "technical", "behavioral", hoặc "situational" (lowercase)
+- [ ] difficulty phải là: "junior", "middle", hoặc "senior" (lowercase)
 
 ---
 
