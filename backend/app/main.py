@@ -19,6 +19,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Import all models at startup to ensure SQLAlchemy relationships are resolved
+@app.on_event("startup")
+async def startup_event():
+    """Import all models to register them with SQLAlchemy."""
+    try:
+        # Import models in dependency order
+        from app.modules.users.models import User  # noqa: F401
+        from app.modules.jobs.models import JobDescription  # noqa: F401
+        from app.modules.cv.models import CV  # noqa: F401
+        from app.modules.interviews.models import (  # noqa: F401
+            InterviewSession,
+            InterviewQuestion,
+            InterviewTurn,
+            InterviewEvaluation,
+            AgentCallLog
+        )
+    except Exception as e:
+        print(f"Warning: Could not import all models: {e}")
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")

@@ -495,6 +495,56 @@ class InterviewService:
         self.conversation_service = ConversationService()
         self.evaluation_service = EvaluationService()
     
+    async def create_interview_async(
+        self,
+        db: AsyncSession,
+        candidate_id: int,
+        request: InterviewSessionCreate
+    ) -> InterviewSession:
+        """
+        Create new interview session and trigger async question generation.
+        Returns immediately without waiting for questions.
+        
+        Args:
+            db: Database session
+            candidate_id: ID of the candidate
+            request: Interview creation request with JD and CV
+        
+        Returns:
+            Created session (status='pending')
+        """
+        try:
+            # Create session with 'pending' status
+            session = InterviewSession(
+                candidate_id=candidate_id,
+                status="pending"
+            )
+            db.add(session)
+            await db.commit()
+            await db.refresh(session)
+            
+            # Store session ID
+            session_id = str(session.id)
+            
+            # Trigger async Celery task (non-blocking)
+            from app.modules.interviews.tasks import generate_questions_task
+            generate_questions_task.delay(
+                session_id=session_id,
+                job_description=request.job_description,
+                cv_content=request.cv_content,
+                position_level=request.position_level,
+                num_questions=request.num_questions,
+                focus_areas=request.focus_areas
+            )
+            
+            logger.info(f"Created interview session {session_id} for candidate {candidate_id}, question generation queued")
+            return session
+            
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"Error creating interview for candidate {candidate_id}: {e}")
+            raise
+    
     async def create_interview(
         self,
         db: AsyncSession,

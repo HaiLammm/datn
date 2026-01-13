@@ -138,3 +138,17 @@
   animation: waveform 0.8s ease-in-out infinite;
 }
 
+/* Story 8.1: Question Generation - Slow Spin Animation */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+

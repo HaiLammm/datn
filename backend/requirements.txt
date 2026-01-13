@@ -18,3 +18,10 @@ Pillow>=10.0.0
 # RAG & Vector Database
 chromadb>=0.4.0
 sentence-transformers>=2.2.0
+# Celery & Redis for async tasks (Epic 8)
+celery==5.6.2
+redis==7.1.0
+kombu==5.6.2
+amqp==5.3.1
+billiard==4.2.4
+vine==5.1.0

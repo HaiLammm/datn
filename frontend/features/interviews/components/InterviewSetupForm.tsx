@@ -179,19 +179,10 @@ export function InterviewSetupForm({ cvList }: InterviewSetupFormProps) {
             // Let's check `CVWithStatus` type. `frontend/services/cv.service.ts` imports it.
             // I can't check shared types easily.
 
-            // I will assume `selectedCV.ocr_text` or similar exists?
-            // If not, I'll set `cv_content` to `selectedCV.filename` and hope backend handles it (it won't).
-
-            // I will prompt the user to paste CV content if it's not auto-filled?
-            // "Paste Job Description ... or upload file".
-            // "Select from uploaded CVs".
-
-            // I'll add a hidden "cv_content" field.
-            // And when CV is selected, I try to populate it.
-            // If I can't, I show a Textarea "CV Content" and say "Populated from CV" or ask user to paste.
-            // But that defeats "Select CV".
-
-            form.setValue("cv_content", "CV Content Placeholder");
+            // TODO: Backend integration needed - CV model doesn't store parsed text
+            // For now, we need user to paste their CV content
+            // Future: Add API endpoint /cvs/{id}/content to extract text from file
+            form.setValue("cv_content", "");
         }
     };
 
@@ -230,6 +221,27 @@ export function InterviewSetupForm({ cvList }: InterviewSetupFormProps) {
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        <FormField
+                            control={form.control}
+                            name="cv_content"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>CV Content</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            placeholder="Paste your CV content here (or we'll extract it from your selected CV if available)..."
+                                            className="min-h-[120px]"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Please paste the text content of your selected CV above.
+                                    </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}

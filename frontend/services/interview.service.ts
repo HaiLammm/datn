@@ -11,6 +11,12 @@ import {
     InterviewEvaluationResponse,
     ProcessTurnRequest,
     ProcessTurnResponse,
+    InterviewStatusResponse,
+    // Story 8.4: Interview History types
+    PaginatedInterviewSessions,
+    InterviewSessionDetail,
+    InterviewTranscriptResponse,
+    InterviewEvaluationDetail,
 } from "@/features/interviews/types";
 
 export const interviewService = {
@@ -75,6 +81,30 @@ export const interviewService = {
             return response.data;
         } catch (error) {
             console.error("Error getting interview:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get interview question generation status (polling endpoint).
+     * Used for async question generation flow.
+     */
+    getInterviewStatus: async (
+        sessionId: string,
+        accessToken?: string
+    ): Promise<InterviewStatusResponse> => {
+        try {
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+                headers.Authorization = `Bearer ${accessToken}`;
+            }
+            const response = await apiClient.get<InterviewStatusResponse>(
+                `/interviews/${sessionId}/status`,
+                { headers }
+            );
+            return response.data;
+        } catch (error) {
+            console.error("Error getting interview status:", error);
             throw error;
         }
     },
@@ -232,6 +262,117 @@ export const interviewService = {
             return response.data;
         } catch (error) {
             console.error("Error getting transcript:", error);
+            throw error;
+        }
+    },
+
+    // ============ Story 8.4: Interview History Methods ============
+
+    /**
+     * Get paginated list of interview sessions with filtering and sorting.
+     * Story 8.4: Interview History
+     */
+    getInterviewHistory: async (
+        params: {
+            page?: number;
+            page_size?: number;
+            sort_by?: "created_at" | "overall_score";
+            sort_order?: "asc" | "desc";
+            status?: string;
+        } = {},
+        accessToken?: string
+    ): Promise<PaginatedInterviewSessions> => {
+        try {
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+                headers.Authorization = `Bearer ${accessToken}`;
+            }
+
+            const queryParams = new URLSearchParams();
+            if (params.page) queryParams.append("page", params.page.toString());
+            if (params.page_size) queryParams.append("page_size", params.page_size.toString());
+            if (params.sort_by) queryParams.append("sort_by", params.sort_by);
+            if (params.sort_order) queryParams.append("sort_order", params.sort_order);
+            if (params.status) queryParams.append("status", params.status);
+
+            const url = `/interviews${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+
+            const response = await apiClient.get<PaginatedInterviewSessions>(url, { headers });
+            return response.data;
+        } catch (error) {
+            console.error("Error getting interview history:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get detailed information about a specific interview session.
+     * Story 8.4: Interview History
+     */
+    getInterviewDetail: async (
+        sessionId: string,
+        accessToken?: string
+    ): Promise<InterviewSessionDetail> => {
+        try {
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+                headers.Authorization = `Bearer ${accessToken}`;
+            }
+            const response = await apiClient.get<InterviewSessionDetail>(
+                `/interviews/${sessionId}/detail`,
+                { headers }
+            );
+            return response.data;
+        } catch (error) {
+            console.error("Error getting interview detail:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get full conversation transcript for an interview session.
+     * Story 8.4: Interview History
+     */
+    getInterviewTranscript: async (
+        sessionId: string,
+        accessToken?: string
+    ): Promise<InterviewTranscriptResponse> => {
+        try {
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+                headers.Authorization = `Bearer ${accessToken}`;
+            }
+            const response = await apiClient.get<InterviewTranscriptResponse>(
+                `/interviews/${sessionId}/transcript`,
+                { headers }
+            );
+            return response.data;
+        } catch (error) {
+            console.error("Error getting interview transcript:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get comprehensive evaluation report for a completed interview.
+     * Story 8.4: Interview History
+     */
+    getEvaluationDetail: async (
+        sessionId: string,
+        accessToken?: string
+    ): Promise<InterviewEvaluationDetail> => {
+        try {
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+                headers.Authorization = `Bearer ${accessToken}`;
+            }
+            const response = await apiClient.get<InterviewEvaluationDetail>(
+                `/interviews/${sessionId}/evaluation/detail`,
+                { headers }
+            );
+            return response.data;
+        } catch (error) {
+            console.error("Error getting evaluation detail:", error);
             throw error;
         }
     },

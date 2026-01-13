@@ -9,7 +9,7 @@ Provides endpoints for:
 """
 import logging
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -33,37 +33,47 @@ from app.modules.interviews.schemas import (
     InterviewCompleteResponse,
     InterviewSessionComplete,
     ProcessTurnResponse,
+    InterviewStatusResponse,
+    # Story 8.4: History schemas
+    InterviewSessionSummary,
+    InterviewSessionDetail,
+    PaginatedInterviewSessions,
+    InterviewTranscriptResponse,
+    InterviewEvaluationDetail,
 )
 from app.modules.interviews.service import (
     InterviewService,
     ConversationService,
     EvaluationService,
 )
+from app.modules.interviews.history_service import HistoryService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Initialize services
 interview_service = InterviewService()
+history_service = HistoryService()
 # Note: ConversationService requires db session, initialized per-request
 evaluation_service = EvaluationService()
 
 
-@router.post("", response_model=InterviewCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=InterviewCreateResponse, status_code=status.HTTP_202_ACCEPTED)
 async def create_interview(
     request: InterviewSessionCreate,
     current_user: User = Depends(require_job_seeker),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Create a new interview session and generate questions using AI.
+    Create a new interview session and trigger async question generation.
     
-    This endpoint:
-    1. Creates an interview session record
-    2. Calls QuestionCraft AI to generate personalized questions
-    3. Returns the session with all generated questions
+    This endpoint (UPDATED FOR ASYNC):
+    1. Creates an interview session record with status='pending'
+    2. Triggers background Celery task to generate questions
+    3. Returns immediately with session_id (non-blocking)
     
-    **Performance:** ~3-5 seconds (AI generation time)
+    **Performance:** ~200ms (immediate response)
+    **Question Generation:** 3-5 minutes in background
     
     **Requirements:**
     - User must be authenticated as job seeker (candidate role)
@@ -71,11 +81,17 @@ async def create_interview(
     - CV content must be at least 10 characters
     - Position level: junior, middle, or senior
     - Number of questions: 5-15 (default 10)
+    
+    **Status Flow:**
+    - 'pending' → 'generating' → 'ready' (success) OR 'error' (failure)
+    
+    **Next Step:**
+    - Poll GET /interviews/{id}/status to check when ready
     """
     # Job seeker role enforced by dependency
     
     try:
-        session, questions = await interview_service.create_interview(
+        session = await interview_service.create_interview_async(
             db=db,
             candidate_id=current_user.id,
             request=request
@@ -83,28 +99,116 @@ async def create_interview(
         
         return InterviewCreateResponse(
             session=InterviewSessionResponse.model_validate(session),
-            questions=[InterviewQuestionResponse.model_validate(q) for q in questions],
-            message=f"Interview session created with {len(questions)} questions"
+            questions=[],  # Empty - questions are being generated
+            message="Interview session created. Questions are being generated. Check status endpoint for progress."
         )
     except Exception as e:
+        logger.error(f"Error creating interview session: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create interview session: {str(e)}"
         )
 
 
-@router.get("", response_model=InterviewSessionListResponse)
+@router.get("", response_model=PaginatedInterviewSessions)
 async def list_interviews(
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=20, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(default=10, ge=1, le=50, description="Items per page"),
+    sort_by: str = Query(default="created_at", description="Sort field: created_at, overall_score"),
+    sort_order: str = Query(default="desc", description="Sort order: asc, desc"),
+    status: Optional[str] = Query(default=None, description="Filter by status: active, completed, abandoned"),
+    current_user: User = Depends(require_job_seeker),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    [Story 8.4] Get paginated list of interview sessions with filtering and sorting.
+    
+    Returns interview history with summary information for each session.
+    
+    **Query Parameters:**
+    - page: Page number (1-indexed, default: 1)
+    - page_size: Items per page (1-50, default: 10)
+    - sort_by: Sort field ('created_at', 'overall_score')
+    - sort_order: Sort direction ('asc', 'desc')
+    - status: Filter by status ('active', 'completed', 'abandoned')
+    
+    **Performance Target:** <200ms (P95)
+    """
+    try:
+        sessions, total = await history_service.get_interview_sessions(
+            db=db,
+            user_id=current_user.id,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            status_filter=status,
+        )
+        
+        # Convert ORM to Pydantic with computed fields
+        items = []
+        for session in sessions:
+            # Get question_count and turn_count using helper methods
+            question_count = await history_service.count_question_for_session(db, session.id)
+            turn_count = await history_service.count_turns_for_session(db, session.id)
+            
+            # Build summary dict with computed fields
+            summary = InterviewSessionSummary(
+                id=session.id,
+                job_title=session.job_title or "Untitled Position",
+                created_at=session.created_at,
+                completed_at=session.completed_at,
+                status=session.status,
+                overall_score=session.overall_score,
+                overall_grade=session.overall_grade,
+                duration_minutes=session.duration_minutes,
+                question_count=question_count,
+                turn_count=turn_count,
+            )
+            items.append(summary)
+        
+        # Calculate total_pages
+        total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+        
+        return PaginatedInterviewSessions(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )
+    except Exception as e:
+        logger.error(f"Error listing interview sessions for user {current_user.id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve interview history: {str(e)}"
+        )
+
+
+@router.get("/{session_id}/status", response_model=InterviewStatusResponse)
+async def get_interview_status(
+    session_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get list of interview sessions for the current user.
+    Check the status of interview question generation (polling endpoint).
     
-    Returns paginated list of interviews ordered by creation date (newest first).
-    Only shows sessions belonging to the authenticated user.
+    This endpoint allows frontend to poll for status updates after creating
+    an interview session asynchronously.
+    
+    **Status Values:**
+    - 'pending': Session created, task not started yet
+    - 'generating': AI is generating questions (in progress)
+    - 'ready': Questions generated successfully, ready to start interview
+    - 'error': Generation failed (see error_message)
+    - 'in_progress': Interview started
+    - 'completed': Interview finished
+    
+    **Polling Recommendation:**
+    - Poll every 3 seconds
+    - Max 60 attempts (3 minutes timeout)
+    - Stop polling when status is 'ready', 'error', 'in_progress', or 'completed'
     """
     if current_user.role != "job_seeker":
         raise HTTPException(
@@ -112,17 +216,106 @@ async def list_interviews(
             detail="Only job seekers can view interview sessions"
         )
     
-    sessions, total = await interview_service.list_sessions(
+    session = await interview_service.get_session(
         db=db,
-        candidate_id=current_user.id,
-        skip=skip,
-        limit=limit
+        session_id=session_id,
+        candidate_id=current_user.id
     )
     
-    return InterviewSessionListResponse(
-        sessions=[InterviewSessionResponse.model_validate(s) for s in sessions],
-        total=total
-    )
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Interview session {session_id} not found"
+        )
+    
+    # Build response based on status
+    response_data = {
+        "session_id": session.id,
+        "status": session.status,
+        "error_message": session.error_message if hasattr(session, 'error_message') else None,
+        "questions": None,
+        "message": ""
+    }
+    
+    if session.status == "pending":
+        response_data["message"] = "Interview session created. Waiting for question generation to start..."
+    elif session.status == "generating":
+        response_data["message"] = "AI is generating personalized questions for you. This may take 2-3 minutes..."
+    elif session.status == "ready":
+        # Load questions
+        response_data["questions"] = [
+            InterviewQuestionResponse.model_validate(q) for q in session.questions
+        ]
+        response_data["message"] = f"Questions ready! {len(session.questions)} questions generated. You can start the interview now."
+    elif session.status == "error":
+        response_data["message"] = f"Failed to generate questions: {session.error_message}"
+    elif session.status == "in_progress":
+        response_data["message"] = "Interview in progress"
+    elif session.status == "completed":
+        response_data["message"] = "Interview completed"
+    
+    return InterviewStatusResponse(**response_data)
+
+
+@router.get("/{session_id}/detail", response_model=InterviewSessionDetail)
+async def get_interview_detail_view(
+    session_id: UUID,
+    current_user: User = Depends(require_job_seeker),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    [Story 8.4] Get interview session detail (metadata only, no questions/turns/evaluation).
+    
+    Returns session metadata for detail page header and overview tab.
+    For full transcript and evaluation, use dedicated endpoints.
+    
+    **Performance Target:** <300ms (P95)
+    
+    **Authorization:** User must own the interview session.
+    
+    **Error Responses:**
+    - 403 Forbidden: User doesn't own this session
+    - 404 Not Found: Session not found
+    """
+    try:
+        session = await history_service.get_interview_detail(
+            db=db,
+            session_id=session_id,
+            user_id=current_user.id,
+        )
+        
+        # Get counts for computed fields
+        question_count = await history_service.count_question_for_session(db, session.id)
+        turn_count = await history_service.count_turns_for_session(db, session.id)
+        
+        # Build detail response with computed fields
+        detail = InterviewSessionDetail(
+            id=session.id,
+            job_title=session.job_title or "Untitled Position",
+            job_description=session.job_description,
+            position_level=session.position_level,
+            created_at=session.created_at,
+            completed_at=session.completed_at,
+            status=session.status,
+            duration_minutes=session.duration_minutes,
+            overall_score=session.overall_score,
+            overall_grade=session.overall_grade,
+            hiring_recommendation=session.hiring_recommendation,
+            question_count=question_count,
+            turn_count=turn_count,
+            total_turns=turn_count,  # Alias for backwards compatibility
+        )
+        
+        return detail
+    except HTTPException:
+        # Re-raise HTTPExceptions from service layer
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching detail for session {session_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve interview details: {str(e)}"
+        )
 
 
 @router.get("/{session_id}", response_model=InterviewSessionComplete)
@@ -191,6 +384,52 @@ async def get_interview_questions(
         )
     
     return [InterviewQuestionResponse.model_validate(q) for q in session.questions]
+
+
+@router.get("/{session_id}/transcript", response_model=InterviewTranscriptResponse)
+async def get_interview_transcript(
+    session_id: UUID,
+    current_user: User = Depends(require_job_seeker),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    [Story 8.4] Get full conversation transcript for an interview session.
+    
+    Returns complete Q&A history with per-turn scores and timestamps.
+    Useful for review and analysis of interview performance.
+    
+    **Performance Target:** <500ms (P95)
+    
+    **Authorization:** User must own the interview session.
+    
+    **Error Responses:**
+    - 403 Forbidden: User doesn't own this session
+    - 404 Not Found: Session not found
+    """
+    try:
+        transcript_data = await history_service.get_interview_transcript(
+            db=db,
+            session_id=session_id,
+            user_id=current_user.id,
+        )
+        
+        return InterviewTranscriptResponse(**transcript_data)
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error fetching transcript for session {session_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve interview transcript: {str(e)}"
+        )
 
 
 @router.post("/{session_id}/turns", response_model=ProcessTurnResponse)
@@ -416,3 +655,133 @@ async def get_interview_evaluation(
         )
     
     return InterviewEvaluationResponse.model_validate(session.evaluation)
+
+
+@router.get("/{session_id}/evaluation/detail", response_model=InterviewEvaluationDetail)
+async def get_interview_evaluation_detail(
+    session_id: UUID,
+    current_user: User = Depends(require_job_seeker),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    [Story 8.4] Get comprehensive evaluation report with detailed breakdown.
+    
+    Returns full evaluation analysis in the format expected by Story 8.4 frontend:
+    - Overall evaluation (score, grade, recommendation)
+    - Dimension scores (technical, communication, behavioral) with sub-scores and evidence
+    - Detailed analysis (strengths, improvements, notable moments, red flags)
+    - Recommendations (hiring decision, reasoning, role fit, development areas)
+    
+    **Performance Target:** <300ms (P95)
+    
+    **Authorization:** User must own the interview session.
+    
+    **Error Responses:**
+    - 400 Bad Request: Interview not yet completed
+    - 403 Forbidden: User doesn't own this session
+    - 404 Not Found: Session or evaluation not found
+    """
+    try:
+        session, evaluation = await history_service.get_interview_evaluation(
+            db=db,
+            session_id=session_id,
+            user_id=current_user.id,
+        )
+        
+        # Build InterviewEvaluationDetail from evaluation data
+        # Note: The evaluation model stores data in JSONB fields that match our schema
+        detail = InterviewEvaluationDetail(
+            interview_id=session.id,
+            job_title=session.job_title or "Untitled Position",
+            overall_evaluation={
+                "score": evaluation.final_score,
+                "grade": evaluation.grade,
+                "hiring_recommendation": evaluation.hiring_recommendation,
+            },
+            dimension_scores=evaluation.dimension_scores,  # Already in correct format
+            detailed_analysis=evaluation.detailed_analysis,  # Already in correct format
+            recommendations=evaluation.recommendations,  # Already in correct format
+            created_at=evaluation.created_at,
+        )
+        
+        return detail
+    except HTTPException:
+        # Re-raise HTTPExceptions from service layer
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching evaluation detail for session {session_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve evaluation report: {str(e)}"
+        )
+
+
+@router.get("/health/celery", status_code=status.HTTP_200_OK)
+async def check_celery_health():
+    """
+    Health check endpoint for Celery workers and Redis connection.
+    
+    Returns:
+    - worker_count: Number of active Celery workers
+    - workers: List of active worker names
+    - redis_connected: Whether Redis is reachable
+    - tasks: Statistics about tasks (active, scheduled, reserved)
+    
+    Useful for monitoring and debugging async task system.
+    """
+    try:
+        from app.core.celery_app import celery_app
+        import redis
+        from app.core.config import settings
+        
+        # Check Celery workers
+        inspect = celery_app.control.inspect()
+        stats = inspect.stats()
+        active_tasks = inspect.active()
+        scheduled_tasks = inspect.scheduled()
+        reserved_tasks = inspect.reserved()
+        
+        worker_count = len(stats) if stats else 0
+        worker_names = list(stats.keys()) if stats else []
+        
+        # Check Redis connection
+        redis_connected = False
+        try:
+            r = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+            redis_connected = r.ping()
+        except Exception as redis_error:
+            logger.warning(f"Redis health check failed: {redis_error}")
+        
+        # Count tasks
+        total_active = sum(len(tasks) for tasks in (active_tasks or {}).values())
+        total_scheduled = sum(len(tasks) for tasks in (scheduled_tasks or {}).values())
+        total_reserved = sum(len(tasks) for tasks in (reserved_tasks or {}).values())
+        
+        return {
+            "status": "healthy" if worker_count > 0 and redis_connected else "degraded",
+            "timestamp": str(UUID),
+            "celery": {
+                "worker_count": worker_count,
+                "workers": worker_names,
+                "tasks": {
+                    "active": total_active,
+                    "scheduled": total_scheduled,
+                    "reserved": total_reserved,
+                }
+            },
+            "redis": {
+                "connected": redis_connected,
+                "url": settings.REDIS_HOST + ":" + str(settings.REDIS_PORT)
+            },
+            "message": (
+                "All systems operational" if worker_count > 0 and redis_connected
+                else "Warning: No active workers" if worker_count == 0
+                else "Warning: Redis connection issue"
+            )
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Celery health check failed: {str(e)}"
+        )

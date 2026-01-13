@@ -271,6 +271,16 @@ class InterviewCompleteResponse(BaseModel):
 # ============ Statistics and Monitoring Schemas ============
 
 
+class InterviewStatusResponse(BaseModel):
+    """Response schema for checking interview generation status."""
+    
+    session_id: UUID
+    status: str  # 'pending', 'generating', 'ready', 'in_progress', 'completed', 'error'
+    error_message: Optional[str] = None
+    questions: Optional[List[InterviewQuestionResponse]] = None
+    message: str
+
+
 class AgentPerformanceStats(BaseModel):
     """Statistics for agent performance monitoring."""
     
@@ -290,3 +300,127 @@ class InterviewStatistics(BaseModel):
     avg_duration_minutes: Optional[float] = None
     avg_final_score: Optional[float] = None
     completion_rate: float
+
+
+# ============ Story 8.4: Interview History Schemas ============
+
+
+class InterviewSessionSummary(BaseModel):
+    """Schema for interview session summary in list view."""
+    
+    id: UUID
+    job_title: str
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    status: str
+    overall_score: Optional[Decimal] = None
+    overall_grade: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    question_count: int = Field(..., description="Total number of questions in session")
+    turn_count: int = Field(..., description="Total number of conversation turns")
+    
+    class Config:
+        from_attributes = True
+
+
+class InterviewSessionDetail(InterviewSessionSummary):
+    """Schema for detailed interview session view (extends summary)."""
+    
+    job_description: Optional[str] = None
+    position_level: Optional[str] = None
+    hiring_recommendation: Optional[str] = None
+    total_turns: Optional[int] = None  # Alias for turn_count for backwards compatibility
+    
+    class Config:
+        from_attributes = True
+
+
+class PaginatedInterviewSessions(BaseModel):
+    """Schema for paginated list of interview sessions."""
+    
+    items: List[InterviewSessionSummary]
+    total: int = Field(..., description="Total number of sessions")
+    page: int = Field(..., ge=1, description="Current page number")
+    page_size: int = Field(..., ge=1, le=50, description="Items per page")
+    total_pages: int = Field(..., ge=0, description="Total number of pages")
+
+
+class TranscriptTurn(BaseModel):
+    """Schema for a single turn in interview transcript."""
+    
+    turn_number: int
+    question_text: Optional[str] = None
+    question_type: Optional[str] = None
+    candidate_message: str
+    ai_response: str
+    scores: Optional[Dict[str, float]] = Field(
+        None,
+        description="Per-turn scores: technical_score, communication_score, depth_score, overall_score"
+    )
+    action_type: Optional[str] = None
+    created_at: datetime
+
+
+class InterviewTranscriptResponse(BaseModel):
+    """Schema for full interview transcript response."""
+    
+    interview_id: UUID
+    job_title: str
+    total_turns: int
+    turns: List[TranscriptTurn]
+
+
+class OverallEvaluation(BaseModel):
+    """Schema for overall evaluation summary."""
+    
+    score: Decimal = Field(..., ge=0, le=10)
+    grade: str
+    hiring_recommendation: str
+
+
+class DimensionDetail(BaseModel):
+    """Schema for dimension score detail with sub-scores and evidence."""
+    
+    score: float = Field(..., ge=0, le=10)
+    weight: float = Field(..., ge=0, le=1)
+    sub_scores: Dict[str, float]
+    evidence: List[str]
+
+
+class DimensionScoresDetail(BaseModel):
+    """Schema for all dimension scores with details."""
+    
+    technical: DimensionDetail
+    communication: DimensionDetail
+    behavioral: DimensionDetail
+
+
+class DetailedAnalysisSection(BaseModel):
+    """Schema for detailed analysis section."""
+    
+    key_strengths: List[str]
+    areas_for_improvement: List[str]
+    notable_moments: List[str]
+    red_flags: Optional[List[str]] = Field(default_factory=list)
+
+
+class RecommendationsSection(BaseModel):
+    """Schema for recommendations section."""
+    
+    hiring_decision: str
+    reasoning: str
+    role_fit: str
+    onboarding_suggestions: Optional[List[str]] = Field(default=None)
+    development_areas: List[str]
+
+
+class InterviewEvaluationDetail(BaseModel):
+    """Schema for comprehensive evaluation report response."""
+    
+    interview_id: UUID
+    job_title: str
+    overall_evaluation: OverallEvaluation
+    dimension_scores: DimensionScoresDetail
+    detailed_analysis: DetailedAnalysisSection
+    recommendations: RecommendationsSection
+    created_at: datetime

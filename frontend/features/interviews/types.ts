@@ -48,6 +48,14 @@ export interface InterviewCreateResponse {
     message: string;
 }
 
+export interface InterviewStatusResponse {
+    session_id: string;
+    status: string; // 'pending' | 'generating' | 'ready' | 'in_progress' | 'completed' | 'error'
+    error_message?: string;
+    questions?: InterviewQuestion[];
+    message: string;
+}
+
 // ============ Interview Turn Types (Story 8.2) ============
 
 export const TurnEvaluationSchema = z.object({
@@ -179,4 +187,101 @@ export interface InterviewEvaluationResponse {
     };
     created_at: string;
     updated_at: string;
+}
+
+// ============ Story 8.4: Interview History Types ============
+
+export interface InterviewSessionSummary {
+    id: string;
+    job_title: string;
+    created_at: string;
+    completed_at?: string | null;
+    status: string;
+    overall_score?: number | null;
+    overall_grade?: string | null;
+    duration_minutes?: number | null;
+    question_count: number;
+    turn_count: number;
+}
+
+export interface InterviewSessionDetail extends InterviewSessionSummary {
+    job_description?: string | null;
+    position_level?: string | null;
+    hiring_recommendation?: string | null;
+    total_turns?: number | null;
+}
+
+export interface PaginatedInterviewSessions {
+    items: InterviewSessionSummary[];
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+}
+
+export interface TranscriptTurn {
+    turn_number: number;
+    question_text?: string | null;
+    question_type?: string | null;
+    candidate_message: string;
+    ai_response: string;
+    scores?: {
+        technical_score?: number;
+        communication_score?: number;
+        depth_score?: number;
+        overall_score?: number;
+    } | null;
+    action_type?: string | null;
+    created_at: string;
+}
+
+export interface InterviewTranscriptResponse {
+    interview_id: string;
+    job_title: string;
+    total_turns: number;
+    turns: TranscriptTurn[];
+}
+
+export interface OverallEvaluation {
+    score: number;
+    grade: string;
+    hiring_recommendation: string;
+}
+
+export interface DimensionDetail {
+    score: number;
+    weight: number;
+    sub_scores: Record<string, number>;
+    evidence: string[];
+}
+
+export interface DimensionScoresDetail {
+    technical: DimensionDetail;
+    communication: DimensionDetail;
+    behavioral: DimensionDetail;
+}
+
+export interface DetailedAnalysisSection {
+    key_strengths: string[];
+    areas_for_improvement: string[];
+    notable_moments: string[];
+    red_flags?: string[];
+}
+
+export interface RecommendationsSection {
+    hiring_decision: string;
+    reasoning: string;
+    role_fit: string;
+    onboarding_suggestions?: string[];
+    development_areas: string[];
+}
+
+export interface InterviewEvaluationDetail {
+    interview_id: string;
+    job_title: string;
+    overall_evaluation: OverallEvaluation;
+    dimension_scores: DimensionScoresDetail;
+    detailed_analysis: DetailedAnalysisSection;
+    recommendations: RecommendationsSection;
+    created_at: string;
 }

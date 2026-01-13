@@ -78,8 +78,9 @@ export default async function InterviewsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-xl mb-2">
-                        {interview.position_level.charAt(0).toUpperCase() + 
-                         interview.position_level.slice(1)} Level Interview
+                        {interview.position_level 
+                          ? interview.position_level.charAt(0).toUpperCase() + interview.position_level.slice(1)
+                          : 'Unknown'} Level Interview
                       </CardTitle>
                       <CardDescription>
                         {interview.focus_areas && (

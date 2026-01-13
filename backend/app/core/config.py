@@ -85,5 +85,28 @@ class Settings(BaseSettings):
     AGENT_MAX_RETRIES: int = 2
     AGENT_ENABLE_LOGGING: bool = True
 
+    # Celery & Redis settings (Epic 8: Async Question Generation)
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: Optional[str] = None
+    
+    @property
+    def CELERY_BROKER_URL(self) -> str:
+        """Build Redis URL for Celery broker."""
+        if self.REDIS_PASSWORD:
+            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+    
+    @property
+    def CELERY_RESULT_BACKEND(self) -> str:
+        """Build Redis URL for Celery result backend."""
+        return self.CELERY_BROKER_URL
+    
+    @property
+    def REDIS_URL(self) -> str:
+        """Build Redis URL for general Redis connections."""
+        return self.CELERY_BROKER_URL
+
 
 settings = Settings()  # type: ignore

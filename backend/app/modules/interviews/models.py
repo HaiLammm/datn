@@ -19,6 +19,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
+# Don't import User model here to avoid circular dependencies
+# SQLAlchemy will resolve the foreign key to "users" table at runtime
+# All models will be loaded when FastAPI app starts
+
 if TYPE_CHECKING:
     from app.modules.users.models import User
 
@@ -47,7 +51,8 @@ class InterviewSession(Base):
         String(20), 
         nullable=False, 
         default="pending"
-    )  # 'pending', 'in_progress', 'completed', 'cancelled'
+    )  # 'pending', 'generating', 'ready', 'in_progress', 'completed', 'cancelled', 'error'
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -85,11 +90,13 @@ class InterviewSession(Base):
         back_populates="session",
         uselist=False
     )
-    candidate: Mapped["User"] = relationship(
-        "User", 
-        foreign_keys=[candidate_id],
-        lazy="selectin"
-    )
+    # Relationship to User model - commented out to avoid circular dependency issues
+    # Use candidate_id directly or query User separately if needed
+    # candidate: Mapped["User"] = relationship(
+    #     "User", 
+    #     foreign_keys=[candidate_id],
+    #     lazy="noload"
+    # )
 
 
 class InterviewQuestion(Base):
