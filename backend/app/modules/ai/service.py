@@ -121,8 +121,8 @@ class AIService:
             # Perform AI analysis
             analysis_result = await self._perform_ai_analysis(cv_content)
 
-            # Update database with results
-            await self._save_analysis_results(db, cv_id, analysis_result)
+            # Update database with results (including extracted text for performance)
+            await self._save_analysis_results(db, cv_id, analysis_result, extracted_text=cv_content)
 
             # Update status to COMPLETED
             await self._update_analysis_status(db, cv_id, models.AnalysisStatus.COMPLETED)
@@ -1218,10 +1218,17 @@ JSON only:"""
         self,
         db: AsyncSession,
         cv_id: uuid.UUID,
-        results: Dict[str, Any]
+        results: Dict[str, Any],
+        extracted_text: str | None = None
     ) -> None:
         """
         Save the AI analysis results to the database.
+        
+        Args:
+            db: Database session
+            cv_id: CV UUID
+            results: Analysis results from AI
+            extracted_text: Full extracted text from CV (for performance optimization)
         """
         # Combine all feedback into ai_feedback JSON field
         feedback = {
@@ -1252,6 +1259,8 @@ JSON only:"""
                 skill_breakdown=results.get("skill_breakdown"),
                 skill_categories=results.get("skill_categories"),
                 skill_recommendations=results.get("skill_recommendations"),
+                # Performance optimization: Store extracted text for interview generation
+                extracted_text=extracted_text,
             )
         )
         await db.execute(stmt)

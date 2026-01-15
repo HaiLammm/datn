@@ -2,13 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { config } from "@/lib/config";
 
 export function TokenRefreshButton() {
   const router = useRouter();
 
   const refreshToken = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/refresh-token`, {
+      const baseURL = config.apiUrl.endsWith('/api/v1') ? config.apiUrl : config.apiUrl + '/api/v1';
+      const response = await fetch(`${baseURL}/auth/refresh-token`, {
         method: 'POST',
         credentials: 'include',
       });

@@ -11,6 +11,7 @@ import {
     InterviewStatusResponse,
     PaginatedInterviewSessions,
     InterviewSessionDetail,
+    InterviewSessionComplete,
     InterviewTranscriptResponse,
     InterviewEvaluationDetail,
 } from "./types";
@@ -32,7 +33,7 @@ export async function createInterviewAction(
         const accessToken = await getAccessToken();
 
         const jobDescription = formData.get("job_description") as string;
-        const cvContent = formData.get("cv_content") as string;
+        const cvIdStr = formData.get("cv_id") as string;  // Get CV ID
         const positionLevel = formData.get("position_level") as "junior" | "middle" | "senior";
         const numQuestions = parseInt(formData.get("num_questions") as string) || 10;
         const focusAreasStr = formData.get("focus_areas") as string;
@@ -43,8 +44,8 @@ export async function createInterviewAction(
         if (!jobDescription || jobDescription.length < 10) {
             errors.job_description = "Job description must be at least 10 characters";
         }
-        if (!cvContent || cvContent.length < 10) {
-            errors.cv_content = "CV content must be at least 10 characters";
+        if (!cvIdStr) {
+            errors.cv_id = "Please select a CV";
         }
         if (!positionLevel) {
             errors.position_level = "Position level is required";
@@ -54,10 +55,10 @@ export async function createInterviewAction(
             return { message: "Validation failed", errors };
         }
 
-        // Call service
+        // Call service with cv_id (backend will fetch CV content)
         const data: InterviewSessionCreate = {
+            cv_id: cvIdStr,
             job_description: jobDescription,
-            cv_content: cvContent,
             position_level: positionLevel,
             num_questions: numQuestions,
             focus_areas: focusAreas,
@@ -263,6 +264,25 @@ export async function getInterviewDetailAction(
         console.error("Error fetching interview detail:", error);
         return {
             error: error.response?.data?.detail || "Failed to fetch interview detail",
+        };
+    }
+}
+
+/**
+ * Get full interview session with questions, turns, and evaluation
+ * Use this for the interview room page where all data is needed
+ */
+export async function getInterviewSessionAction(
+    sessionId: string
+): Promise<{ data?: InterviewSessionComplete; error?: string }> {
+    try {
+        const accessToken = await getAccessToken();
+        const session = await interviewService.getInterview(sessionId, accessToken);
+        return { data: session };
+    } catch (error: any) {
+        console.error("Error fetching interview session:", error);
+        return {
+            error: error.response?.data?.detail || "Failed to fetch interview session",
         };
     }
 }

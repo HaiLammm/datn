@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Plus, Clock, CheckCircle2, XCircle, FileText } from "lucide-react";
-import type { InterviewSession } from "@/features/interviews/types";
 
 export default async function InterviewsPage() {
   const session = await getSession();
@@ -17,7 +16,7 @@ export default async function InterviewsPage() {
 
   // Use Server Action to fetch interviews
   const result = await listInterviewsAction(20, 0);
-  const interviews: InterviewSession[] = result.data?.sessions || [];
+  const interviews = result.data?.sessions || [];
   const error: string | null = result.error || null;
 
   return (
@@ -78,14 +77,12 @@ export default async function InterviewsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-xl mb-2">
-                        {interview.position_level 
-                          ? interview.position_level.charAt(0).toUpperCase() + interview.position_level.slice(1)
-                          : 'Unknown'} Level Interview
+                        {interview.job_title || 'Untitled Position'}
                       </CardTitle>
                       <CardDescription>
-                        {interview.focus_areas && (
+                        {interview.overall_grade && (
                           <span className="text-sm">
-                            Focus: {interview.focus_areas}
+                            Grade: {interview.overall_grade}
                           </span>
                         )}
                       </CardDescription>
@@ -98,7 +95,7 @@ export default async function InterviewsPage() {
                     <div className="flex items-center gap-6 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
                         <MessageSquare className="h-4 w-4" />
-                        <span>{interview.current_question_index || 0} / {interview.total_questions || 0} questions</span>
+                        <span>{interview.question_count || 0} questions</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4" />
@@ -135,9 +132,19 @@ export default async function InterviewsPage() {
 function InterviewStatusBadge({ status }: { status: string }) {
   const statusConfig = {
     pending: {
-      label: "Not Started",
-      className: "bg-gray-100 text-gray-800",
+      label: "Pending",
+      className: "bg-yellow-100 text-yellow-800",
       icon: Clock,
+    },
+    generating: {
+      label: "Generating",
+      className: "bg-blue-100 text-blue-800",
+      icon: MessageSquare,
+    },
+    ready: {
+      label: "Ready",
+      className: "bg-green-100 text-green-800",
+      icon: CheckCircle2,
     },
     in_progress: {
       label: "In Progress",
@@ -149,8 +156,8 @@ function InterviewStatusBadge({ status }: { status: string }) {
       className: "bg-green-100 text-green-800",
       icon: CheckCircle2,
     },
-    failed: {
-      label: "Failed",
+    error: {
+      label: "Error",
       className: "bg-red-100 text-red-800",
       icon: XCircle,
     },

@@ -33,6 +33,12 @@ class CVAnalysis(Base):
     ai_feedback: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     extracted_skills: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     
+    # Performance optimization: Store extracted text to avoid re-extraction
+    extracted_text: Mapped[str | None] = mapped_column(
+        Text, nullable=True, 
+        comment="Full extracted text from CV file (cached for interview generation)"
+    )
+    
     # Hybrid skill scoring columns (Story 5.3)
     skill_breakdown: Mapped[dict | None] = mapped_column(
         JSONB, nullable=True, comment="Hybrid skill scoring breakdown"

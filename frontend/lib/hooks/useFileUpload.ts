@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { config } from "@/lib/config";
 
 export interface UploadState {
   /** Whether upload is in progress */
@@ -169,7 +170,11 @@ export function useFileUpload(): UseFileUploadReturn {
         resolve();
       });
 
-      xhr.open("POST", url);
+      // Get API base URL from centralized config (follows coding standards)
+      const baseURL = config.apiUrl.endsWith('/api/v1') ? config.apiUrl : config.apiUrl + '/api/v1';
+      const fullUrl = url.startsWith('http') ? url : `${baseURL}${url}`;
+      
+      xhr.open("POST", fullUrl);
       xhr.withCredentials = true; // Include cookies for authentication
       xhr.send(formData);
     });

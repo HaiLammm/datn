@@ -7,7 +7,7 @@
     "top_p": 0.9,
     "top_k": 40,
     "repeat_penalty": 1.1,
-    "num_predict": 2048,
+    "num_predict": 4096,
     "stop": [
       "</output>",
       "\n\n---",
@@ -16,8 +16,8 @@
   },
   "ollama_settings": {
     "host": "http://localhost:11434",
-    "timeout": 90,
-    "keep_alive": "2m"
+    "timeout": 180,
+    "keep_alive": "5m"
   },
   "prompt_settings": {
     "prompt_file": "prompts/question_generator_prompt.txt",

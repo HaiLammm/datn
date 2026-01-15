@@ -51,14 +51,24 @@ export const interviewService = {
             if (accessToken) {
                 headers.Authorization = `Bearer ${accessToken}`;
             }
-            const response = await apiClient.get<InterviewSessionListResponse>(
+            
+            // Convert limit/skip to page/page_size for new backend API
+            const page_size = limit;
+            const page = Math.floor(skip / limit) + 1; // Convert skip to 1-indexed page
+            
+            const response = await apiClient.get<PaginatedInterviewSessions>(
                 "/interviews",
                 {
-                    params: { limit, skip },
+                    params: { page, page_size },
                     headers,
                 }
             );
-            return response.data;
+            
+            // Map PaginatedInterviewSessions to InterviewSessionListResponse
+            return {
+                sessions: response.data.items as any[], // InterviewSessionSummary → InterviewSession
+                total: response.data.total,
+            };
         } catch (error) {
             console.error("Error listing interviews:", error);
             throw error;

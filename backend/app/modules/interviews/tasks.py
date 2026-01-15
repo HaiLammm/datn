@@ -64,7 +64,8 @@ def generate_questions_task(
     self,
     session_id: str,
     job_description: str,
-    cv_content: str,
+    cv_id: str,
+    user_id: int,
     position_level: str,
     num_questions: int = 10,
     focus_areas: list = None
@@ -75,7 +76,8 @@ def generate_questions_task(
     Args:
         session_id: Interview session UUID (as string)
         job_description: Job description text
-        cv_content: Candidate CV text
+        cv_id: CV UUID to fetch from database
+        user_id: User ID for authorization check
         position_level: junior/middle/senior
         num_questions: Number of questions to generate
         focus_areas: Optional list of focus areas
@@ -83,46 +85,82 @@ def generate_questions_task(
     Returns:
         Dict with status and results
     """
-    start_time = time.time()
-    session_uuid = UUID(session_id)
+    import asyncio
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
     
-    try:
-        logger.info(f"Starting question generation for session {session_id}")
+    # Run all async operations in a single event loop
+    # This avoids "attached to different loop" errors
+    async def run_task():
+        start_time = time.time()
+        session_uuid = UUID(session_id)
+        cv_uuid = UUID(cv_id)
         
-        # Update session status to 'generating'
-        import asyncio
-        loop = asyncio.get_event_loop()
+        # Create a new engine and session factory for this event loop
+        # This ensures the async engine is bound to the current event loop
+        engine = create_async_engine(str(settings.DATABASE_URL), echo=False, pool_pre_ping=True)
+        AsyncSessionLocal = async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False
+        )
         
-        async def update_status(status: str, error: str = None):
+        try:
+            logger.info(f"Starting question generation for session {session_id}")
+            
+            # Update session status to 'generating'
             async with AsyncSessionLocal() as db:
                 stmt = update(InterviewSession).where(
                     InterviewSession.id == session_uuid
                 ).values(
-                    status=status,
-                    error_message=error
+                    status='generating',
+                    error_message=None
                 )
                 await db.execute(stmt)
                 await db.commit()
-        
-        loop.run_until_complete(update_status('generating'))
-        
-        # Initialize AI agent
-        agent = QuestionGeneratorAgent(config_path=settings.QUESTION_AGENT_CONFIG)
-        
-        # Call AI agent (synchronous)
-        result = agent.generate_questions(
-            job_description=job_description,
-            cv_content=cv_content,
-            position_level=position_level,
-            num_questions=num_questions,
-            focus_areas=focus_areas or []
-        )
-        
-        if result["status"] != "success":
-            raise Exception(f"Agent error: {result.get('error')}")
-        
-        # Store results in database
-        async def save_questions():
+            
+            # Fetch CV content from database
+            from app.modules.cv.models import CV
+            from app.modules.ai.models import CVAnalysis, AnalysisStatus
+            
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(CVAnalysis)
+                    .join(CV)
+                    .where(
+                        CVAnalysis.cv_id == cv_uuid,
+                        CV.user_id == user_id,
+                        CV.is_active == True
+                    )
+                )
+                analysis = result.scalar_one_or_none()
+                
+                if not analysis:
+                    raise ValueError(f"CV not found or access denied")
+                
+                if analysis.status != AnalysisStatus.COMPLETED:
+                    raise ValueError(f"CV analysis not completed. Status: {analysis.status}")
+                
+                if not analysis.extracted_text or len(analysis.extracted_text.strip()) < 10:
+                    raise ValueError("CV extracted text is empty or too short")
+                
+                cv_content = analysis.extracted_text
+            
+            # Initialize AI agent (synchronous operation)
+            agent = QuestionGeneratorAgent(config_path=settings.QUESTION_AGENT_CONFIG)
+            
+            # Call AI agent (synchronous)
+            result = agent.generate_questions(
+                job_description=job_description,
+                cv_content=cv_content,
+                position_level=position_level,
+                num_questions=num_questions,
+                focus_areas=focus_areas or []
+            )
+            
+            if result["status"] != "success":
+                raise Exception(f"Agent error: {result.get('error')}")
+            
+            # Store results in database
             async with AsyncSessionLocal() as db:
                 try:
                     # Save questions
@@ -186,64 +224,68 @@ def generate_questions_task(
                 except Exception as e:
                     await db.rollback()
                     raise e
-        
-        return loop.run_until_complete(save_questions())
-        
-    except Exception as e:
-        logger.error(f"Error in question generation task for session {session_id}: {e}", exc_info=True)
-        
-        # Determine if we should retry
-        should_retry = False
-        retry_delay = 30
-        
-        # Retry on specific errors
-        error_str = str(e).lower()
-        if any(keyword in error_str for keyword in ['timeout', 'connection', 'network', 'unavailable', 'ollama']):
-            should_retry = True
-            logger.warning(f"Retryable error detected for session {session_id}. Attempt {self.request.retries + 1}")
-        
-        # Update session status to 'error'
-        async def log_error():
-            async with AsyncSessionLocal() as db:
-                # Log error to agent_call_logs
-                latency_ms = int((time.time() - start_time) * 1000)
-                log = AgentCallLog(
-                    agent_type="question_generator",
-                    interview_session_id=session_uuid,
-                    input_data={
-                        "position_level": position_level,
-                        "num_questions": num_questions
-                    },
-                    status="error",
-                    error_message=str(e),
-                    latency_ms=latency_ms
-                )
-                db.add(log)
-                
-                # Update session status (only if not retrying)
-                if not should_retry or self.request.retries >= self.max_retries:
-                    stmt = update(InterviewSession).where(
-                        InterviewSession.id == session_uuid
-                    ).values(
-                        status='error',
-                        error_message=f"Failed after {self.request.retries + 1} attempts: {str(e)}"
+            
+        except Exception as e:
+            logger.error(f"Error in question generation task for session {session_id}: {e}", exc_info=True)
+            
+            # Determine if we should retry
+            should_retry = False
+            retry_delay = 30
+            
+            # Retry on specific errors
+            error_str = str(e).lower()
+            if any(keyword in error_str for keyword in ['timeout', 'connection', 'network', 'unavailable', 'ollama']):
+                should_retry = True
+                logger.warning(f"Retryable error detected for session {session_id}. Attempt {self.request.retries + 1}")
+            
+            # Update session status to 'error'
+            try:
+                async with AsyncSessionLocal() as db:
+                    # Log error to agent_call_logs
+                    latency_ms = int((time.time() - start_time) * 1000)
+                    log = AgentCallLog(
+                        agent_type="question_generator",
+                        interview_session_id=UUID(session_id),
+                        input_data={
+                            "position_level": position_level,
+                            "num_questions": num_questions
+                        },
+                        status="error",
+                        error_message=str(e),
+                        latency_ms=latency_ms
                     )
-                    await db.execute(stmt)
-                
-                await db.commit()
-        
-        loop.run_until_complete(log_error())
-        
-        # Retry if appropriate
-        if should_retry and self.request.retries < self.max_retries:
-            # Exponential backoff: 30s, 60s, 120s
-            retry_delay = 30 * (2 ** self.request.retries)
-            logger.info(f"Retrying task in {retry_delay} seconds...")
-            raise self.retry(exc=e, countdown=retry_delay)
-        
-        return {
-            "status": "error",
-            "session_id": session_id,
-            "error": str(e),
-            "attempts": self.request.retries + 1
-        }
+                    db.add(log)
+                    
+                    # Update session status (only if not retrying)
+                    if not should_retry or self.request.retries >= self.max_retries:
+                        stmt = update(InterviewSession).where(
+                            InterviewSession.id == UUID(session_id)
+                        ).values(
+                            status='error',
+                            error_message=f"Failed after {self.request.retries + 1} attempts: {str(e)}"
+                        )
+                        await db.execute(stmt)
+                    
+                    await db.commit()
+            except Exception as log_err:
+                logger.error(f"Failed to log error for session {session_id}: {log_err}")
+            
+            # Retry if appropriate
+            if should_retry and self.request.retries < self.max_retries:
+                # Exponential backoff: 30s, 60s, 120s
+                retry_delay = 30 * (2 ** self.request.retries)
+                logger.info(f"Retrying task in {retry_delay} seconds...")
+                raise self.retry(exc=e, countdown=retry_delay)
+            
+            return {
+                "status": "error",
+                "session_id": session_id,
+                "error": str(e),
+                "attempts": self.request.retries + 1
+            }
+        finally:
+            # Dispose of engine to close connections
+            await engine.dispose()
+    
+    # Run the entire async task in one event loop
+    return asyncio.run(run_task())

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
+import { config } from '@/lib/config';
 
 export function useGlobalSocket() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -26,7 +27,7 @@ export function useGlobalSocket() {
     }
 
     // Initialize socket connection
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+    const socketUrl = config.socketUrl;
     const newSocket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],

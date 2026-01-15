@@ -106,5 +106,26 @@ export const cvService = {
       throw error;
     }
   },
+
+  /**
+   * Extract text content from a CV file
+   * Used by interview system to get CV content for AI question generation
+   */
+  getCVContent: async (cvId: string, accessToken?: string): Promise<{ cv_id: string; filename: string; content: string; length: number }> => {
+    try {
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await apiClient.get<{ cv_id: string; filename: string; content: string; length: number }>(
+        `/cvs/${cvId}/content`,
+        { headers }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching CV content:", error);
+      throw error;
+    }
+  },
 };
 

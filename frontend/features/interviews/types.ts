@@ -33,8 +33,8 @@ export const InterviewQuestionSchema = z.object({
 export type InterviewQuestion = z.infer<typeof InterviewQuestionSchema>;
 
 export const InterviewSessionCreateSchema = z.object({
+    cv_id: z.string().uuid("Please select a valid CV"),
     job_description: z.string().min(10, "Job description must be at least 10 characters"),
-    cv_content: z.string().min(10, "CV content must be at least 10 characters"),
     position_level: z.enum(["junior", "middle", "senior"]),
     num_questions: z.number().min(5).max(15).optional().default(10),
     focus_areas: z.array(z.string()).optional(),

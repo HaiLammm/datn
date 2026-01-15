@@ -42,9 +42,6 @@ const formSchema = z.object({
     job_description: z.string().min(10, {
         message: "Job description must be at least 10 characters.",
     }),
-    cv_content: z.string().min(10, {
-        message: "CV content is required (select a CV).",
-    }),
     position_level: z.enum(["junior", "middle", "senior"]),
     num_questions: z.number().int().min(1).max(50),
     focus_areas: z.string().optional(),
@@ -65,7 +62,6 @@ export function InterviewSetupForm({ cvList }: InterviewSetupFormProps) {
         resolver: zodResolver(formSchema),
         defaultValues: {
             job_description: "",
-            cv_content: "",
             position_level: "middle",
             num_questions: 10,
             focus_areas: "",
@@ -79,7 +75,7 @@ export function InterviewSetupForm({ cvList }: InterviewSetupFormProps) {
         try {
             const formData = new FormData();
             formData.append("job_description", values.job_description);
-            formData.append("cv_content", values.cv_content);
+            formData.append("cv_id", values.selected_cv_id);  // Send CV ID, not content
             formData.append("position_level", values.position_level);
             formData.append("num_questions", values.num_questions.toString());
             if (values.focus_areas) {
@@ -123,66 +119,7 @@ export function InterviewSetupForm({ cvList }: InterviewSetupFormProps) {
         const selectedCV = cvList.find(cv => cv.id === cvId);
         if (selectedCV) {
             form.setValue("selected_cv_id", cvId);
-            // Assuming we want to extract text from CV, but CV content is likely stored in DB or parsed.
-            // Wait, the API requires `cv_content` (string). 
-            // Does `CVWithStatus` have content?
-            // Checking `types` from `cv.service.ts` or `shared-types`.
-            // Usually, parsed content is stored.
-            // If not available in `cvList`, I might need another API call to get content, OR the Backend API `createInterview` should accept `cv_id` instead of `cv_content`.
-            // Checking Backend Schema again: `InterviewSessionCreate` has `cv_content: str`.
-            // And `QuestionService` uses `cv_content`.
-            // This is a GAP. The `QuestionService` expects raw text. 
-            // Does the system support pulling content from CV ID?
-            // `CVWithStatus` usually has minimal info.
-            // I need to fetch CV content.
-            // Or I should modify Backend to accept `cv_id` and fetch content internally.
-
-            // Given I am "Dev" and Backend is "Status Quo" largely, but I found this gap.
-            // The Prompt says "Do not re-implement agent".
-            // But `service.py` `create_interview` takes `cv_content`.
-            // If I can't change backend, I must fetch CV content in Frontend.
-            // `cvService.getAnalysis` has analysis.
-            // I'll check `CV` type definition.
-
-            // Temporarily, I will assume I can get content.
-            // If `selectedCV` has `content` or `full_text`?
-            // If not, I'll pass a placeholder "CV Content not loaded" or fetch it.
-            // Let's assume for now I need to fetch it.
-            // But `createInterviewAction` is server-side.
-            // Maybe `createInterviewAction` should take `cv_id` and fetch content there?
-            // Yes! `createInterviewAction` can use `cvService` (or `jobService.getCandidateCV`?) to get text.
-            // Backend `CV` model likely has `content` or `parsed_data`.
-
-            // Let's update `createInterviewAction` to handle `cv_id` and fetch content from DB/Service.
-            // Wait, `createInterviewAction` calls `interviewService.createInterview` which calls API `/interviews`.
-            // API `/interviews` expects `cv_content`.
-            // So `createInterviewAction` (Server Action) is the perfect place to fetch CV content from `cv_id` and pass it to API.
-            // However, `cvService` (frontend service) calls API.
-
-            // Use `cvService.getAnalysis`? Analysis is JSON.
-            // I need Raw Text.
-            // `CV` model has `file_path`.
-
-            // I'll update `createInterviewAction` later.
-            // For now, in `handleCVChange`, I will set `cv_content` to "CV content for " + selectedCV.filename (Placeholder).
-            // AND I will add a TODO to fix this Integration Gap.
-            // Actually, if I am solving the story, I should solve this.
-            // The BEST solution is for the Backend API to accept `cv_id`.
-            // But changing Backend API signature might maintain backward compatibility but better to just fix it.
-            // Or, use `cv_content` from `CV` object if available.
-
-            // Let's modify `InterviewSetupForm` to just set `cv_content` to a placeholder if real content is missing, 
-            // to pass validation, but note that it won't work well with AI.
-            // Wait, `CVWithStatus` might have it.
-            // I'll use `JSON.stringify(selectedCV)` as content for now? No.
-
-            // Let's check `CVWithStatus` type. `frontend/services/cv.service.ts` imports it.
-            // I can't check shared types easily.
-
-            // TODO: Backend integration needed - CV model doesn't store parsed text
-            // For now, we need user to paste their CV content
-            // Future: Add API endpoint /cvs/{id}/content to extract text from file
-            form.setValue("cv_content", "");
+            // CV content will be fetched server-side when form is submitted
         }
     };
 
@@ -221,27 +158,6 @@ export function InterviewSetupForm({ cvList }: InterviewSetupFormProps) {
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
-                        <FormField
-                            control={form.control}
-                            name="cv_content"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>CV Content</FormLabel>
-                                    <FormControl>
-                                        <Textarea
-                                            placeholder="Paste your CV content here (or we'll extract it from your selected CV if available)..."
-                                            className="min-h-[120px]"
-                                            {...field}
-                                        />
-                                    </FormControl>
-                                    <FormDescription>
-                                        Please paste the text content of your selected CV above.
-                                    </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}

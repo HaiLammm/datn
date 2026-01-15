@@ -152,15 +152,38 @@ async def list_interviews(
             question_count = await history_service.count_question_for_session(db, session.id)
             turn_count = await history_service.count_turns_for_session(db, session.id)
             
+            # Get job_title from job_posting relationship or use default
+            job_title = "Practice Interview"  # Default
+            if session.job_posting_id:
+                from app.modules.jobs.models import JobDescription
+                job_result = await db.execute(
+                    select(JobDescription.title).where(JobDescription.id == session.job_posting_id)
+                )
+                job_title = job_result.scalar() or job_title
+            
+            # Get overall_score and overall_grade from evaluation
+            overall_score = None
+            overall_grade = None
+            if session.status == "completed":
+                from app.modules.interviews.models import InterviewEvaluation
+                eval_result = await db.execute(
+                    select(InterviewEvaluation.final_score, InterviewEvaluation.grade)
+                    .where(InterviewEvaluation.interview_session_id == session.id)
+                )
+                eval_data = eval_result.first()
+                if eval_data:
+                    overall_score = eval_data[0]
+                    overall_grade = eval_data[1]
+            
             # Build summary dict with computed fields
             summary = InterviewSessionSummary(
                 id=session.id,
-                job_title=session.job_title or "Untitled Position",
+                job_title=job_title,
                 created_at=session.created_at,
                 completed_at=session.completed_at,
                 status=session.status,
-                overall_score=session.overall_score,
-                overall_grade=session.overall_grade,
+                overall_score=overall_score,
+                overall_grade=overall_grade,
                 duration_minutes=session.duration_minutes,
                 question_count=question_count,
                 turn_count=turn_count,

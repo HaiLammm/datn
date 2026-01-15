@@ -52,7 +52,8 @@ export const jobService = {
     accessToken?: string
   ): Promise<JobDescriptionResponse> => {
     try {
-      const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+      const { config } = await import('@/lib/config');
+      const baseURL = config.apiUrl.endsWith('/api/v1') ? config.apiUrl : config.apiUrl + '/api/v1';
       const headers: Record<string, string> = {};
       if (accessToken) {
         headers.Authorization = `Bearer ${accessToken}`;

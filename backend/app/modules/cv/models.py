@@ -1,11 +1,16 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.modules.users.models import User
+    from app.modules.ai.models import CVAnalysis
 
 
 class CV(Base):
@@ -25,6 +30,7 @@ class CV(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Relationships - Safe to use because Celery tasks import models lazily
     owner = relationship("User", back_populates="cvs")
     analyses = relationship("CVAnalysis", back_populates="cv")
 

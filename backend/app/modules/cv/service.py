@@ -53,7 +53,10 @@ async def create_cv(
 
     logger.info("CV uploaded and analysis record created for CV: %s", cv_id)
 
-    asyncio.create_task(trigger_ai_analysis(cv_id, cv_file_path))
+    # Trigger Celery task for async AI analysis
+    from app.modules.ai.tasks import analyze_cv_task
+    task = analyze_cv_task.delay(str(cv_id), cv_file_path)
+    logger.info(f"🚀 Celery task dispatched - Task ID: {task.id}, CV ID: {cv_id}")
 
     return db_cv
 
@@ -162,14 +165,5 @@ async def get_cv_for_download(
     return cv
 
 
-async def trigger_ai_analysis(cv_id: uuid.UUID, file_path: str) -> None:
-    """Trigger AI analysis as a background task."""
-    from app.core.database import AsyncSessionLocal
-    from app.modules.ai.service import ai_service
-
-    try:
-        async with AsyncSessionLocal() as db:
-            await ai_service.analyze_cv(cv_id, file_path, db)
-            logger.info("AI analysis completed for CV: %s", cv_id)
-    except Exception as e:
-        logger.error("AI analysis failed for CV %s: %s", cv_id, str(e))
+# Note: AI analysis is now triggered via Celery task (app.modules.ai.tasks.analyze_cv_task)
+# instead of asyncio.create_task for production reliability

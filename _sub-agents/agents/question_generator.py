@@ -259,10 +259,17 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
             else:
                 response = response[start:end].strip()
         
-        # Remove trailing commas before ] or }
+        # Clean up common JSON issues
+        # 1. Remove trailing commas before ] or }
         response = re.sub(r',\s*([\]}])', r'\1', response)
         
-        # Try to find where JSON ends if it got truncated
+        # 2. Fix missing commas between array elements or object properties
+        # Add comma between }{
+        response = re.sub(r'\}\s*\{', '},{', response)
+        # Add comma between ][ 
+        response = re.sub(r'\]\s*\[', '],[', response)
+        
+        # 3. Try to find where JSON ends if it got truncated
         # Look for the last valid closing bracket
         if response.count('[') > response.count(']'):
             # Array not closed, try to close it
@@ -273,19 +280,46 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
             self.logger.warning(f"JSON has unclosed objects: {response.count('{')} {{ vs {response.count('}')} }}")
             response = response + '}' * (response.count('{') - response.count('}'))
         
-        # Remove any trailing incomplete strings or values
+        # 4. Remove any trailing incomplete strings or values
         # Find the last complete JSON value before truncation
         response = re.sub(r',\s*$', '', response)  # Remove trailing comma
         response = re.sub(r':\s*"[^"]*$', '', response)  # Remove incomplete string value
         response = re.sub(r':\s*$', ': ""', response)  # Fill empty value
+        
+        # 5. Try to fix common structural issues
+        # Ensure proper key-value format
+        response = re.sub(r'"\s*:\s*\n\s*"', '": "', response)
         
         try:
             parsed = json.loads(response)
             return parsed
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse JSON: {e}")
+            self.logger.error(f"Error at position {e.pos}: char {response[max(0,e.pos-20):e.pos+20]}")
             self.logger.error(f"Attempted to parse (first 1000 chars): {response[:1000]}...")
+            if len(response) > 1000:
+                self.logger.error(f"Middle (around error): ...{response[max(0,e.pos-200):min(len(response),e.pos+200)]}...")
             self.logger.error(f"Last 500 chars: ...{response[-500:]}")
+            
+            # ADVANCED REPAIR: Try to fix the specific error location
+            try:
+                # Try to fix the issue at the error position
+                if e.msg and "Expecting ',' delimiter" in e.msg:
+                    self.logger.warning(f"Attempting to add missing comma at position {e.pos}")
+                    # Insert comma at error position
+                    fixed = response[:e.pos] + ',' + response[e.pos:]
+                    parsed = json.loads(fixed)
+                    self.logger.info("✅ Successfully fixed JSON by adding comma")
+                    return parsed
+                elif e.msg and "Expecting property name" in e.msg:
+                    self.logger.warning(f"Attempting to close object at position {e.pos}")
+                    # Close the object properly
+                    fixed = response[:e.pos] + '}' + response[e.pos:]
+                    parsed = json.loads(fixed)
+                    self.logger.info("✅ Successfully fixed JSON by closing object")
+                    return parsed
+            except Exception as fix_err:
+                self.logger.debug(f"Advanced repair failed: {fix_err}")
             
             # Last resort: try to extract just the questions array
             match = re.search(r'\[\s*\{.*\}\s*\]', response, re.DOTALL)

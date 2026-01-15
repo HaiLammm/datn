@@ -17,8 +17,8 @@ from pydantic import BaseModel, Field, field_validator
 class InterviewSessionCreate(BaseModel):
     """Request schema for creating a new interview session."""
     
+    cv_id: UUID = Field(..., description="UUID of the uploaded CV to use for interview")
     job_description: str = Field(..., min_length=10, description="Job description text")
-    cv_content: str = Field(..., min_length=10, description="Candidate's CV content")
     position_level: str = Field(..., description="Position level: junior, middle, senior")
     num_questions: int = Field(default=10, ge=5, le=15, description="Number of questions to generate")
     focus_areas: Optional[List[str]] = Field(default=None, description="Optional focus areas for questions")

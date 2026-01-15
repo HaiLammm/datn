@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { interviewService } from "@/services/interview.service";
 import { InterviewRoom } from "@/features/interviews/components/InterviewRoom";
 import { InterviewSessionComplete } from "@/features/interviews/types";
+import { getInterviewSessionAction } from "@/features/interviews/actions";
 import { Loader2 } from "lucide-react";
 
 export default function InterviewPage() {
@@ -20,17 +20,20 @@ export default function InterviewPage() {
                 setLoading(true);
                 setError(null);
                 
-                // Client-side fetch - axios will automatically send HttpOnly cookies
-                const data = await interviewService.getInterview(params.id as string);
-                setSession(data);
+                // ✅ CORRECT - Use Server Action to handle HttpOnly cookies
+                const result = await getInterviewSessionAction(params.id as string);
+                
+                if (result.error) {
+                    setError(result.error);
+                    // If not authenticated or not found, redirect after 2 seconds
+                    setTimeout(() => router.push("/interviews"), 2000);
+                } else if (result.data) {
+                    setSession(result.data);
+                }
             } catch (err: any) {
                 console.error("Error loading interview:", err);
-                setError(err.response?.data?.detail || "Failed to load interview session");
-                
-                // If 404, redirect to interviews list after 2 seconds
-                if (err.response?.status === 404) {
-                    setTimeout(() => router.push("/interviews"), 2000);
-                }
+                setError("Failed to load interview session");
+                setTimeout(() => router.push("/interviews"), 2000);
             } finally {
                 setLoading(false);
             }

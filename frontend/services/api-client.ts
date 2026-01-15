@@ -1,9 +1,9 @@
 import axios from 'axios';
+import { config } from '@/lib/config';
 
 // Backend uses /api/v1 prefix via settings.API_V1_STR in main.py
 // Check if NEXT_PUBLIC_API_URL already includes /api/v1 to avoid duplication
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const baseURL = apiUrl.endsWith('/api/v1') ? apiUrl : apiUrl + '/api/v1';
+const baseURL = config.apiUrl.endsWith('/api/v1') ? config.apiUrl : config.apiUrl + '/api/v1';
 
 export const apiClient = axios.create({
   baseURL,

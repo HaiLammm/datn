@@ -38,5 +38,6 @@ class User(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
+    # Relationships - Safe to use because Celery tasks import models lazily
     cvs = relationship("CV", back_populates="owner")
     job_descriptions = relationship("JobDescription", back_populates="user")

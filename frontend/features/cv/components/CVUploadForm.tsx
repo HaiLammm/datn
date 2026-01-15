@@ -1,15 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
+import { createCVAction } from "@/features/cv/actions";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ErrorDisplay } from "@/components/common/ErrorDisplay";
-import { useFileUpload } from "@/lib/hooks/useFileUpload";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = [
@@ -18,10 +14,12 @@ const ACCEPTED_FILE_TYPES = [
 ];
 
 export function CVUploadForm() {
-  const router = useRouter();
+  const [state, formAction, isPending] = useActionState(createCVAction, {
+    message: "",
+    errors: {},
+  });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string>("");
-  const { isUploading, progress, error, isSuccess, upload, reset } = useFileUpload();
 
   const validateFile = (file: File): string | null => {
     if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
@@ -34,8 +32,6 @@ export function CVUploadForm() {
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    reset(); // Clear any previous upload state
-
     if (event.target.files && event.target.files.length > 0) {
       const file = event.target.files[0];
       const validationError = validateFile(file);
@@ -53,49 +49,8 @@ export function CVUploadForm() {
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    if (!selectedFile) {
-      setFileError("Vui lòng chọn file CV.");
-      return;
-    }
-
-    const validationError = validateFile(selectedFile);
-    if (validationError) {
-      setFileError(validationError);
-      return;
-    }
-
-    await upload({
-      file: selectedFile,
-      url: "/api/cvs/upload",
-      fieldName: "file",
-      onSuccess: () => {
-        toast.success("CV đã được tải lên thành công!");
-        // Reset form
-        setSelectedFile(null);
-        const fileInput = document.getElementById("cvFile") as HTMLInputElement;
-        if (fileInput) fileInput.value = "";
-        // Redirect to CV list
-        router.push("/cvs");
-        router.refresh();
-      },
-      onError: (errorMessage) => {
-        toast.error(errorMessage);
-      },
-    });
-  };
-
-  const handleRetry = () => {
-    reset();
-    if (selectedFile) {
-      handleSubmit(new Event("submit") as unknown as React.FormEvent);
-    }
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-md shadow-sm">
+    <form action={formAction} className="space-y-4 p-4 border rounded-md shadow-sm">
       <h2 className="text-xl font-semibold">Tải lên CV của bạn</h2>
 
       <div>
@@ -106,11 +61,14 @@ export function CVUploadForm() {
           type="file"
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onChange={handleFileChange}
-          disabled={isUploading}
+          disabled={isPending}
           className="mt-1"
         />
         {fileError && (
           <p className="text-red-500 text-sm mt-1">{fileError}</p>
+        )}
+        {state?.errors?.cvFile && (
+          <p className="text-red-500 text-sm mt-1">{state.errors.cvFile}</p>
         )}
         {selectedFile && !fileError && (
           <p className="text-gray-600 text-sm mt-1">
@@ -119,42 +77,24 @@ export function CVUploadForm() {
         )}
       </div>
 
-      {/* Upload Progress */}
-      {isUploading && (
-        <div className="space-y-2" data-testid="upload-progress">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Đang tải lên...</span>
-            <span className="font-medium">{progress}%</span>
-          </div>
-          <Progress value={progress} size="md" />
-        </div>
-      )}
-
-      {/* Success State */}
-      {isSuccess && (
-        <div className="p-3 bg-green-50 text-green-700 rounded-md text-sm" data-testid="upload-success">
-          CV đã được tải lên thành công! Đang chuyển hướng...
-        </div>
-      )}
-
-      {/* Error State with Retry */}
-      {error && !isUploading && (
-        <ErrorDisplay
-          message={error}
-          onRetry={handleRetry}
-          retryText="Thử lại"
-          data-testid="upload-error"
-        />
-      )}
-
       <Button
         type="submit"
-        disabled={isUploading || !selectedFile || !!fileError}
+        disabled={isPending || !selectedFile || !!fileError}
         className="w-full"
       >
-        {isUploading && <LoadingSpinner size="sm" className="mr-2" />}
-        {isUploading ? "Đang tải lên..." : "Tải lên CV"}
+        {isPending && <LoadingSpinner size="sm" className="mr-2" />}
+        {isPending ? "Đang tải lên..." : "Tải lên CV"}
       </Button>
+
+      {state?.message && (
+        <p
+          className={`text-sm mt-2 ${
+            state.message.includes("thành công") ? "text-green-600" : "text-red-500"
+          }`}
+        >
+          {state.message}
+        </p>
+      )}
     </form>
   );
 }

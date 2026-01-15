@@ -26,8 +26,9 @@ async def startup_event():
     try:
         # Import models in dependency order
         from app.modules.users.models import User  # noqa: F401
-        from app.modules.jobs.models import JobDescription  # noqa: F401
+        from app.modules.jobs.models import JobDescription, Application  # noqa: F401
         from app.modules.cv.models import CV  # noqa: F401
+        from app.modules.ai.models import CVAnalysis  # noqa: F401
         from app.modules.interviews.models import (  # noqa: F401
             InterviewSession,
             InterviewQuestion,

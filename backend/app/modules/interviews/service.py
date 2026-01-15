@@ -72,7 +72,8 @@ class QuestionService:
         db: AsyncSession,
         session_id: UUID,
         job_description: str,
-        cv_content: str,
+        cv_id: UUID,
+        user_id: int,
         position_level: str,
         num_questions: int = 10,
         focus_areas: Optional[List[str]] = None
@@ -84,7 +85,8 @@ class QuestionService:
             db: Database session
             session_id: Interview session UUID
             job_description: Job description text
-            cv_content: Candidate's CV content
+            cv_id: UUID of the uploaded CV to use
+            user_id: User ID for authorization check
             position_level: junior, middle, or senior
             num_questions: Number of questions to generate (5-15)
             focus_areas: Optional list of focus areas
@@ -93,11 +95,42 @@ class QuestionService:
             List of created InterviewQuestion objects
         
         Raises:
+            ValueError: If CV not found, not analyzed, or user doesn't own it
             Exception: If AI agent fails or database error occurs
         """
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from app.modules.cv.models import CV
+        from app.modules.ai.models import CVAnalysis, AnalysisStatus
+        
         start_time = time.time()
         
         try:
+            # Fetch CV and its analysis with authorization check
+            result = await db.execute(
+                select(CVAnalysis)
+                .options(selectinload(CVAnalysis.cv))
+                .join(CV)
+                .where(
+                    CVAnalysis.cv_id == cv_id,
+                    CV.user_id == user_id,
+                    CV.is_active == True
+                )
+            )
+            analysis = result.scalar_one_or_none()
+            
+            if not analysis:
+                raise ValueError(f"CV not found or you don't have access to it")
+            
+            if analysis.status != AnalysisStatus.COMPLETED:
+                raise ValueError(f"CV analysis is not completed yet. Current status: {analysis.status}")
+            
+            if not analysis.extracted_text or len(analysis.extracted_text.strip()) < 10:
+                raise ValueError("CV extracted text is empty or too short. Please re-upload the CV.")
+            
+            # Store CV content before any commits (SQLAlchemy async pattern)
+            cv_content = analysis.extracted_text
+            
             # Call AI agent (synchronous call)
             result = self.agent.generate_questions(
                 job_description=job_description,
@@ -508,7 +541,7 @@ class InterviewService:
         Args:
             db: Database session
             candidate_id: ID of the candidate
-            request: Interview creation request with JD and CV
+            request: Interview creation request with cv_id and JD
         
         Returns:
             Created session (status='pending')
@@ -531,7 +564,8 @@ class InterviewService:
             generate_questions_task.delay(
                 session_id=session_id,
                 job_description=request.job_description,
-                cv_content=request.cv_content,
+                cv_id=str(request.cv_id),
+                user_id=candidate_id,
                 position_level=request.position_level,
                 num_questions=request.num_questions,
                 focus_areas=request.focus_areas
@@ -557,7 +591,7 @@ class InterviewService:
         Args:
             db: Database session
             candidate_id: ID of the candidate
-            request: Interview creation request with JD and CV
+            request: Interview creation request with cv_id and JD
         
         Returns:
             Tuple of (created session, generated questions)
@@ -579,7 +613,8 @@ class InterviewService:
                 db=db,
                 session_id=session_id,
                 job_description=request.job_description,
-                cv_content=request.cv_content,
+                cv_id=request.cv_id,
+                user_id=candidate_id,
                 position_level=request.position_level,
                 num_questions=request.num_questions,
                 focus_areas=request.focus_areas
