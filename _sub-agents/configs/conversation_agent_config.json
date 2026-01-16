@@ -1,7 +1,7 @@
 {
   "agent_id": "conversation-agent",
   "agent_name": "DialogFlow AI",
-  "model": "yasserrmd/Human-Like-Qwen2.5-1.5B-Instruct:latest",
+  "model": "phi3:latest",
   "model_parameters": {
     "temperature": 0.8,
     "top_p": 0.92,

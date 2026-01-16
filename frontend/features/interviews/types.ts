@@ -11,6 +11,13 @@ export const InterviewSessionSchema = z.object({
     duration_minutes: z.number().nullable().optional(),
     created_at: z.string(),
     updated_at: z.string(),
+    // Config fields for sequential question generation
+    cv_id: z.string().nullable().optional(),
+    job_description: z.string().nullable().optional(),
+    job_title: z.string().nullable().optional(),
+    position_level: z.string().nullable().optional(),
+    num_questions: z.number().nullable().optional(),
+    focus_areas: z.array(z.string()).nullable().optional(),
 });
 
 export type InterviewSession = z.infer<typeof InterviewSessionSchema>;
@@ -284,4 +291,18 @@ export interface InterviewEvaluationDetail {
     detailed_analysis: DetailedAnalysisSection;
     recommendations: RecommendationsSection;
     created_at: string;
+}
+
+// ============ Sequential Question Generation Types ============
+
+/**
+ * Response from POST /interviews/{id}/generate-next-question
+ * Used for on-demand question generation in sequential interview flow
+ */
+export interface GenerateNextQuestionResponse {
+    question: InterviewQuestion;
+    question_number: number;  // Current question number (1-indexed)
+    total_questions: number;  // Total questions configured for session
+    is_last_question: boolean;  // True if this is the final question
+    message: string;  // Status message
 }

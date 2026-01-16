@@ -16,7 +16,7 @@
   },
   "ollama_settings": {
     "host": "http://localhost:11434",
-    "timeout": 180,
+    "timeout": 300,
     "keep_alive": "5m"
   },
   "prompt_settings": {

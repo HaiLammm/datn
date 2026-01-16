@@ -34,6 +34,9 @@ class QuestionGeneratorAgent(BaseAgent):
             )
         super().__init__(config_path)
         
+        # Initialize current_input for validation
+        self.current_input = {}
+        
         # Load quality settings
         self.quality_settings = self.config.get("quality_settings", {})
         self.min_questions = self.quality_settings.get("min_questions_per_level", 3)
@@ -89,6 +92,9 @@ class QuestionGeneratorAgent(BaseAgent):
             }
         
         try:
+            # Store input for validation
+            self.current_input = input_data
+            
             # Build prompt
             prompt = self._build_prompt(input_data)
             
@@ -96,10 +102,21 @@ class QuestionGeneratorAgent(BaseAgent):
             if self.config.get("logging", {}).get("log_requests", False):
                 self.logger.info(f"Generating questions for {input_data.get('position_level')} position")
             
+            # Override model params for single question generation (reduce tokens to prevent over-generation)
+            model_params = None
+            num_questions = input_data.get("num_questions", 10)
+            if num_questions == 1:
+                model_params = {
+                    "num_predict": 1024,  # Reduced from 4096 to prevent generating too many questions
+                    "temperature": 0.5,    # Lower temperature for more focused output
+                }
+                self.logger.info("Using reduced num_predict (1024) for single question generation")
+            
             # Call API with retry
             response = self._retry_on_failure(
                 self._call_ollama_api,
-                prompt
+                prompt,
+                model_params  # Pass override params
             )
             
             # Parse response
@@ -160,12 +177,54 @@ class QuestionGeneratorAgent(BaseAgent):
         position_level = input_data["position_level"]
         num_questions = input_data.get("num_questions", 10)
         focus_areas = input_data.get("focus_areas", [])
+        existing_questions = input_data.get("existing_questions", [])
         
         # Build focus areas text
         focus_text = ""
         if focus_areas:
             focus_text = f"\n\nCác lĩnh vực cần tập trung đặc biệt: {', '.join(focus_areas)}"
         
+        # Build existing questions context (for sequential generation)
+        existing_text = ""
+        if existing_questions:
+            existing_text = "\n\n### Already Generated Questions (DO NOT DUPLICATE):\n"
+            for idx, q in enumerate(existing_questions, 1):
+                existing_text += f"{idx}. [{q.get('category', 'unknown')}] {q.get('question_text', '')}\n"
+            existing_text += "\nIMPORTANT: Generate NEW questions that are different from the above. Cover different topics/aspects."
+        
+        # Build instruction based on number of questions
+        if num_questions == 1:
+            instruction = f"""Hãy phân tích JD và CV, sau đó tạo ra CHÍNH XÁC 1 (MỘT) câu hỏi phỏng vấn duy nhất phù hợp với cấp độ {position_level}.
+
+QUAN TRỌNG: 
+- Chỉ tạo 1 câu hỏi duy nhất, KHÔNG tạo nhiều câu hỏi
+- Câu hỏi phải có question_id là "Q{str(len(existing_questions) + 1).zfill(3)}" (ví dụ: Q001, Q002, Q003...)
+- category PHẢI là một trong ba giá trị: "technical", "behavioral", hoặc "situational" (KHÔNG kết hợp)
+{f"- Tránh trùng lặp với {len(existing_questions)} câu đã có ở trên." if existing_questions else ""}
+
+Trả về kết quả dưới dạng JSON:
+{{
+  "questions": [
+    {{
+      "question_id": "Q{str(len(existing_questions) + 1).zfill(3)}",
+      "category": "technical",
+      "difficulty": "{position_level}",
+      "question_text": "...",
+      "key_points": [...],
+      "ideal_answer_outline": "...",
+      "evaluation_criteria": {{"excellent": "...", "good": "...", "average": "..."}}
+    }}
+  ]
+}}
+
+LƯU Ý: category chỉ được là "technical", "behavioral", hoặc "situational" - KHÔNG sử dụng kết hợp như "behavioral/situational"."""
+        else:
+            instruction = f"""Hãy phân tích JD và CV, sau đó tạo ra {num_questions} câu hỏi phỏng vấn phù hợp với cấp độ {position_level}.
+Đảm bảo tuân thủ tỷ lệ phân bố: 60% Technical, 20% Behavioral, 20% Situational.
+{f"Tránh tạo câu hỏi trùng lặp với {len(existing_questions)} câu đã có ở trên." if existing_questions else ""}
+
+Trả về kết quả dưới dạng JSON với cấu trúc đã được định nghĩa trong system prompt."""
+
         # Insert into template
         prompt = f"""{self.prompt_template}
 
@@ -183,13 +242,11 @@ class QuestionGeneratorAgent(BaseAgent):
 
 ### Number of Questions Requested: {num_questions}
 {focus_text}
+{existing_text}
 
 ---
 
-Hãy phân tích JD và CV, sau đó tạo ra {num_questions} câu hỏi phỏng vấn phù hợp với cấp độ {position_level}.
-Đảm bảo tuân thủ tỷ lệ phân bố: 60% Technical, 20% Behavioral, 20% Situational.
-
-Trả về kết quả dưới dạng JSON với cấu trúc đã được định nghĩa trong system prompt.
+{instruction}
 """
         return prompt
     
@@ -201,9 +258,14 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
         
         questions = result["questions"]
         
+        # For sequential generation (num_questions=1), only require 1 question
+        # This is stored in the current input context
+        requested_count = self.current_input.get("num_questions", self.min_questions)
+        min_required = min(requested_count, self.min_questions)
+        
         # Check minimum number of questions
-        if len(questions) < self.min_questions:
-            self.logger.error(f"Generated only {len(questions)} questions, minimum is {self.min_questions}")
+        if len(questions) < min_required:
+            self.logger.error(f"Generated only {len(questions)} questions, minimum is {min_required} (requested: {requested_count})")
             return False
         
         # Validate each question has required fields
@@ -214,9 +276,9 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
             else:
                 self.logger.warning(f"Question {idx} missing required fields, will be excluded")
         
-        # Accept if we have at least min_questions valid questions
-        if valid_questions < self.min_questions:
-            self.logger.error(f"Only {valid_questions} valid questions, minimum is {self.min_questions}")
+        # Accept if we have at least min_required valid questions
+        if valid_questions < min_required:
+            self.logger.error(f"Only {valid_questions} valid questions, minimum is {min_required}")
             return False
         
         if valid_questions < len(questions):
@@ -243,6 +305,11 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
         Parse JSON from model response, with special handling for common issues.
         Overrides base class method for more lenient parsing.
         """
+        # Remove control characters that break JSON parsing (except \n, \r, \t)
+        # Control characters are ASCII 0-31 except for tab(9), newline(10), carriage return(13)
+        import re
+        response = ''.join(char if (ord(char) >= 32 or char in '\t\n\r') else ' ' for char in response)
+        
         # Try to extract JSON from markdown code blocks
         if "```json" in response:
             start = response.find("```json") + 7
@@ -376,7 +443,8 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
         cv_content: str,
         position_level: str,
         num_questions: int = 10,
-        focus_areas: List[str] = None
+        focus_areas: List[str] = None,
+        existing_questions: List[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Convenience method to generate questions.
@@ -387,6 +455,7 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
             position_level: "junior", "middle", or "senior"
             num_questions: Number of questions to generate
             focus_areas: Specific skills/areas to focus on
+            existing_questions: List of already-generated questions to avoid duplicates (optional)
         
         Returns:
             Result dictionary with questions
@@ -396,5 +465,6 @@ Trả về kết quả dưới dạng JSON với cấu trúc đã được đị
             "cv_content": cv_content,
             "position_level": position_level,
             "num_questions": num_questions,
-            "focus_areas": focus_areas or []
+            "focus_areas": focus_areas or [],
+            "existing_questions": existing_questions or []
         })

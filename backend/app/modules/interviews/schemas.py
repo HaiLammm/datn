@@ -46,6 +46,14 @@ class InterviewSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
+    # Config fields for sequential question generation
+    cv_id: Optional[UUID] = None
+    job_description: Optional[str] = None
+    job_title: Optional[str] = None
+    position_level: Optional[str] = None
+    num_questions: Optional[int] = None
+    focus_areas: Optional[List[str]] = None
+    
     class Config:
         from_attributes = True
 
@@ -424,3 +432,22 @@ class InterviewEvaluationDetail(BaseModel):
     detailed_analysis: DetailedAnalysisSection
     recommendations: RecommendationsSection
     created_at: datetime
+
+
+# ============ Sequential Question Generation Schemas ============
+
+
+class GenerateNextQuestionRequest(BaseModel):
+    """Request schema for generating next question on-demand."""
+    
+    # No body needed - all context from session
+
+
+class GenerateNextQuestionResponse(BaseModel):
+    """Response schema for sequential question generation."""
+    
+    question: InterviewQuestionResponse
+    question_number: int = Field(..., description="Current question number (1-indexed)")
+    total_questions: int = Field(..., description="Total questions configured for this session")
+    is_last_question: bool = Field(..., description="True if this is the final question")
+    message: str = Field(..., description="Status message")

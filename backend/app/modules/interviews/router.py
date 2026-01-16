@@ -8,16 +8,20 @@ Provides endpoints for:
 - Retrieving interview history and statistics
 """
 import logging
+from datetime import datetime
 from uuid import UUID
 from typing import List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.modules.auth.dependencies import get_current_user, require_job_seeker
 from app.modules.users.models import User
+from app.modules.interviews.models import InterviewSession
 from app.modules.interviews.schemas import (
     InterviewSessionCreate,
     InterviewSessionResponse,
@@ -34,6 +38,7 @@ from app.modules.interviews.schemas import (
     InterviewSessionComplete,
     ProcessTurnResponse,
     InterviewStatusResponse,
+    GenerateNextQuestionResponse,  # New schema for sequential generation
     # Story 8.4: History schemas
     InterviewSessionSummary,
     InterviewSessionDetail,
@@ -278,6 +283,102 @@ async def get_interview_status(
         response_data["message"] = "Interview completed"
     
     return InterviewStatusResponse(**response_data)
+
+
+@router.post("/{session_id}/generate-next-question", response_model=GenerateNextQuestionResponse)
+async def generate_next_question(
+    session_id: UUID,
+    current_user: User = Depends(require_job_seeker),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate next question on-demand for sequential interview flow.
+    
+    This endpoint:
+    1. Fetches session configuration (cached from session creation)
+    2. Retrieves already-generated questions to provide context
+    3. Calls AI agent to generate ONE new question (avoiding duplicates)
+    4. Saves question to database with order_index
+    5. Returns the new question
+    
+    **Performance:** ~15-30 seconds (generating 1 question instead of 10)
+    **Token Usage:** ~800 tokens (vs ~8000 for batch generation)
+    
+    **Sequential Flow:**
+    - Session created with status='ready' (no questions yet)
+    - User clicks "Start Interview" → POST /generate-next-question → Question #1
+    - User answers Question #1 → POST /turns → Process answer
+    - After answer processed → POST /generate-next-question → Question #2
+    - Repeat until num_questions reached
+    
+    **Authorization:** User must own the interview session
+    
+    **Error Responses:**
+    - 403 Forbidden: User doesn't own this session
+    - 400 Bad Request: Max questions already generated
+    - 404 Not Found: Session not found
+    - 500 Internal Server Error: AI generation failed
+    """
+    # Dependency already enforces job_seeker role
+    
+    try:
+        # Generate single question using QuestionService (returns dict to avoid greenlet issues)
+        question_data = await interview_service.question_service.generate_single_question(
+            db=db,
+            session_id=session_id,
+            user_id=current_user.id
+        )
+        
+        # Get session to check total questions (SQLAlchemy Rule #2: eager load)
+        result = await db.execute(
+            select(InterviewSession)
+            .options(selectinload(InterviewSession.questions))
+            .where(InterviewSession.id == session_id)
+        )
+        session = result.scalar_one_or_none()
+        
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Interview session {session_id} not found"
+            )
+        
+        # Store values before response (SQLAlchemy Rule #1)
+        current_question_count = len(session.questions)
+        total_questions_configured = session.num_questions
+        is_last = current_question_count >= total_questions_configured
+        
+        # Update session status to 'in_progress' if this is the first question
+        if current_question_count == 1 and session.status == "ready":
+            session.status = "in_progress"
+            session.started_at = datetime.utcnow()
+            await db.commit()
+        
+        return GenerateNextQuestionResponse(
+            question=InterviewQuestionResponse(**question_data),
+            question_number=current_question_count,
+            total_questions=total_questions_configured,
+            is_last_question=is_last,
+            message=f"Question {current_question_count}/{total_questions_configured} generated successfully"
+        )
+        
+    except ValueError as e:
+        # User validation errors (max questions reached, session not found, etc.)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error generating next question for session {session_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate next question: {str(e)}"
+        )
 
 
 @router.get("/{session_id}/detail", response_model=InterviewSessionDetail)

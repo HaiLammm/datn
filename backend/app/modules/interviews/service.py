@@ -45,6 +45,11 @@ from app.modules.interviews.models import (
     InterviewEvaluation,
     AgentCallLog,
 )
+# Import models in dependency order to avoid SQLAlchemy relationship resolution errors
+from app.modules.users.models import User
+from app.modules.jobs.models import JobDescription, Application  # User has relationship to JobDescription
+from app.modules.cv.models import CV
+from app.modules.ai.models import CVAnalysis
 from app.modules.interviews.schemas import (
     InterviewSessionCreate,
     InterviewTurnCreate,
@@ -202,6 +207,209 @@ class QuestionService:
                 input_data={
                     "position_level": position_level,
                     "num_questions": num_questions
+                },
+                status="error",
+                error_message=str(e),
+                latency_ms=latency_ms
+            )
+            db.add(log)
+            await db.commit()
+            
+            raise
+    
+    async def generate_single_question(
+        self,
+        db: AsyncSession,
+        session_id: UUID,
+        user_id: int
+    ) -> Dict[str, Any]:
+        """
+        Generate a single question on-demand for sequential interview flow.
+        
+        This method:
+        1. Fetches session configuration and CV content (stored during session creation)
+        2. Retrieves already-generated questions to avoid duplicates
+        3. Calls AI agent to generate ONE question with context awareness
+        4. Saves the new question to database
+        
+        Args:
+            db: Database session
+            session_id: Interview session UUID
+            user_id: User ID for authorization check
+        
+        Returns:
+            Dictionary with question data (safe for serialization outside async context)
+        
+        Raises:
+            ValueError: If session not found, max questions reached, or user doesn't own session
+            Exception: If AI agent fails or database error occurs
+        """
+        start_time = time.time()
+        
+        try:
+            # Fetch session with configuration and existing questions (SQLAlchemy Rule #2: eager loading)
+            result = await db.execute(
+                select(InterviewSession)
+                .options(selectinload(InterviewSession.questions))
+                .where(
+                    InterviewSession.id == session_id,
+                    InterviewSession.candidate_id == user_id
+                )
+            )
+            session = result.scalar_one_or_none()
+            
+            if not session:
+                raise ValueError(f"Interview session not found or you don't have access to it")
+            
+            # Check if we've already generated the maximum number of questions
+            current_question_count = len(session.questions)
+            # Store before any commits (SQLAlchemy Rule #1)
+            num_questions_configured = session.num_questions
+            
+            if current_question_count >= num_questions_configured:
+                raise ValueError(f"Maximum questions ({num_questions_configured}) already generated for this session")
+            
+            # Fetch CV analysis to get content (SQLAlchemy Rule #2: eager load)
+            cv_result = await db.execute(
+                select(CVAnalysis)
+                .options(selectinload(CVAnalysis.cv))
+                .join(CV)
+                .where(
+                    CVAnalysis.cv_id == session.cv_id,
+                    CV.user_id == user_id,
+                    CV.is_active == True
+                )
+            )
+            analysis = cv_result.scalar_one_or_none()
+            
+            if not analysis or not analysis.extracted_text:
+                raise ValueError("CV analysis not found or CV text is missing")
+            
+            # Store values before commit (SQLAlchemy Rule #1)
+            cv_content = analysis.extracted_text
+            job_description = session.job_description
+            position_level = session.position_level
+            focus_areas = session.focus_areas or []
+            
+            # Build context from existing questions to avoid duplicates
+            previous_questions = []
+            for q in session.questions:
+                previous_questions.append({
+                    "question_id": q.question_id,
+                    "question_text": q.question_text,
+                    "category": q.category,
+                    "difficulty": q.difficulty
+                })
+            
+            # Call AI agent to generate ONE question with context
+            # Note: We're calling the existing generate_questions but with num_questions=1
+            # The agent should be smart enough to avoid duplicating previous_questions
+            result = self.agent.generate_questions(
+                job_description=job_description,
+                cv_content=cv_content,
+                position_level=position_level,
+                num_questions=1,  # Generate only ONE question
+                focus_areas=focus_areas,
+                existing_questions=previous_questions  # Pass context to avoid duplicates
+            )
+            
+            if result["status"] != "success" or not result.get("questions"):
+                raise Exception(f"Agent error: {result.get('error', 'No questions generated')}")
+            
+            # Store agent metadata before commit (SQLAlchemy Rule #1)
+            agent_model = self.agent.model
+            agent_metadata = result.get("metadata", {})
+            q_data = result["questions"][0]  # Get the single generated question
+            
+            # CRITICAL: Normalize category to fit database constraint (VARCHAR(20))
+            # AI sometimes generates combined categories like "behavioral/situational"
+            raw_category = q_data["category"].lower().strip()
+            
+            # Map to valid categories (max 20 chars)
+            if "technical" in raw_category:
+                normalized_category = "technical"
+            elif "behavioral" in raw_category:
+                normalized_category = "behavioral"
+            elif "situational" in raw_category or "situation" in raw_category:
+                normalized_category = "situational"
+            else:
+                # Default to technical if unrecognized
+                logger.warning(f"Unrecognized category '{raw_category}', defaulting to 'technical'")
+                normalized_category = "technical"
+            
+            logger.info(f"Normalized category from '{raw_category}' to '{normalized_category}'")
+            
+            # Save question to database
+            question = InterviewQuestion(
+                interview_session_id=session_id,
+                question_id=q_data["question_id"],
+                category=normalized_category,  # Use normalized value
+                difficulty=q_data["difficulty"],
+                question_text=q_data["question_text"],
+                key_points=q_data.get("key_points"),
+                ideal_answer_outline=q_data.get("ideal_answer_outline"),
+                evaluation_criteria=q_data.get("evaluation_criteria"),
+                order_index=current_question_count,  # 0-indexed order
+                is_selected=True
+            )
+            db.add(question)
+            
+            # Log agent call
+            latency_ms = int((time.time() - start_time) * 1000)
+            log = AgentCallLog(
+                agent_type="question_generator_sequential",
+                interview_session_id=session_id,
+                input_data={
+                    "position_level": position_level,
+                    "question_number": current_question_count + 1,
+                    "focus_areas": focus_areas,
+                    "previous_question_count": len(previous_questions)
+                },
+                output_data=agent_metadata,
+                status="success",
+                latency_ms=latency_ms,
+                model_used=agent_model
+            )
+            db.add(log)
+            
+            await db.commit()
+            
+            # Refresh question to get ID and eagerly access all attributes (SQLAlchemy Rule #3)
+            await db.refresh(question)
+            
+            # CRITICAL: Convert to dict NOW while in async context to avoid MissingGreenlet
+            # This allows the question data to be used outside this session (SQLAlchemy Rule #1)
+            question_dict = {
+                "id": question.id,
+                "interview_session_id": question.interview_session_id,
+                "question_id": question.question_id,
+                "category": question.category,
+                "difficulty": question.difficulty,
+                "question_text": question.question_text,
+                "key_points": question.key_points,
+                "ideal_answer_outline": question.ideal_answer_outline,
+                "evaluation_criteria": question.evaluation_criteria,
+                "order_index": question.order_index,
+                "is_selected": question.is_selected,
+                "created_at": question.created_at
+            }
+            
+            logger.info(
+                f"Generated question {current_question_count + 1}/{num_questions_configured} "
+                f"in {latency_ms}ms for session {session_id}"
+            )
+            return question_dict
+            
+        except Exception as e:
+            logger.error(f"Error generating single question for session {session_id}: {e}")
+            
+            # Log error
+            latency_ms = int((time.time() - start_time) * 1000)
+            log = AgentCallLog(
+                agent_type="question_generator_sequential",
+                interview_session_id=session_id,
+                input_data={
+                    "question_number": "unknown"
                 },
                 status="error",
                 error_message=str(e),
@@ -535,8 +743,18 @@ class InterviewService:
         request: InterviewSessionCreate
     ) -> InterviewSession:
         """
-        Create new interview session and trigger async question generation.
-        Returns immediately without waiting for questions.
+        Create new interview session with configuration for sequential question generation.
+        Returns immediately - questions will be generated on-demand when user starts interview.
+        
+        This method:
+        1. Creates session with 'ready' status (no batch generation)
+        2. Caches configuration (job_description, cv_id, position_level, etc.)
+        3. Returns immediately (~200ms instead of 3-5 minutes)
+        
+        Sequential flow:
+        - User clicks "Start Interview" → POST /generate-next-question → Generate question #1
+        - User answers question #1 → POST /turns → Process answer → Generate question #2
+        - Repeat until num_questions reached
         
         Args:
             db: Database session
@@ -544,34 +762,38 @@ class InterviewService:
             request: Interview creation request with cv_id and JD
         
         Returns:
-            Created session (status='pending')
+            Created session (status='ready' - ready to start, no questions yet)
         """
         try:
-            # Create session with 'pending' status
+            # Store values before commit (SQLAlchemy Rule #1)
+            cv_id = request.cv_id
+            job_description = request.job_description
+            position_level = request.position_level
+            num_questions = request.num_questions
+            focus_areas = request.focus_areas
+            
+            # Create session with 'ready' status and cached configuration
+            # No questions generated yet - will be generated on-demand
             session = InterviewSession(
                 candidate_id=candidate_id,
-                status="pending"
+                status="ready",  # Ready to start - no batch generation needed
+                cv_id=cv_id,  # Cache CV ID for sequential generation
+                job_description=job_description,  # Cache for context
+                position_level=position_level,  # Cache for difficulty targeting
+                num_questions=num_questions,  # Total questions to generate
+                focus_areas=focus_areas  # Cache focus areas
             )
             db.add(session)
             await db.commit()
             await db.refresh(session)
             
-            # Store session ID
+            # Store session ID after commit (SQLAlchemy Rule #1)
             session_id = str(session.id)
             
-            # Trigger async Celery task (non-blocking)
-            from app.modules.interviews.tasks import generate_questions_task
-            generate_questions_task.delay(
-                session_id=session_id,
-                job_description=request.job_description,
-                cv_id=str(request.cv_id),
-                user_id=candidate_id,
-                position_level=request.position_level,
-                num_questions=request.num_questions,
-                focus_areas=request.focus_areas
+            logger.info(
+                f"Created interview session {session_id} for candidate {candidate_id} "
+                f"(sequential mode: 0/{num_questions} questions generated)"
             )
-            
-            logger.info(f"Created interview session {session_id} for candidate {candidate_id}, question generation queued")
             return session
             
         except Exception as e:

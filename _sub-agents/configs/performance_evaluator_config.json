@@ -1,7 +1,7 @@
 {
   "agent_id": "performance-evaluator",
   "agent_name": "EvalMaster AI",
-  "model": "yasserrmd/Human-Like-Qwen2.5-1.5B-Instruct:latest",
+  "model": "phi3:latest",
   "model_parameters": {
     "temperature": 0.5,
     "top_p": 0.85,

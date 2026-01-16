@@ -14,6 +14,7 @@ import {
     InterviewSessionComplete,
     InterviewTranscriptResponse,
     InterviewEvaluationDetail,
+    GenerateNextQuestionResponse,
 } from "./types";
 import { CVWithStatus } from "@datn/shared-types";
 
@@ -148,6 +149,32 @@ export async function getInterviewStatusAction(
         console.error("Error fetching interview status:", error);
         return {
             error: error.response?.data?.detail || "Failed to fetch interview status",
+        };
+    }
+}
+
+/**
+ * Generate next question on-demand for sequential interview flow.
+ * Server Action wrapper for generateNextQuestion service method.
+ * 
+ * @param interviewId - Interview session UUID
+ * @returns GenerateNextQuestionResponse with the new question and metadata
+ */
+export async function generateNextQuestionAction(
+    interviewId: string
+): Promise<{ data?: GenerateNextQuestionResponse; error?: string }> {
+    try {
+        const accessToken = await getAccessToken();
+        const result = await interviewService.generateNextQuestion(interviewId, accessToken);
+        
+        // Revalidate the interview detail page to reflect new question
+        revalidatePath(`/interviews/${interviewId}`);
+        
+        return { data: result };
+    } catch (error: any) {
+        console.error("Error generating next question:", error);
+        return {
+            error: error.message || error.response?.data?.detail || "Failed to generate next question",
         };
     }
 }

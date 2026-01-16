@@ -12,6 +12,7 @@ import {
     ProcessTurnRequest,
     ProcessTurnResponse,
     InterviewStatusResponse,
+    GenerateNextQuestionResponse,  // New type for sequential generation
     // Story 8.4: Interview History types
     PaginatedInterviewSessions,
     InterviewSessionDetail,
@@ -135,6 +136,53 @@ export const interviewService = {
             return response.data;
         } catch (error) {
             console.error("Error getting questions:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Generate next question on-demand for sequential interview flow.
+     * @param sessionId - Interview session UUID
+     * @param accessToken - Optional authentication token
+     * @returns GenerateNextQuestionResponse with the new question and metadata
+     */
+    generateNextQuestion: async (
+        sessionId: string,
+        accessToken?: string
+    ): Promise<GenerateNextQuestionResponse> => {
+        try {
+            const headers: Record<string, string> = {};
+            if (accessToken) {
+                headers.Authorization = `Bearer ${accessToken}`;
+            }
+            const response = await apiClient.post<GenerateNextQuestionResponse>(
+                `/interviews/${sessionId}/generate-next-question`,
+                {},  // Empty body
+                { headers }
+            );
+            return response.data;
+        } catch (error: any) {
+            console.error("Error generating next question:", error);
+            // Enhanced error handling
+            if (error.response) {
+                const status = error.response.status;
+                const detail = error.response.data?.detail || error.message;
+                switch (status) {
+                    case 400:
+                        throw new Error(`Maximum questions reached: ${detail}`);
+                    case 403:
+                        throw new Error(`Access denied: ${detail}`);
+                    case 404:
+                        throw new Error(`Interview session not found: ${detail}`);
+                    case 500:
+                        throw new Error("Failed to generate question. Please try again.");
+                    default:
+                        throw new Error(`Error: ${detail}`);
+                }
+            }
+            if (error.code === 'ERR_NETWORK') {
+                throw new Error("Network error. Please check your connection and try again.");
+            }
             throw error;
         }
     },

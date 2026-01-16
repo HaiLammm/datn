@@ -53,6 +53,20 @@ class InterviewSession(Base):
         default="pending"
     )  # 'pending', 'generating', 'ready', 'in_progress', 'completed', 'cancelled', 'error'
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Interview configuration (cached for sequential question generation)
+    cv_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )  # CV used for this interview
+    job_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    job_title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    position_level: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True
+    )  # 'junior', 'middle', 'senior'
+    num_questions: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=10
+    )  # Total questions to generate
+    focus_areas: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
